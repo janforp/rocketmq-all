@@ -1,21 +1,6 @@
-/*
- * Licensed to the Apache Software Foundation (ASF) under one or more
- * contributor license agreements.  See the NOTICE file distributed with
- * this work for additional information regarding copyright ownership.
- * The ASF licenses this file to You under the Apache License, Version 2.0
- * (the "License"); you may not use this file except in compliance with
- * the License.  You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
 package org.apache.rocketmq.logging.inner;
+
+import lombok.Getter;
 
 import java.io.IOException;
 import java.io.InterruptedIOException;
@@ -31,6 +16,7 @@ public class LoggingEvent implements java.io.Serializable {
 
     transient private Object message;
 
+    @Getter
     transient private Level level;
 
     transient private Logger logger;
@@ -43,8 +29,7 @@ public class LoggingEvent implements java.io.Serializable {
 
     private Throwable throwable;
 
-    public LoggingEvent(String fqnOfCategoryClass, Logger logger,
-                        Level level, Object message, Throwable throwable) {
+    public LoggingEvent(String fqnOfCategoryClass, Logger logger, Level level, Object message, Throwable throwable) {
         this.fqnOfCategoryClass = fqnOfCategoryClass;
         this.message = message;
         this.logger = logger;
@@ -79,10 +64,6 @@ public class LoggingEvent implements java.io.Serializable {
         return threadName;
     }
 
-    public Level getLevel() {
-        return level;
-    }
-
     public String getLoggerName() {
         return logger.getName();
     }
@@ -100,7 +81,7 @@ public class LoggingEvent implements java.io.Serializable {
         }
         pw.flush();
         LineNumberReader reader = new LineNumberReader(
-            new StringReader(sw.toString()));
+                new StringReader(sw.toString()));
         ArrayList<String> lines = new ArrayList<String>();
         try {
             String line = reader.readLine();

@@ -1,20 +1,3 @@
-/*
- * Licensed to the Apache Software Foundation (ASF) under one or more
- * contributor license agreements.  See the NOTICE file distributed with
- * this work for additional information regarding copyright ownership.
- * The ASF licenses this file to You under the Apache License, Version 2.0
- * (the "License"); you may not use this file except in compliance with
- * the License.  You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
 package org.apache.rocketmq.logging.inner;
 
 import java.io.Serializable;
@@ -22,16 +5,22 @@ import java.io.Serializable;
 public class Level implements Serializable {
 
     transient int level;
+
     transient String levelStr;
+
     transient int syslogEquivalent;
 
     public final static int OFF_INT = Integer.MAX_VALUE;
-    public final static int ERROR_INT = 40000;
-    public final static int WARN_INT = 30000;
-    public final static int INFO_INT = 20000;
-    public final static int DEBUG_INT = 10000;
-    public final static int ALL_INT = Integer.MIN_VALUE;
 
+    public final static int ERROR_INT = 40000;
+
+    public final static int WARN_INT = 30000;
+
+    public final static int INFO_INT = 20000;
+
+    public final static int DEBUG_INT = 10000;
+
+    public final static int ALL_INT = Integer.MIN_VALUE;
 
     private static final String ALL_NAME = "ALL";
 
@@ -97,7 +86,6 @@ public class Level implements Serializable {
             return defaultLevel;
         }
         String s = sArg.toUpperCase();
-
         if (s.equals(ALL_NAME)) {
             return Level.ALL;
         }
@@ -116,14 +104,10 @@ public class Level implements Serializable {
         if (s.equals(OFF_NAME)) {
             return Level.OFF;
         }
-
-        if (s.equals(INFO_NAME)) {
-            return Level.INFO;
-        }
         return defaultLevel;
     }
 
-
+    @Override
     public boolean equals(Object o) {
         if (o instanceof Level) {
             Level r = (Level) o;
@@ -145,6 +129,7 @@ public class Level implements Serializable {
         return level >= r.level;
     }
 
+    @Override
     final public String toString() {
         return levelStr;
     }
@@ -152,5 +137,4 @@ public class Level implements Serializable {
     public final int toInt() {
         return level;
     }
-
 }

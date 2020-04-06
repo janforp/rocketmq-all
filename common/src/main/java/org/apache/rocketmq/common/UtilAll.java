@@ -47,7 +47,8 @@ public class UtilAll {
         RuntimeMXBean runtime = ManagementFactory.getRuntimeMXBean();
         String name = runtime.getName(); // format: "pid@hostname"
         try {
-            return Integer.parseInt(name.substring(0, name.indexOf('@')));
+            String substring = name.substring(0, name.indexOf('@'));
+            return Integer.parseInt(substring);
         } catch (Exception e) {
             return -1;
         }

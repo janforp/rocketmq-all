@@ -1,20 +1,3 @@
-/*
- * Licensed to the Apache Software Foundation (ASF) under one or more
- * contributor license agreements.  See the NOTICE file distributed with
- * this work for additional information regarding copyright ownership.
- * The ASF licenses this file to You under the Apache License, Version 2.0
- * (the "License"); you may not use this file except in compliance with
- * the License.  You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
 package org.apache.rocketmq.logging.inner;
 
 import java.io.BufferedWriter;
@@ -44,9 +27,11 @@ import java.util.TimeZone;
 public class LoggingBuilder {
 
     public static final String SYSTEM_OUT = "System.out";
+
     public static final String SYSTEM_ERR = "System.err";
 
     public static final String LOGGING_ENCODING = "rocketmq.logging.inner.encoding";
+
     public static final String ENCODING = System.getProperty(LOGGING_ENCODING, "UTF-8");
 
     public static AppenderBuilder newAppenderBuilder() {
@@ -54,6 +39,7 @@ public class LoggingBuilder {
     }
 
     public static class AppenderBuilder {
+
         private AsyncAppender asyncAppender;
 
         private Appender appender = null;
@@ -167,12 +153,14 @@ public class LoggingBuilder {
             dispatcher.start();
         }
 
+        @Override
         public void addAppender(final Appender newAppender) {
             synchronized (appenderPipeline) {
                 appenderPipeline.addAppender(newAppender);
             }
         }
 
+        @Override
         public void append(final LoggingEvent event) {
             if ((dispatcher == null) || !dispatcher.isAlive() || (bufferSize <= 0)) {
                 synchronized (appenderPipeline) {
@@ -182,7 +170,9 @@ public class LoggingBuilder {
                 return;
             }
 
-            event.getThreadName();
+            //TODO 执行一下干嘛呢？
+            String threadName = event.getThreadName();
+            System.out.println(threadName);
             event.getRenderedMessage();
 
             synchronized (buffer) {
@@ -200,9 +190,7 @@ public class LoggingBuilder {
                     }
 
                     boolean discard = true;
-                    if (blocking
-                        && !Thread.interrupted()
-                        && Thread.currentThread() != dispatcher) {
+                    if (blocking && !Thread.interrupted() && Thread.currentThread() != dispatcher) {
                         try {
                             buffer.wait();
                             discard = false;
@@ -227,6 +215,7 @@ public class LoggingBuilder {
             }
         }
 
+        @Override
         public void close() {
 
             synchronized (buffer) {
@@ -239,53 +228,59 @@ public class LoggingBuilder {
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
                 SysLogger.error(
-                    "Got an InterruptedException while waiting for the "
-                        + "dispatcher to finish.", e);
+                        "Got an InterruptedException while waiting for the "
+                                + "dispatcher to finish.", e);
             }
 
             synchronized (appenderPipeline) {
-                Enumeration iter = appenderPipeline.getAllAppenders();
+                Enumeration<Appender> iter = appenderPipeline.getAllAppenders();
                 if (iter != null) {
                     while (iter.hasMoreElements()) {
-                        Object next = iter.nextElement();
-                        if (next instanceof Appender) {
-                            ((Appender) next).close();
+                        Appender next = iter.nextElement();
+                        if (next != null) {
+                            next.close();
                         }
                     }
                 }
             }
         }
 
-        public Enumeration getAllAppenders() {
+        @Override
+        public Enumeration<Appender> getAllAppenders() {
             synchronized (appenderPipeline) {
                 return appenderPipeline.getAllAppenders();
             }
         }
 
+        @Override
         public Appender getAppender(final String name) {
             synchronized (appenderPipeline) {
                 return appenderPipeline.getAppender(name);
             }
         }
 
+        @Override
         public boolean isAttached(final Appender appender) {
             synchronized (appenderPipeline) {
                 return appenderPipeline.isAttached(appender);
             }
         }
 
+        @Override
         public void removeAllAppenders() {
             synchronized (appenderPipeline) {
                 appenderPipeline.removeAllAppenders();
             }
         }
 
+        @Override
         public void removeAppender(final Appender appender) {
             synchronized (appenderPipeline) {
                 appenderPipeline.removeAppender(appender);
             }
         }
 
+        @Override
         public void removeAppender(final String name) {
             synchronized (appenderPipeline) {
                 appenderPipeline.removeAppender(name);
@@ -318,7 +313,7 @@ public class LoggingBuilder {
             return blocking;
         }
 
-        private final class DiscardSummary {
+        private static final class DiscardSummary {
 
             private LoggingEvent maxEvent;
 
@@ -338,20 +333,20 @@ public class LoggingBuilder {
 
             public LoggingEvent createEvent() {
                 String msg =
-                    MessageFormat.format(
-                        "Discarded {0} messages due to full event buffer including: {1}",
-                        count, maxEvent.getMessage());
+                        MessageFormat.format(
+                                "Discarded {0} messages due to full event buffer including: {1}",
+                                count, maxEvent.getMessage());
 
                 return new LoggingEvent(
-                    "AsyncAppender.DONT_REPORT_LOCATION",
-                    Logger.getLogger(maxEvent.getLoggerName()),
-                    maxEvent.getLevel(),
-                    msg,
-                    null);
+                        "AsyncAppender.DONT_REPORT_LOCATION",
+                        Logger.getLogger(maxEvent.getLoggerName()),
+                        maxEvent.getLevel(),
+                        msg,
+                        null);
             }
         }
 
-        private class Dispatcher implements Runnable {
+        private static class Dispatcher implements Runnable {
 
             private final AsyncAppender parent;
 
@@ -362,8 +357,8 @@ public class LoggingBuilder {
             private final AppenderPipelineImpl appenderPipeline;
 
             public Dispatcher(
-                final AsyncAppender parent, final List<LoggingEvent> buffer, final Map<String, DiscardSummary> discardMap,
-                final AppenderPipelineImpl appenderPipeline) {
+                    final AsyncAppender parent, final List<LoggingEvent> buffer, final Map<String, DiscardSummary> discardMap,
+                    final AppenderPipelineImpl appenderPipeline) {
 
                 this.parent = parent;
                 this.buffer = buffer;
@@ -371,6 +366,7 @@ public class LoggingBuilder {
                 this.discardMap = discardMap;
             }
 
+            @Override
             public void run() {
                 boolean isActive = true;
 
@@ -428,34 +424,34 @@ public class LoggingBuilder {
             this.appender = appender;
         }
 
+        @Override
         public void write(String string) {
             if (string != null) {
                 try {
                     out.write(string);
                 } catch (Exception e) {
                     appender.handleError("Failed to write [" + string + "].", e,
-                        Appender.CODE_WRITE_FAILURE);
+                            Appender.CODE_WRITE_FAILURE);
                 }
             }
         }
 
+        @Override
         public void flush() {
             try {
                 out.flush();
             } catch (Exception e) {
                 appender.handleError("Failed to flush writer,", e,
-                    Appender.CODE_FLUSH_FAILURE);
+                        Appender.CODE_FLUSH_FAILURE);
             }
         }
     }
 
     public static class WriterAppender extends Appender {
 
-
         protected boolean immediateFlush = true;
 
         protected String encoding;
-
 
         protected QuietWriter qw;
 
@@ -467,15 +463,15 @@ public class LoggingBuilder {
             immediateFlush = value;
         }
 
-
         public boolean getImmediateFlush() {
             return immediateFlush;
         }
 
+        @Override
         public void activateOptions() {
         }
 
-
+        @Override
         public void append(LoggingEvent event) {
             if (!checkEntryConditions()) {
                 return;
@@ -491,7 +487,7 @@ public class LoggingBuilder {
 
             if (this.qw == null) {
                 handleError("No output stream or file set for the appender named [" +
-                    name + "].");
+                        name + "].");
                 return false;
             }
 
@@ -502,6 +498,7 @@ public class LoggingBuilder {
             return true;
         }
 
+        @Override
         public synchronized void close() {
             if (this.closed) {
                 return;
@@ -546,7 +543,6 @@ public class LoggingBuilder {
         public void setEncoding(String value) {
             encoding = value;
         }
-
 
         public synchronized void setWriter(Writer writer) {
             reset();
@@ -601,7 +597,6 @@ public class LoggingBuilder {
         }
     }
 
-
     public static class FileAppender extends WriterAppender {
 
         protected boolean fileAppend = true;
@@ -616,7 +611,7 @@ public class LoggingBuilder {
         }
 
         public FileAppender(Layout layout, String filename, boolean append)
-            throws IOException {
+                throws IOException {
             this.layout = layout;
             this.setFile(filename, append, false, bufferSize);
         }
@@ -633,13 +628,14 @@ public class LoggingBuilder {
             return fileName;
         }
 
+        @Override
         public void activateOptions() {
             if (fileName != null) {
                 try {
                     setFile(fileName, fileAppend, bufferedIO, bufferSize);
                 } catch (IOException e) {
                     handleError("setFile(" + fileName + "," + fileAppend + ") call failed.",
-                        e, CODE_FILE_OPEN_FAILURE);
+                            e, CODE_FILE_OPEN_FAILURE);
                 }
             } else {
                 SysLogger.warn("File option not set for appender [" + name + "].");
@@ -684,7 +680,7 @@ public class LoggingBuilder {
         }
 
         public synchronized void setFile(String fileName, boolean append, boolean bufferedIO, int bufferSize)
-            throws IOException {
+                throws IOException {
             SysLogger.debug("setFile called: " + fileName + ", " + append);
 
             if (bufferedIO) {
@@ -731,7 +727,6 @@ public class LoggingBuilder {
             super.reset();
         }
     }
-
 
     public static class RollingFileAppender extends FileAppender {
 
@@ -816,7 +811,7 @@ public class LoggingBuilder {
         }
 
         public synchronized void setFile(String fileName, boolean append, boolean bufferedIO, int bufferSize)
-            throws IOException {
+                throws IOException {
             super.setFile(fileName, append, this.bufferedIO, this.bufferSize);
             if (append) {
                 File f = new File(fileName);
@@ -854,6 +849,7 @@ public class LoggingBuilder {
                 super(writer, appender);
             }
 
+            @Override
             public void write(String string) {
                 try {
                     out.write(string);
@@ -874,17 +870,21 @@ public class LoggingBuilder {
         }
     }
 
-
     public static class DailyRollingFileAppender extends FileAppender {
 
         static final int TOP_OF_TROUBLE = -1;
-        static final int TOP_OF_MINUTE = 0;
-        static final int TOP_OF_HOUR = 1;
-        static final int HALF_DAY = 2;
-        static final int TOP_OF_DAY = 3;
-        static final int TOP_OF_WEEK = 4;
-        static final int TOP_OF_MONTH = 5;
 
+        static final int TOP_OF_MINUTE = 0;
+
+        static final int TOP_OF_HOUR = 1;
+
+        static final int HALF_DAY = 2;
+
+        static final int TOP_OF_DAY = 3;
+
+        static final int TOP_OF_WEEK = 4;
+
+        static final int TOP_OF_MONTH = 5;
 
         /**
          * The date pattern. By default, the pattern is set to
@@ -904,7 +904,6 @@ public class LoggingBuilder {
 
         final TimeZone gmtTimeZone = TimeZone.getTimeZone("GMT");
 
-
         public void setDatePattern(String pattern) {
             datePattern = pattern;
         }
@@ -913,6 +912,7 @@ public class LoggingBuilder {
             return datePattern;
         }
 
+        @Override
         public void activateOptions() {
             super.activateOptions();
             if (datePattern != null && fileName != null) {
@@ -1028,6 +1028,7 @@ public class LoggingBuilder {
     }
 
     private static class RollingCalendar extends GregorianCalendar {
+
         private static final long serialVersionUID = -3560331770601814177L;
 
         int type = DailyRollingFileAppender.TOP_OF_TROUBLE;
@@ -1133,6 +1134,7 @@ public class LoggingBuilder {
             SysLogger.warn("Using previously set target, System.out by default.");
         }
 
+        @Override
         public void activateOptions() {
             if (target.equals(SYSTEM_ERR)) {
                 setWriter(createWriter(System.err));
@@ -1192,11 +1194,11 @@ public class LoggingBuilder {
         }
     }
 
-
     /**
      * %d{yyy-MM-dd HH:mm:ss,SSS} %p %c{1}%L - %m%n
      */
     public static class DefaultLayout extends Layout {
+
         @Override
         public String format(LoggingEvent event) {
 

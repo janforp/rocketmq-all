@@ -1,26 +1,8 @@
-/*
- * Licensed to the Apache Software Foundation (ASF) under one or more
- * contributor license agreements.  See the NOTICE file distributed with
- * this work for additional information regarding copyright ownership.
- * The ASF licenses this file to You under the Apache License, Version 2.0
- * (the "License"); you may not use this file except in compliance with
- * the License.  You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
 package org.apache.rocketmq.logging.inner;
 
 import java.util.Enumeration;
 import java.util.Hashtable;
 import java.util.Vector;
-
 
 public class Logger implements Appender.AppenderPipeline {
 
@@ -58,6 +40,7 @@ public class Logger implements Appender.AppenderPipeline {
         return getRepository().getRootLogger();
     }
 
+    @Override
     synchronized public void addAppender(Appender newAppender) {
         if (appenderPipeline == null) {
             appenderPipeline = new Appender.AppenderPipelineImpl();
@@ -105,7 +88,6 @@ public class Logger implements Appender.AppenderPipeline {
         }
     }
 
-
     public void debug(Object message, Throwable t) {
         if (getRepository().isDisabled(Level.DEBUG_INT)) {
             return;
@@ -114,7 +96,6 @@ public class Logger implements Appender.AppenderPipeline {
             forcedLog(FQCN, Level.DEBUG, message, t);
         }
     }
-
 
     public void error(Object message) {
         if (getRepository().isDisabled(Level.ERROR_INT)) {
@@ -135,13 +116,12 @@ public class Logger implements Appender.AppenderPipeline {
 
     }
 
-
     protected void forcedLog(String fqcn, Level level, Object message, Throwable t) {
         callAppenders(new LoggingEvent(fqcn, this, level, message, t));
     }
 
-
-    synchronized public Enumeration getAllAppenders() {
+    @Override
+    synchronized public Enumeration<Appender> getAllAppenders() {
         if (appenderPipeline == null) {
             return null;
         } else {
@@ -149,6 +129,7 @@ public class Logger implements Appender.AppenderPipeline {
         }
     }
 
+    @Override
     synchronized public Appender getAppender(String name) {
         if (appenderPipeline == null || name == null) {
             return null;
@@ -174,7 +155,6 @@ public class Logger implements Appender.AppenderPipeline {
         return this.level;
     }
 
-
     public void info(Object message) {
         if (getRepository().isDisabled(Level.INFO_INT)) {
             return;
@@ -193,10 +173,12 @@ public class Logger implements Appender.AppenderPipeline {
         }
     }
 
+    @Override
     public boolean isAttached(Appender appender) {
         return appender != null && appenderPipeline != null && appenderPipeline.isAttached(appender);
     }
 
+    @Override
     synchronized public void removeAllAppenders() {
         if (appenderPipeline != null) {
             appenderPipeline.removeAllAppenders();
@@ -204,6 +186,7 @@ public class Logger implements Appender.AppenderPipeline {
         }
     }
 
+    @Override
     synchronized public void removeAppender(Appender appender) {
         if (appender == null || appenderPipeline == null) {
             return;
@@ -211,6 +194,7 @@ public class Logger implements Appender.AppenderPipeline {
         appenderPipeline.removeAppender(appender);
     }
 
+    @Override
     synchronized public void removeAppender(String name) {
         if (name == null || appenderPipeline == null) {
             return;
@@ -276,10 +260,12 @@ public class Logger implements Appender.AppenderPipeline {
 
     public static class DefaultLoggerRepository implements LoggerRepository {
 
-        final Hashtable<CategoryKey,Object> ht = new Hashtable<CategoryKey,Object>();
+        final Hashtable<CategoryKey, Object> ht = new Hashtable<CategoryKey, Object>();
+
         Logger root;
 
         int logLevelInt;
+
         Level logLevel;
 
         boolean emittedNoAppenderWarning = false;
@@ -289,6 +275,7 @@ public class Logger implements Appender.AppenderPipeline {
             setLogLevel(Level.ALL);
         }
 
+        @Override
         public void emitNoAppenderWarning(Logger cat) {
             if (!this.emittedNoAppenderWarning) {
                 SysLogger.warn("No appenders could be found for logger (" + cat.getName() + ").");
@@ -297,6 +284,7 @@ public class Logger implements Appender.AppenderPipeline {
             }
         }
 
+        @Override
         public Logger exists(String name) {
             Object o = ht.get(new CategoryKey(name));
             if (o instanceof Logger) {
@@ -306,6 +294,7 @@ public class Logger implements Appender.AppenderPipeline {
             }
         }
 
+        @Override
         public void setLogLevel(Level l) {
             if (l != null) {
                 logLevelInt = l.level;
@@ -313,11 +302,12 @@ public class Logger implements Appender.AppenderPipeline {
             }
         }
 
+        @Override
         public Level getLogLevel() {
             return logLevel;
         }
 
-
+        @Override
         public Logger getLogger(String name) {
             CategoryKey key = new CategoryKey(name);
             Logger logger;
@@ -347,6 +337,7 @@ public class Logger implements Appender.AppenderPipeline {
             return new Logger(name);
         }
 
+        @Override
         public Enumeration getCurrentLoggers() {
             Vector<Logger> loggers = new Vector<Logger>(ht.size());
 
@@ -354,22 +345,22 @@ public class Logger implements Appender.AppenderPipeline {
             while (elems.hasMoreElements()) {
                 Object o = elems.nextElement();
                 if (o instanceof Logger) {
-                    Logger logger = (Logger)o;
+                    Logger logger = (Logger) o;
                     loggers.addElement(logger);
                 }
             }
             return loggers.elements();
         }
 
-
+        @Override
         public Logger getRootLogger() {
             return root;
         }
 
+        @Override
         public boolean isDisabled(int level) {
             return logLevelInt > level;
         }
-
 
         public void shutdown() {
             Logger root = getRootLogger();
@@ -384,7 +375,6 @@ public class Logger implements Appender.AppenderPipeline {
                 root.removeAllAppenders();
             }
         }
-
 
         private void updateParents(Logger cat) {
             String name = cat.name;
@@ -427,9 +417,10 @@ public class Logger implements Appender.AppenderPipeline {
             }
         }
 
-        private class CategoryKey {
+        private static class CategoryKey {
 
             String name;
+
             int hashCache;
 
             CategoryKey(String name) {
@@ -437,24 +428,25 @@ public class Logger implements Appender.AppenderPipeline {
                 hashCache = name.hashCode();
             }
 
+            @Override
             final public int hashCode() {
                 return hashCache;
             }
 
-            final public boolean equals(Object o) {
-                if (this == o) {
+            @Override
+            final public boolean equals(Object obj) {
+                if (this == obj) {
                     return true;
                 }
-
-                if (o != null && o instanceof CategoryKey) {
-                    CategoryKey cc = (CategoryKey) o;
+                //null instanceof CategoryKey is always false
+                if (obj instanceof CategoryKey) {
+                    CategoryKey cc = (CategoryKey) obj;
                     return name.equals(cc.name);
                 } else {
                     return false;
                 }
             }
         }
-
     }
 
     public static class RootLogger extends Logger {
