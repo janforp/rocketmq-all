@@ -1,6 +1,9 @@
 package org.apache.rocketmq.namesrv.routeinfo;
 
 import io.netty.channel.Channel;
+import lombok.AllArgsConstructor;
+import lombok.Getter;
+import lombok.Setter;
 import org.apache.rocketmq.common.DataVersion;
 import org.apache.rocketmq.common.MixAll;
 import org.apache.rocketmq.common.TopicConfig;
@@ -30,6 +33,10 @@ import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 
+/**
+ * 这个最重要的类，负责缓存整个集群的broker信息，以及topic和queue的配置信息。
+ * RouteInfoManager的所有数据通过HashMap缓存在内存中，通过读写锁来控制并发更新。这样可最大程度的提高客户端查询数据的速度。数据更新时会将数据保存到文件中，重启后可恢复数据。
+ */
 public class RouteInfoManager {
 
     private static final InternalLogger log = InternalLoggerFactory.getLogger(LoggerName.NAMESRV_LOGGER_NAME);
@@ -38,14 +45,29 @@ public class RouteInfoManager {
 
     private final ReadWriteLock lock = new ReentrantReadWriteLock();
 
+    /**
+     * Topic和broker的Map，保存了topic在每个broker上的读写Queue的个数以及读写权限
+     */
     private final HashMap<String/* topic */, List<QueueData>> topicQueueTable;
 
+    /**
+     * 注册到nameserv上的所有Broker，按照brokername分组
+     */
     private final HashMap<String/* brokerName */, BrokerData> brokerAddrTable;
 
+    /**
+     * broker的集群对应关系
+     */
     private final HashMap<String/* clusterName */, Set<String/* brokerName */>> clusterAddrTable;
 
+    /**
+     * broker最新的心跳时间和配置版本号
+     */
     private final HashMap<String/* brokerAddr */, BrokerLiveInfo> brokerLiveTable;
 
+    /**
+     * broker和FilterServer的对应关系
+     */
     private final HashMap<String/* brokerAddr */, List<String>/* Filter Server */> filterServerTable;
 
     public RouteInfoManager() {
@@ -92,15 +114,10 @@ public class RouteInfoManager {
         return topicList.encode();
     }
 
-    public RegisterBrokerResult registerBroker(
-            final String clusterName,
-            final String brokerAddr,
-            final String brokerName,
-            final long brokerId,
-            final String haServerAddr,
-            final TopicConfigSerializeWrapper topicConfigWrapper,
-            final List<String> filterServerList,
-            final Channel channel) {
+    public RegisterBrokerResult registerBroker(final String clusterName, final String brokerAddr, final String brokerName,
+            final long brokerId, final String haServerAddr, final TopicConfigSerializeWrapper topicConfigWrapper,
+            final List<String> filterServerList, final Channel channel) {
+
         RegisterBrokerResult result = new RegisterBrokerResult();
         try {
             try {
@@ -745,55 +762,24 @@ public class RouteInfoManager {
     }
 }
 
+@AllArgsConstructor
 class BrokerLiveInfo {
 
+    @Setter
+    @Getter
     private long lastUpdateTimestamp;
 
+    @Setter
+    @Getter
     private DataVersion dataVersion;
 
+    @Setter
+    @Getter
     private Channel channel;
 
+    @Setter
+    @Getter
     private String haServerAddr;
-
-    public BrokerLiveInfo(long lastUpdateTimestamp, DataVersion dataVersion, Channel channel,
-            String haServerAddr) {
-        this.lastUpdateTimestamp = lastUpdateTimestamp;
-        this.dataVersion = dataVersion;
-        this.channel = channel;
-        this.haServerAddr = haServerAddr;
-    }
-
-    public long getLastUpdateTimestamp() {
-        return lastUpdateTimestamp;
-    }
-
-    public void setLastUpdateTimestamp(long lastUpdateTimestamp) {
-        this.lastUpdateTimestamp = lastUpdateTimestamp;
-    }
-
-    public DataVersion getDataVersion() {
-        return dataVersion;
-    }
-
-    public void setDataVersion(DataVersion dataVersion) {
-        this.dataVersion = dataVersion;
-    }
-
-    public Channel getChannel() {
-        return channel;
-    }
-
-    public void setChannel(Channel channel) {
-        this.channel = channel;
-    }
-
-    public String getHaServerAddr() {
-        return haServerAddr;
-    }
-
-    public void setHaServerAddr(String haServerAddr) {
-        this.haServerAddr = haServerAddr;
-    }
 
     @Override
     public String toString() {
