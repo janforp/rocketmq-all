@@ -1,22 +1,13 @@
-/*
- * Licensed to the Apache Software Foundation (ASF) under one or more
- * contributor license agreements.  See the NOTICE file distributed with
- * this work for additional information regarding copyright ownership.
- * The ASF licenses this file to You under the Apache License, Version 2.0
- * (the "License"); you may not use this file except in compliance with
- * the License.  You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
 package org.apache.rocketmq.remoting.protocol;
 
 import com.alibaba.fastjson.annotation.JSONField;
+import org.apache.rocketmq.logging.InternalLogger;
+import org.apache.rocketmq.logging.InternalLoggerFactory;
+import org.apache.rocketmq.remoting.CommandCustomHeader;
+import org.apache.rocketmq.remoting.annotation.CFNotNull;
+import org.apache.rocketmq.remoting.common.RemotingHelper;
+import org.apache.rocketmq.remoting.exception.RemotingCommandException;
+
 import java.lang.annotation.Annotation;
 import java.lang.reflect.Field;
 import java.lang.reflect.Modifier;
@@ -24,36 +15,50 @@ import java.nio.ByteBuffer;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
-import org.apache.rocketmq.remoting.CommandCustomHeader;
-import org.apache.rocketmq.remoting.annotation.CFNotNull;
-import org.apache.rocketmq.remoting.common.RemotingHelper;
-import org.apache.rocketmq.remoting.exception.RemotingCommandException;
-import org.apache.rocketmq.logging.InternalLogger;
-import org.apache.rocketmq.logging.InternalLoggerFactory;
 
 public class RemotingCommand {
+
     public static final String SERIALIZE_TYPE_PROPERTY = "rocketmq.serialize.type";
+
     public static final String SERIALIZE_TYPE_ENV = "ROCKETMQ_SERIALIZE_TYPE";
+
     public static final String REMOTING_VERSION_KEY = "rocketmq.remoting.version";
+
     private static final InternalLogger log = InternalLoggerFactory.getLogger(RemotingHelper.ROCKETMQ_REMOTING);
+
     private static final int RPC_TYPE = 0; // 0, REQUEST_COMMAND
+
     private static final int RPC_ONEWAY = 1; // 0, RPC
+
     private static final Map<Class<? extends CommandCustomHeader>, Field[]> CLASS_HASH_MAP =
-        new HashMap<Class<? extends CommandCustomHeader>, Field[]>();
+            new HashMap<Class<? extends CommandCustomHeader>, Field[]>();
+
     private static final Map<Class, String> CANONICAL_NAME_CACHE = new HashMap<Class, String>();
+
     // 1, Oneway
     // 1, RESPONSE_COMMAND
     private static final Map<Field, Boolean> NULLABLE_FIELD_CACHE = new HashMap<Field, Boolean>();
+
     private static final String STRING_CANONICAL_NAME = String.class.getCanonicalName();
+
     private static final String DOUBLE_CANONICAL_NAME_1 = Double.class.getCanonicalName();
+
     private static final String DOUBLE_CANONICAL_NAME_2 = double.class.getCanonicalName();
+
     private static final String INTEGER_CANONICAL_NAME_1 = Integer.class.getCanonicalName();
+
     private static final String INTEGER_CANONICAL_NAME_2 = int.class.getCanonicalName();
+
     private static final String LONG_CANONICAL_NAME_1 = Long.class.getCanonicalName();
+
     private static final String LONG_CANONICAL_NAME_2 = long.class.getCanonicalName();
+
     private static final String BOOLEAN_CANONICAL_NAME_1 = Boolean.class.getCanonicalName();
+
     private static final String BOOLEAN_CANONICAL_NAME_2 = boolean.class.getCanonicalName();
+
     private static volatile int configVersion = -1;
+
     private static AtomicInteger requestId = new AtomicInteger(0);
 
     private static SerializeType serializeTypeConfigInThisServer = SerializeType.JSON;
@@ -70,12 +75,19 @@ public class RemotingCommand {
     }
 
     private int code;
+
     private LanguageCode language = LanguageCode.JAVA;
+
     private int version = 0;
+
     private int opaque = requestId.getAndIncrement();
+
     private int flag = 0;
+
     private String remark;
+
     private HashMap<String, String> extFields;
+
     private transient CommandCustomHeader customHeader;
 
     private SerializeType serializeTypeCurrentRPC = serializeTypeConfigInThisServer;
@@ -111,7 +123,7 @@ public class RemotingCommand {
     }
 
     public static RemotingCommand createResponseCommand(int code, String remark,
-        Class<? extends CommandCustomHeader> classHeader) {
+            Class<? extends CommandCustomHeader> classHeader) {
         RemotingCommand cmd = new RemotingCommand();
         cmd.markResponseType();
         cmd.setCode(code);
@@ -232,7 +244,7 @@ public class RemotingCommand {
     }
 
     public CommandCustomHeader decodeCommandCustomHeader(
-        Class<? extends CommandCustomHeader> classHeader) throws RemotingCommandException {
+            Class<? extends CommandCustomHeader> classHeader) throws RemotingCommandException {
         CommandCustomHeader objectHeader;
         try {
             objectHeader = classHeader.newInstance();
@@ -529,8 +541,8 @@ public class RemotingCommand {
     @Override
     public String toString() {
         return "RemotingCommand [code=" + code + ", language=" + language + ", version=" + version + ", opaque=" + opaque + ", flag(B)="
-            + Integer.toBinaryString(flag) + ", remark=" + remark + ", extFields=" + extFields + ", serializeTypeCurrentRPC="
-            + serializeTypeCurrentRPC + "]";
+                + Integer.toBinaryString(flag) + ", remark=" + remark + ", extFields=" + extFields + ", serializeTypeCurrentRPC="
+                + serializeTypeCurrentRPC + "]";
     }
 
     public SerializeType getSerializeTypeCurrentRPC() {

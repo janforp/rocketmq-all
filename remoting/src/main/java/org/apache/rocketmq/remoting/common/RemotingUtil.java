@@ -1,24 +1,11 @@
-/*
- * Licensed to the Apache Software Foundation (ASF) under one or more
- * contributor license agreements.  See the NOTICE file distributed with
- * this work for additional information regarding copyright ownership.
- * The ASF licenses this file to You under the Apache License, Version 2.0
- * (the "License"); you may not use this file except in compliance with
- * the License.  You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
 package org.apache.rocketmq.remoting.common;
 
 import io.netty.channel.Channel;
 import io.netty.channel.ChannelFuture;
 import io.netty.channel.ChannelFutureListener;
+import org.apache.rocketmq.logging.InternalLogger;
+import org.apache.rocketmq.logging.InternalLoggerFactory;
+
 import java.io.IOException;
 import java.lang.reflect.Method;
 import java.net.Inet6Address;
@@ -31,14 +18,15 @@ import java.nio.channels.SocketChannel;
 import java.nio.channels.spi.SelectorProvider;
 import java.util.ArrayList;
 import java.util.Enumeration;
-import org.apache.rocketmq.logging.InternalLogger;
-import org.apache.rocketmq.logging.InternalLoggerFactory;
 
 public class RemotingUtil {
+
     public static final String OS_NAME = System.getProperty("os.name");
 
     private static final InternalLogger log = InternalLoggerFactory.getLogger(RemotingHelper.ROCKETMQ_REMOTING);
+
     private static boolean isLinuxPlatform = false;
+
     private static boolean isWindowsPlatform = false;
 
     static {
@@ -101,19 +89,25 @@ public class RemotingUtil {
                 final Enumeration<InetAddress> en = networkInterface.getInetAddresses();
                 while (en.hasMoreElements()) {
                     final InetAddress address = en.nextElement();
-                    if (!address.isLoopbackAddress()) {
+
+                    boolean loopbackAddress = address.isLoopbackAddress();
+                    if (!loopbackAddress) {
+
+                        String hostAddress = normalizeHostAddress(address);
+
                         if (address instanceof Inet6Address) {
-                            ipv6Result.add(normalizeHostAddress(address));
+                            ipv6Result.add(hostAddress);
                         } else {
-                            ipv4Result.add(normalizeHostAddress(address));
+                            ipv4Result.add(hostAddress);
                         }
                     }
                 }
             }
 
-            // prefer ipv4
+            // prefer ipv4，ipv4优先
             if (!ipv4Result.isEmpty()) {
                 for (String ip : ipv4Result) {
+                    //以这些开头的一般都是局域网之内的IP地址，区别于外网IP
                     if (ip.startsWith("127.0") || ip.startsWith("192.168")) {
                         continue;
                     }
@@ -121,11 +115,15 @@ public class RemotingUtil {
                     return ip;
                 }
 
+                //TODO 直接返回最后一个？
                 return ipv4Result.get(ipv4Result.size() - 1);
+
             } else if (!ipv6Result.isEmpty()) {
+                //如果 ipv4 为空，ipv6有，则取第一个 ipv6
                 return ipv6Result.get(0);
             }
             //If failed to find,fall back to localhost
+            //如果 ipv4,ipv6 都么有，则使用 localhost
             final InetAddress localHost = InetAddress.getLocalHost();
             return normalizeHostAddress(localHost);
         } catch (Exception e) {
@@ -195,7 +193,7 @@ public class RemotingUtil {
             @Override
             public void operationComplete(ChannelFuture future) throws Exception {
                 log.info("closeChannel: close the connection to remote address[{}] result: {}", addrRemote,
-                    future.isSuccess());
+                        future.isSuccess());
             }
         });
     }

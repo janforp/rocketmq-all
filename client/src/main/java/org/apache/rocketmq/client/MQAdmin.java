@@ -1,19 +1,3 @@
-/*
- * Licensed to the Apache Software Foundation (ASF) under one or more
- * contributor license agreements.  See the NOTICE file distributed with
- * this work for additional information regarding copyright ownership.
- * The ASF licenses this file to You under the Apache License, Version 2.0
- * (the "License"); you may not use this file except in compliance with
- * the License.  You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
 package org.apache.rocketmq.client;
 
 import org.apache.rocketmq.client.exception.MQBrokerException;
@@ -26,6 +10,7 @@ import org.apache.rocketmq.remoting.exception.RemotingException;
  * Base interface for MQ management
  */
 public interface MQAdmin {
+
     /**
      * Creates an topic
      *
@@ -34,7 +19,7 @@ public interface MQAdmin {
      * @param queueNum topic's queue number
      */
     void createTopic(final String key, final String newTopic, final int queueNum)
-        throws MQClientException;
+            throws MQClientException;
 
     /**
      * Creates an topic
@@ -45,7 +30,7 @@ public interface MQAdmin {
      * @param topicSysFlag topic system flag
      */
     void createTopic(String key, String newTopic, int queueNum, int topicSysFlag)
-        throws MQClientException;
+            throws MQClientException;
 
     /**
      * Gets the message queue offset according to some time in milliseconds<br>
@@ -88,7 +73,7 @@ public interface MQAdmin {
      * @return message
      */
     MessageExt viewMessage(final String offsetMsgId) throws RemotingException, MQBrokerException,
-        InterruptedException, MQClientException;
+            InterruptedException, MQClientException;
 
     /**
      * Query messages
@@ -101,12 +86,12 @@ public interface MQAdmin {
      * @return Instance of QueryResult
      */
     QueryResult queryMessage(final String topic, final String key, final int maxNum, final long begin,
-        final long end) throws MQClientException, InterruptedException;
+            final long end) throws MQClientException, InterruptedException;
 
     /**
      * @return The {@code MessageExt} of given msgId
      */
     MessageExt viewMessage(String topic,
-        String msgId) throws RemotingException, MQBrokerException, InterruptedException, MQClientException;
+            String msgId) throws RemotingException, MQBrokerException, InterruptedException, MQClientException;
 
 }

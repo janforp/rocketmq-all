@@ -1,44 +1,39 @@
-/*
- * Licensed to the Apache Software Foundation (ASF) under one or more
- * contributor license agreements.  See the NOTICE file distributed with
- * this work for additional information regarding copyright ownership.
- * The ASF licenses this file to You under the Apache License, Version 2.0
- * (the "License"); you may not use this file except in compliance with
- * the License.  You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
 package org.apache.rocketmq.remoting.netty;
 
 import io.netty.handler.ssl.SslContext;
 import org.apache.rocketmq.remoting.common.TlsMode;
 
 public class TlsSystemConfig {
+
     public static final String TLS_SERVER_MODE = "tls.server.mode";
+
     public static final String TLS_ENABLE = "tls.enable";
+
     public static final String TLS_CONFIG_FILE = "tls.config.file";
+
     public static final String TLS_TEST_MODE_ENABLE = "tls.test.mode.enable";
 
     public static final String TLS_SERVER_NEED_CLIENT_AUTH = "tls.server.need.client.auth";
+
     public static final String TLS_SERVER_KEYPATH = "tls.server.keyPath";
+
     public static final String TLS_SERVER_KEYPASSWORD = "tls.server.keyPassword";
+
     public static final String TLS_SERVER_CERTPATH = "tls.server.certPath";
+
     public static final String TLS_SERVER_AUTHCLIENT = "tls.server.authClient";
+
     public static final String TLS_SERVER_TRUSTCERTPATH = "tls.server.trustCertPath";
 
     public static final String TLS_CLIENT_KEYPATH = "tls.client.keyPath";
-    public static final String TLS_CLIENT_KEYPASSWORD = "tls.client.keyPassword";
-    public static final String TLS_CLIENT_CERTPATH = "tls.client.certPath";
-    public static final String TLS_CLIENT_AUTHSERVER = "tls.client.authServer";
-    public static final String TLS_CLIENT_TRUSTCERTPATH = "tls.client.trustCertPath";
 
+    public static final String TLS_CLIENT_KEYPASSWORD = "tls.client.keyPassword";
+
+    public static final String TLS_CLIENT_CERTPATH = "tls.client.certPath";
+
+    public static final String TLS_CLIENT_AUTHSERVER = "tls.client.authServer";
+
+    public static final String TLS_CLIENT_TRUSTCERTPATH = "tls.client.trustCertPath";
 
     /**
      * To determine whether use SSL in client-side, include SDK client and BrokerOuterAPI
@@ -56,6 +51,7 @@ public class TlsSystemConfig {
      * and can be set to none, require or optional.
      */
     public static String tlsServerNeedClientAuth = System.getProperty(TLS_SERVER_NEED_CLIENT_AUTH, "none");
+
     /**
      * The store path of server-side private key
      */

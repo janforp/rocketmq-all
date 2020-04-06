@@ -1,20 +1,10 @@
-/*
- * Licensed to the Apache Software Foundation (ASF) under one or more
- * contributor license agreements.  See the NOTICE file distributed with
- * this work for additional information regarding copyright ownership.
- * The ASF licenses this file to You under the Apache License, Version 2.0
- * (the "License"); you may not use this file except in compliance with
- * the License.  You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
 package org.apache.rocketmq.common;
+
+import org.apache.rocketmq.common.annotation.ImportantField;
+import org.apache.rocketmq.common.constant.LoggerName;
+import org.apache.rocketmq.common.help.FAQUrl;
+import org.apache.rocketmq.logging.InternalLogger;
+import org.apache.rocketmq.logging.InternalLoggerFactory;
 
 import java.io.ByteArrayInputStream;
 import java.io.File;
@@ -38,59 +28,102 @@ import java.util.List;
 import java.util.Map;
 import java.util.Properties;
 import java.util.concurrent.atomic.AtomicLong;
-import org.apache.rocketmq.common.annotation.ImportantField;
-import org.apache.rocketmq.common.constant.LoggerName;
-import org.apache.rocketmq.common.help.FAQUrl;
-import org.apache.rocketmq.logging.InternalLogger;
-import org.apache.rocketmq.logging.InternalLoggerFactory;
 
 public class MixAll {
+
     public static final String ROCKETMQ_HOME_ENV = "ROCKETMQ_HOME";
+
     public static final String ROCKETMQ_HOME_PROPERTY = "rocketmq.home.dir";
+
     public static final String NAMESRV_ADDR_ENV = "NAMESRV_ADDR";
+
     public static final String NAMESRV_ADDR_PROPERTY = "rocketmq.namesrv.addr";
+
     public static final String MESSAGE_COMPRESS_LEVEL = "rocketmq.message.compressLevel";
+
     public static final String DEFAULT_NAMESRV_ADDR_LOOKUP = "jmenv.tbsite.net";
+
     public static final String WS_DOMAIN_NAME = System.getProperty("rocketmq.namesrv.domain", DEFAULT_NAMESRV_ADDR_LOOKUP);
+
     public static final String WS_DOMAIN_SUBGROUP = System.getProperty("rocketmq.namesrv.domain.subgroup", "nsaddr");
-    //http://jmenv.tbsite.net:8080/rocketmq/nsaddr
-    //public static final String WS_ADDR = "http://" + WS_DOMAIN_NAME + ":8080/rocketmq/" + WS_DOMAIN_SUBGROUP;
-    public static final String AUTO_CREATE_TOPIC_KEY_TOPIC = "TBW102"; // Will be created at broker when isAutoCreateTopicEnable
+
+    /**
+     * //http://jmenv.tbsite.net:8080/rocketmq/nsaddr
+     * //public static final String WS_ADDR = "http://" + WS_DOMAIN_NAME + ":8080/rocketmq/" + WS_DOMAIN_SUBGROUP;
+     * Will be created at broker when isAutoCreateTopicEnable
+     */
+    public static final String AUTO_CREATE_TOPIC_KEY_TOPIC = "TBW102";
+
     public static final String BENCHMARK_TOPIC = "BenchmarkTest";
+
     public static final String DEFAULT_PRODUCER_GROUP = "DEFAULT_PRODUCER";
+
     public static final String DEFAULT_CONSUMER_GROUP = "DEFAULT_CONSUMER";
+
     public static final String TOOLS_CONSUMER_GROUP = "TOOLS_CONSUMER";
+
     public static final String FILTERSRV_CONSUMER_GROUP = "FILTERSRV_CONSUMER";
+
     public static final String MONITOR_CONSUMER_GROUP = "__MONITOR_CONSUMER";
+
     public static final String CLIENT_INNER_PRODUCER_GROUP = "CLIENT_INNER_PRODUCER";
+
     public static final String SELF_TEST_PRODUCER_GROUP = "SELF_TEST_P_GROUP";
+
     public static final String SELF_TEST_CONSUMER_GROUP = "SELF_TEST_C_GROUP";
+
     public static final String SELF_TEST_TOPIC = "SELF_TEST_TOPIC";
+
     public static final String OFFSET_MOVED_EVENT = "OFFSET_MOVED_EVENT";
+
     public static final String ONS_HTTP_PROXY_GROUP = "CID_ONS-HTTP-PROXY";
+
     public static final String CID_ONSAPI_PERMISSION_GROUP = "CID_ONSAPI_PERMISSION";
+
     public static final String CID_ONSAPI_OWNER_GROUP = "CID_ONSAPI_OWNER";
+
     public static final String CID_ONSAPI_PULL_GROUP = "CID_ONSAPI_PULL";
+
     public static final String CID_RMQ_SYS_PREFIX = "CID_RMQ_SYS_";
+
     public static final List<String> LOCAL_INET_ADDRESS = getLocalInetAddress();
+
     public static final String LOCALHOST = localhost();
+
     public static final String DEFAULT_CHARSET = "UTF-8";
+
     public static final long MASTER_ID = 0L;
+
     public static final long CURRENT_JVM_PID = getPID();
+
     public static final String RETRY_GROUP_TOPIC_PREFIX = "%RETRY%";
+
     public static final String DLQ_GROUP_TOPIC_PREFIX = "%DLQ%";
+
     public static final String REPLY_TOPIC_POSTFIX = "REPLY_TOPIC";
+
     public static final String SYSTEM_TOPIC_PREFIX = "rmq_sys_";
+
     public static final String UNIQUE_MSG_QUERY_FLAG = "_UNIQUE_KEY_QUERY";
+
     public static final String DEFAULT_TRACE_REGION_ID = "DefaultRegion";
+
     public static final String CONSUME_CONTEXT_TYPE = "ConsumeContextType";
+
     public static final String RMQ_SYS_TRANS_HALF_TOPIC = "RMQ_SYS_TRANS_HALF_TOPIC";
+
     public static final String RMQ_SYS_TRACE_TOPIC = "RMQ_SYS_TRACE_TOPIC";
+
     public static final String RMQ_SYS_TRANS_OP_HALF_TOPIC = "RMQ_SYS_TRANS_OP_HALF_TOPIC";
+
     public static final String TRANS_CHECK_MAX_TIME_TOPIC = "TRANS_CHECK_MAX_TIME_TOPIC";
+
     public static final String CID_SYS_RMQ_TRANS = "CID_RMQ_SYS_TRANS";
+
     public static final String ACL_CONF_TOOLS_FILE = "/conf/tools.yml";
+
     public static final String REPLY_MESSAGE_FLAG = "reply";
+
     private static final InternalLogger log = InternalLoggerFactory.getLogger(LoggerName.COMMON_LOGGER_NAME);
 
     public static String getWSAddr() {
@@ -242,7 +275,7 @@ public class MixAll {
     }
 
     public static void printObjectProperties(final InternalLogger logger, final Object object,
-        final boolean onlyImportantField) {
+            final boolean onlyImportantField) {
         Field[] fields = object.getClass().getDeclaredFields();
         for (Field field : fields) {
             if (!Modifier.isStatic(field.getModifiers())) {
@@ -392,8 +425,9 @@ public class MixAll {
         } catch (Throwable e) {
             try {
                 String candidatesHost = getLocalhostByNetworkInterface();
-                if (candidatesHost != null)
+                if (candidatesHost != null) {
                     return candidatesHost;
+                }
 
             } catch (Exception ignored) {
             }
@@ -438,8 +472,9 @@ public class MixAll {
         long prev = target.get();
         while (value > prev) {
             boolean updated = target.compareAndSet(prev, value);
-            if (updated)
+            if (updated) {
                 return true;
+            }
 
             prev = target.get();
         }
@@ -449,8 +484,9 @@ public class MixAll {
 
     public static String humanReadableByteCount(long bytes, boolean si) {
         int unit = si ? 1000 : 1024;
-        if (bytes < unit)
+        if (bytes < unit) {
             return bytes + " B";
+        }
         int exp = (int) (Math.log(bytes) / Math.log(unit));
         String pre = (si ? "kMGTPE" : "KMGTPE").charAt(exp - 1) + (si ? "" : "i");
         return String.format("%.1f %sB", bytes / Math.pow(unit, exp), pre);
