@@ -1,5 +1,7 @@
 package org.apache.rocketmq.client.producer;
 
+import lombok.Getter;
+import lombok.Setter;
 import org.apache.rocketmq.client.ClientConfig;
 import org.apache.rocketmq.client.QueryResult;
 import org.apache.rocketmq.client.Validators;
@@ -56,26 +58,36 @@ public class DefaultMQProducer extends ClientConfig implements MQProducer {
      *
      * See {@linktourl http://rocketmq.apache.org/docs/core-concept/} for more discussion.
      */
+    @Getter
+    @Setter
     private String producerGroup;
 
     /**
      * Just for testing or demo program
      */
+    @Getter
+    @Setter
     private String createTopicKey = MixAll.AUTO_CREATE_TOPIC_KEY_TOPIC;
 
     /**
      * Number of queues to create per default topic.
      */
+    @Getter
+    @Setter
     private volatile int defaultTopicQueueNums = 4;
 
     /**
      * Timeout for sending messages.
      */
+    @Getter
+    @Setter
     private int sendMsgTimeout = 3000;
 
     /**
      * Compress message body threshold, namely, message body larger than 4k will be compressed on default.
      */
+    @Getter
+    @Setter
     private int compressMsgBodyOverHowmuch = 1024 * 4;
 
     /**
@@ -83,6 +95,8 @@ public class DefaultMQProducer extends ClientConfig implements MQProducer {
      *
      * This may potentially cause message duplication which is up to application developers to resolve.
      */
+    @Getter
+    @Setter
     private int retryTimesWhenSendFailed = 2;
 
     /**
@@ -90,21 +104,28 @@ public class DefaultMQProducer extends ClientConfig implements MQProducer {
      *
      * This may potentially cause message duplication which is up to application developers to resolve.
      */
+    @Getter
+    @Setter
     private int retryTimesWhenSendAsyncFailed = 2;
 
     /**
      * Indicate whether to retry another broker on sending failure internally.
      */
+    @Getter
+    @Setter
     private boolean retryAnotherBrokerWhenNotStoreOK = false;
 
     /**
      * Maximum allowed message size in bytes.
      */
+    @Getter
+    @Setter
     private int maxMessageSize = 1024 * 1024 * 4; // 4M
 
     /**
      * Interface of asynchronous transfer data
      */
+    @Getter
     private TraceDispatcher traceDispatcher = null;
 
     /**
@@ -141,8 +162,7 @@ public class DefaultMQProducer extends ClientConfig implements MQProducer {
      * @param customizedTraceTopic The name value of message trace topic.If you don't config,you can use the default
      * trace topic name.
      */
-    public DefaultMQProducer(final String producerGroup, RPCHook rpcHook, boolean enableMsgTrace,
-            final String customizedTraceTopic) {
+    public DefaultMQProducer(final String producerGroup, RPCHook rpcHook, boolean enableMsgTrace, final String customizedTraceTopic) {
         this.producerGroup = producerGroup;
         defaultMQProducerImpl = new DefaultMQProducerImpl(this, rpcHook);
         //if client open the message trace feature
@@ -940,73 +960,9 @@ public class DefaultMQProducer extends ClientConfig implements MQProducer {
         return msgBatch;
     }
 
-    public String getProducerGroup() {
-        return producerGroup;
-    }
-
-    public void setProducerGroup(String producerGroup) {
-        this.producerGroup = producerGroup;
-    }
-
-    public String getCreateTopicKey() {
-        return createTopicKey;
-    }
-
-    public void setCreateTopicKey(String createTopicKey) {
-        this.createTopicKey = createTopicKey;
-    }
-
-    public int getSendMsgTimeout() {
-        return sendMsgTimeout;
-    }
-
-    public void setSendMsgTimeout(int sendMsgTimeout) {
-        this.sendMsgTimeout = sendMsgTimeout;
-    }
-
-    public int getCompressMsgBodyOverHowmuch() {
-        return compressMsgBodyOverHowmuch;
-    }
-
-    public void setCompressMsgBodyOverHowmuch(int compressMsgBodyOverHowmuch) {
-        this.compressMsgBodyOverHowmuch = compressMsgBodyOverHowmuch;
-    }
-
     @Deprecated
     public DefaultMQProducerImpl getDefaultMQProducerImpl() {
         return defaultMQProducerImpl;
-    }
-
-    public boolean isRetryAnotherBrokerWhenNotStoreOK() {
-        return retryAnotherBrokerWhenNotStoreOK;
-    }
-
-    public void setRetryAnotherBrokerWhenNotStoreOK(boolean retryAnotherBrokerWhenNotStoreOK) {
-        this.retryAnotherBrokerWhenNotStoreOK = retryAnotherBrokerWhenNotStoreOK;
-    }
-
-    public int getMaxMessageSize() {
-        return maxMessageSize;
-    }
-
-    public void setMaxMessageSize(int maxMessageSize) {
-        this.maxMessageSize = maxMessageSize;
-    }
-
-    public int getDefaultTopicQueueNums() {
-        return defaultTopicQueueNums;
-    }
-
-    public void setDefaultTopicQueueNums(int defaultTopicQueueNums) {
-        this.defaultTopicQueueNums = defaultTopicQueueNums;
-    }
-
-    public int getRetryTimesWhenSendFailed() {
-        return retryTimesWhenSendFailed;
-    }
-
-    public void setRetryTimesWhenSendFailed(int retryTimesWhenSendFailed) {
-        this.retryTimesWhenSendFailed = retryTimesWhenSendFailed;
     }
 
     public boolean isSendMessageWithVIPChannel() {
@@ -1040,17 +996,4 @@ public class DefaultMQProducer extends ClientConfig implements MQProducer {
     public void setSendLatencyFaultEnable(final boolean sendLatencyFaultEnable) {
         this.defaultMQProducerImpl.setSendLatencyFaultEnable(sendLatencyFaultEnable);
     }
-
-    public int getRetryTimesWhenSendAsyncFailed() {
-        return retryTimesWhenSendAsyncFailed;
-    }
-
-    public void setRetryTimesWhenSendAsyncFailed(final int retryTimesWhenSendAsyncFailed) {
-        this.retryTimesWhenSendAsyncFailed = retryTimesWhenSendAsyncFailed;
-    }
-
-    public TraceDispatcher getTraceDispatcher() {
-        return traceDispatcher;
-    }
-
 }
