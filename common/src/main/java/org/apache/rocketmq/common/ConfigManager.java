@@ -1,30 +1,22 @@
-/*
- * Licensed to the Apache Software Foundation (ASF) under one or more
- * contributor license agreements.  See the NOTICE file distributed with
- * this work for additional information regarding copyright ownership.
- * The ASF licenses this file to You under the Apache License, Version 2.0
- * (the "License"); you may not use this file except in compliance with
- * the License.  You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
 package org.apache.rocketmq.common;
 
-import java.io.IOException;
 import org.apache.rocketmq.common.constant.LoggerName;
 import org.apache.rocketmq.logging.InternalLogger;
 import org.apache.rocketmq.logging.InternalLoggerFactory;
 
+import java.io.IOException;
+
 public abstract class ConfigManager {
+
     private static final InternalLogger log = InternalLoggerFactory.getLogger(LoggerName.COMMON_LOGGER_NAME);
 
     public abstract String encode();
+
+    public abstract void decode(final String jsonString);
+
+    public abstract String encode(final boolean prettyFormat);
+
+    public abstract String configFilePath();
 
     public boolean load() {
         String fileName = null;
@@ -32,6 +24,7 @@ public abstract class ConfigManager {
             fileName = this.configFilePath();
             String jsonString = MixAll.file2String(fileName);
 
+            //上面的文件不存在
             if (null == jsonString || jsonString.length() == 0) {
                 return this.loadBak();
             } else {
@@ -44,8 +37,6 @@ public abstract class ConfigManager {
             return this.loadBak();
         }
     }
-
-    public abstract String configFilePath();
 
     private boolean loadBak() {
         String fileName = null;
@@ -65,8 +56,6 @@ public abstract class ConfigManager {
         return true;
     }
 
-    public abstract void decode(final String jsonString);
-
     public synchronized void persist() {
         String jsonString = this.encode(true);
         if (jsonString != null) {
@@ -78,6 +67,4 @@ public abstract class ConfigManager {
             }
         }
     }
-
-    public abstract String encode(final boolean prettyFormat);
 }

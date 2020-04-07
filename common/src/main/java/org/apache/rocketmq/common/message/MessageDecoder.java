@@ -1,20 +1,7 @@
-/*
- * Licensed to the Apache Software Foundation (ASF) under one or more
- * contributor license agreements.  See the NOTICE file distributed with
- * this work for additional information regarding copyright ownership.
- * The ASF licenses this file to You under the Apache License, Version 2.0
- * (the "License"); you may not use this file except in compliance with
- * the License.  You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
 package org.apache.rocketmq.common.message;
+
+import org.apache.rocketmq.common.UtilAll;
+import org.apache.rocketmq.common.sysflag.MessageSysFlag;
 
 import java.net.Inet4Address;
 import java.net.InetAddress;
@@ -27,36 +14,42 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import org.apache.rocketmq.common.UtilAll;
-import org.apache.rocketmq.common.sysflag.MessageSysFlag;
 
 public class MessageDecoder {
-//    public final static int MSG_ID_LENGTH = 8 + 8;
+    //    public final static int MSG_ID_LENGTH = 8 + 8;
 
     public final static Charset CHARSET_UTF8 = Charset.forName("UTF-8");
+
     public final static int MESSAGE_MAGIC_CODE_POSTION = 4;
+
     public final static int MESSAGE_FLAG_POSTION = 16;
+
     public final static int MESSAGE_PHYSIC_OFFSET_POSTION = 28;
+
     //    public final static int MESSAGE_STORE_TIMESTAMP_POSTION = 56;
     public final static int MESSAGE_MAGIC_CODE = -626843481;
+
     public static final char NAME_VALUE_SEPARATOR = 1;
+
     public static final char PROPERTY_SEPARATOR = 2;
+
     public static final int PHY_POS_POSITION = 4 + 4 + 4 + 4 + 4 + 8;
+
     public static final int SYSFLAG_POSITION = 4 + 4 + 4 + 4 + 4 + 8 + 8;
-//    public static final int BODY_SIZE_POSITION = 4 // 1 TOTALSIZE
-//        + 4 // 2 MAGICCODE
-//        + 4 // 3 BODYCRC
-//        + 4 // 4 QUEUEID
-//        + 4 // 5 FLAG
-//        + 8 // 6 QUEUEOFFSET
-//        + 8 // 7 PHYSICALOFFSET
-//        + 4 // 8 SYSFLAG
-//        + 8 // 9 BORNTIMESTAMP
-//        + 8 // 10 BORNHOST
-//        + 8 // 11 STORETIMESTAMP
-//        + 8 // 12 STOREHOSTADDRESS
-//        + 4 // 13 RECONSUMETIMES
-//        + 8; // 14 Prepared Transaction Offset
+    //    public static final int BODY_SIZE_POSITION = 4 // 1 TOTALSIZE
+    //        + 4 // 2 MAGICCODE
+    //        + 4 // 3 BODYCRC
+    //        + 4 // 4 QUEUEID
+    //        + 4 // 5 FLAG
+    //        + 8 // 6 QUEUEOFFSET
+    //        + 8 // 7 PHYSICALOFFSET
+    //        + 4 // 8 SYSFLAG
+    //        + 8 // 9 BORNTIMESTAMP
+    //        + 8 // 10 BORNHOST
+    //        + 8 // 11 STORETIMESTAMP
+    //        + 8 // 12 STOREHOSTADDRESS
+    //        + 4 // 13 RECONSUMETIMES
+    //        + 8; // 14 Prepared Transaction Offset
 
     public static String createMessageId(final ByteBuffer input, final ByteBuffer addr, final long offset) {
         input.flip();
@@ -109,19 +102,19 @@ public class MessageDecoder {
         int bornhostLength = (sysFlag & MessageSysFlag.BORNHOST_V6_FLAG) == 0 ? 8 : 20;
         int storehostAddressLength = (sysFlag & MessageSysFlag.STOREHOSTADDRESS_V6_FLAG) == 0 ? 8 : 20;
         int bodySizePosition = 4 // 1 TOTALSIZE
-            + 4 // 2 MAGICCODE
-            + 4 // 3 BODYCRC
-            + 4 // 4 QUEUEID
-            + 4 // 5 FLAG
-            + 8 // 6 QUEUEOFFSET
-            + 8 // 7 PHYSICALOFFSET
-            + 4 // 8 SYSFLAG
-            + 8 // 9 BORNTIMESTAMP
-            + bornhostLength // 10 BORNHOST
-            + 8 // 11 STORETIMESTAMP
-            + storehostAddressLength // 12 STOREHOSTADDRESS
-            + 4 // 13 RECONSUMETIMES
-            + 8; // 14 Prepared Transaction Offset
+                + 4 // 2 MAGICCODE
+                + 4 // 3 BODYCRC
+                + 4 // 4 QUEUEID
+                + 4 // 5 FLAG
+                + 8 // 6 QUEUEOFFSET
+                + 8 // 7 PHYSICALOFFSET
+                + 4 // 8 SYSFLAG
+                + 8 // 9 BORNTIMESTAMP
+                + bornhostLength // 10 BORNHOST
+                + 8 // 11 STORETIMESTAMP
+                + storehostAddressLength // 12 STOREHOSTADDRESS
+                + 4 // 13 RECONSUMETIMES
+                + 8; // 14 Prepared Transaction Offset
         int topicLengthPosition = bodySizePosition + 4 + byteBuffer.getInt(bodySizePosition);
 
         byte topicLength = byteBuffer.get(topicLengthPosition);
@@ -173,23 +166,23 @@ public class MessageDecoder {
             byteBuffer = ByteBuffer.allocate(storeSize);
         } else {
             storeSize = 4 // 1 TOTALSIZE
-                + 4 // 2 MAGICCODE
-                + 4 // 3 BODYCRC
-                + 4 // 4 QUEUEID
-                + 4 // 5 FLAG
-                + 8 // 6 QUEUEOFFSET
-                + 8 // 7 PHYSICALOFFSET
-                + 4 // 8 SYSFLAG
-                + 8 // 9 BORNTIMESTAMP
-                + bornhostLength // 10 BORNHOST
-                + 8 // 11 STORETIMESTAMP
-                + storehostAddressLength // 12 STOREHOSTADDRESS
-                + 4 // 13 RECONSUMETIMES
-                + 8 // 14 Prepared Transaction Offset
-                + 4 + bodyLength // 14 BODY
-                + 1 + topicLen // 15 TOPIC
-                + 2 + propertiesLength // 16 propertiesLength
-                + 0;
+                    + 4 // 2 MAGICCODE
+                    + 4 // 3 BODYCRC
+                    + 4 // 4 QUEUEID
+                    + 4 // 5 FLAG
+                    + 8 // 6 QUEUEOFFSET
+                    + 8 // 7 PHYSICALOFFSET
+                    + 4 // 8 SYSFLAG
+                    + 8 // 9 BORNTIMESTAMP
+                    + bornhostLength // 10 BORNHOST
+                    + 8 // 11 STORETIMESTAMP
+                    + storehostAddressLength // 12 STOREHOSTADDRESS
+                    + 4 // 13 RECONSUMETIMES
+                    + 8 // 14 Prepared Transaction Offset
+                    + 4 + bodyLength // 14 BODY
+                    + 1 + topicLen // 15 TOPIC
+                    + 2 + propertiesLength // 16 propertiesLength
+                    + 0;
             byteBuffer = ByteBuffer.allocate(storeSize);
         }
         // 1 TOTALSIZE
@@ -263,12 +256,12 @@ public class MessageDecoder {
     }
 
     public static MessageExt decode(
-        java.nio.ByteBuffer byteBuffer, final boolean readBody, final boolean deCompressBody) {
+            java.nio.ByteBuffer byteBuffer, final boolean readBody, final boolean deCompressBody) {
         return decode(byteBuffer, readBody, deCompressBody, false);
     }
 
     public static MessageExt decode(
-        java.nio.ByteBuffer byteBuffer, final boolean readBody, final boolean deCompressBody, final boolean isClient) {
+            java.nio.ByteBuffer byteBuffer, final boolean readBody, final boolean deCompressBody, final boolean isClient) {
         try {
 
             MessageExt msgExt;
@@ -448,11 +441,11 @@ public class MessageDecoder {
         short propertiesLength = (short) propertiesBytes.length;
         int sysFlag = message.getFlag();
         int storeSize = 4 // 1 TOTALSIZE
-            + 4 // 2 MAGICCOD
-            + 4 // 3 BODYCRC
-            + 4 // 4 FLAG
-            + 4 + bodyLen // 4 BODY
-            + 2 + propertiesLength;
+                + 4 // 2 MAGICCOD
+                + 4 // 3 BODYCRC
+                + 4 // 4 FLAG
+                + 4 + bodyLen // 4 BODY
+                + 2 + propertiesLength;
         ByteBuffer byteBuffer = ByteBuffer.allocate(storeSize);
         // 1 TOTALSIZE
         byteBuffer.putInt(storeSize);

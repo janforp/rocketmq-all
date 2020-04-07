@@ -1,30 +1,28 @@
-/*
- * Licensed to the Apache Software Foundation (ASF) under one or more
- * contributor license agreements.  See the NOTICE file distributed with
- * this work for additional information regarding copyright ownership.
- * The ASF licenses this file to You under the Apache License, Version 2.0
- * (the "License"); you may not use this file except in compliance with
- * the License.  You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
 package org.apache.rocketmq.common.message;
+
+import lombok.Getter;
+import lombok.Setter;
 
 import java.io.Serializable;
 
 public class MessageQueueForC implements Comparable<MessageQueueForC>, Serializable {
 
     private static final long serialVersionUID = 5320967846569962104L;
+
+    @Setter
+    @Getter
     private String topic;
+
+    @Setter
+    @Getter
     private String brokerName;
+
+    @Setter
+    @Getter
     private int queueId;
+
+    @Setter
+    @Getter
     private long offset;
 
     public MessageQueueForC(String topic, String brokerName, int queueId, long offset) {
@@ -69,25 +67,33 @@ public class MessageQueueForC implements Comparable<MessageQueueForC>, Serializa
 
     @Override
     public boolean equals(Object obj) {
-        if (this == obj)
+        if (this == obj) {
             return true;
-        if (obj == null)
+        }
+        if (obj == null) {
             return false;
-        if (getClass() != obj.getClass())
+        }
+        if (getClass() != obj.getClass()) {
             return false;
+        }
         MessageQueueForC other = (MessageQueueForC) obj;
         if (brokerName == null) {
-            if (other.brokerName != null)
+            if (other.brokerName != null) {
                 return false;
-        } else if (!brokerName.equals(other.brokerName))
+            }
+        } else if (!brokerName.equals(other.brokerName)) {
             return false;
-        if (queueId != other.queueId)
+        }
+        if (queueId != other.queueId) {
             return false;
+        }
         if (topic == null) {
-            if (other.topic != null)
+            if (other.topic != null) {
                 return false;
-        } else if (!topic.equals(other.topic))
+            }
+        } else if (!topic.equals(other.topic)) {
             return false;
+        }
 
         if (offset != other.offset) {
             return false;
@@ -98,38 +104,6 @@ public class MessageQueueForC implements Comparable<MessageQueueForC>, Serializa
     @Override
     public String toString() {
         return "MessageQueueForC [topic=" + topic + ", brokerName=" + brokerName + ", queueId=" + queueId
-            + ", offset=" + offset + "]";
-    }
-
-    public String getTopic() {
-        return topic;
-    }
-
-    public void setTopic(String topic) {
-        this.topic = topic;
-    }
-
-    public String getBrokerName() {
-        return brokerName;
-    }
-
-    public void setBrokerName(String brokerName) {
-        this.brokerName = brokerName;
-    }
-
-    public int getQueueId() {
-        return queueId;
-    }
-
-    public void setQueueId(int queueId) {
-        this.queueId = queueId;
-    }
-
-    public long getOffset() {
-        return offset;
-    }
-
-    public void setOffset(long offset) {
-        this.offset = offset;
+                + ", offset=" + offset + "]";
     }
 }
