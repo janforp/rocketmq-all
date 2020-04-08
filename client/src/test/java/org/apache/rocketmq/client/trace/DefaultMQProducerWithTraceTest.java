@@ -1,20 +1,3 @@
-/*
- * Licensed to the Apache Software Foundation (ASF) under one or more
- * contributor license agreements.  See the NOTICE file distributed with
- * this work for additional information regarding copyright ownership.
- * The ASF licenses this file to You under the Apache License, Version 2.0
- * (the "License"); you may not use this file except in compliance with
- * the License.  You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
 package org.apache.rocketmq.client.trace;
 
 import org.apache.rocketmq.client.ClientConfig;
@@ -53,7 +36,11 @@ import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
-import static org.mockito.ArgumentMatchers.*;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.nullable;
 import static org.mockito.Mockito.when;
 
 @RunWith(MockitoJUnitRunner.class)
@@ -61,21 +48,30 @@ public class DefaultMQProducerWithTraceTest {
 
     @Spy
     private MQClientInstance mQClientFactory = MQClientManager.getInstance().getOrCreateMQClientInstance(new ClientConfig());
+
     @Mock
     private MQClientAPIImpl mQClientAPIImpl;
 
     private AsyncTraceDispatcher asyncTraceDispatcher;
 
     private DefaultMQProducer producer;
+
     private DefaultMQProducer customTraceTopicproducer;
+
     private DefaultMQProducer traceProducer;
+
     private DefaultMQProducer normalProducer;
 
     private Message message;
+
     private String topic = "FooBar";
+
     private String producerGroupPrefix = "FooBar_PID";
+
     private String producerGroupTemp = producerGroupPrefix + System.currentTimeMillis();
+
     private String producerGroupTraceTemp = MixAll.RMQ_SYS_TRACE_TOPIC + System.currentTimeMillis();
+
     private String customerTraceTopic = "rmq_trace_topic_12345";
 
     @Before
@@ -87,7 +83,7 @@ public class DefaultMQProducerWithTraceTest {
         producer.setNamesrvAddr("127.0.0.1:9876");
         normalProducer.setNamesrvAddr("127.0.0.1:9877");
         customTraceTopicproducer.setNamesrvAddr("127.0.0.1:9878");
-        message = new Message(topic, new byte[] {'a', 'b', 'c'});
+        message = new Message(topic, new byte[] { 'a', 'b', 'c' });
         asyncTraceDispatcher = (AsyncTraceDispatcher) producer.getTraceDispatcher();
         asyncTraceDispatcher.setTraceTopicName(customerTraceTopic);
         asyncTraceDispatcher.getHostProducer();
@@ -111,10 +107,10 @@ public class DefaultMQProducerWithTraceTest {
         producer.getDefaultMQProducerImpl().getmQClientFactory().registerProducer(producerGroupTemp, producer.getDefaultMQProducerImpl());
 
         when(mQClientAPIImpl.sendMessage(anyString(), anyString(), any(Message.class), any(SendMessageRequestHeader.class), anyLong(), any(CommunicationMode.class),
-            nullable(SendMessageContext.class), any(DefaultMQProducerImpl.class))).thenCallRealMethod();
+                nullable(SendMessageContext.class), any(DefaultMQProducerImpl.class))).thenCallRealMethod();
         when(mQClientAPIImpl.sendMessage(anyString(), anyString(), any(Message.class), any(SendMessageRequestHeader.class), anyLong(), any(CommunicationMode.class),
-            nullable(SendCallback.class), nullable(TopicPublishInfo.class), nullable(MQClientInstance.class), anyInt(), nullable(SendMessageContext.class), any(DefaultMQProducerImpl.class)))
-            .thenReturn(createSendResult(SendStatus.SEND_OK));
+                nullable(SendCallback.class), nullable(TopicPublishInfo.class), nullable(MQClientInstance.class), anyInt(), nullable(SendMessageContext.class), any(DefaultMQProducerImpl.class)))
+                .thenReturn(createSendResult(SendStatus.SEND_OK));
 
     }
 

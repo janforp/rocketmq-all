@@ -1,5 +1,7 @@
 package org.apache.rocketmq.client.trace;
 
+import lombok.Getter;
+import lombok.Setter;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.rocketmq.client.AccessChannel;
 import org.apache.rocketmq.client.common.ThreadLocalIndex;
@@ -46,6 +48,7 @@ public class AsyncTraceDispatcher implements TraceDispatcher {
 
     private final int maxMsgSize;
 
+    @Getter
     private final DefaultMQProducer traceProducer;
 
     private final ThreadPoolExecutor traceExecutor;
@@ -63,18 +66,26 @@ public class AsyncTraceDispatcher implements TraceDispatcher {
 
     private volatile boolean stopped = false;
 
+    @Getter
+    @Setter
     private DefaultMQProducerImpl hostProducer;
 
+    @Getter
+    @Setter
     private DefaultMQPushConsumerImpl hostConsumer;
 
     private volatile ThreadLocalIndex sendWhichQueue = new ThreadLocalIndex();
 
     private String dispatcherId = UUID.randomUUID().toString();
 
+    @Getter
+    @Setter
     private String traceTopicName;
 
     private AtomicBoolean isStarted = new AtomicBoolean(false);
 
+    @Getter
+    @Setter
     private AccessChannel accessChannel = AccessChannel.LOCAL;
 
     private String group;
@@ -105,42 +116,6 @@ public class AsyncTraceDispatcher implements TraceDispatcher {
                 this.appenderQueue, //
                 new ThreadFactoryImpl("MQTraceSendThread_"));
         traceProducer = getAndCreateTraceProducer(rpcHook);
-    }
-
-    public AccessChannel getAccessChannel() {
-        return accessChannel;
-    }
-
-    public void setAccessChannel(AccessChannel accessChannel) {
-        this.accessChannel = accessChannel;
-    }
-
-    public String getTraceTopicName() {
-        return traceTopicName;
-    }
-
-    public void setTraceTopicName(String traceTopicName) {
-        this.traceTopicName = traceTopicName;
-    }
-
-    public DefaultMQProducer getTraceProducer() {
-        return traceProducer;
-    }
-
-    public DefaultMQProducerImpl getHostProducer() {
-        return hostProducer;
-    }
-
-    public void setHostProducer(DefaultMQProducerImpl hostProducer) {
-        this.hostProducer = hostProducer;
-    }
-
-    public DefaultMQPushConsumerImpl getHostConsumer() {
-        return hostConsumer;
-    }
-
-    public void setHostConsumer(DefaultMQPushConsumerImpl hostConsumer) {
-        this.hostConsumer = hostConsumer;
     }
 
     @Override
