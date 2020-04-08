@@ -1,23 +1,5 @@
-/*
- * Licensed to the Apache Software Foundation (ASF) under one or more
- * contributor license agreements.  See the NOTICE file distributed with
- * this work for additional information regarding copyright ownership.
- * The ASF licenses this file to You under the Apache License, Version 2.0
- * (the "License"); you may not use this file except in compliance with
- * the License.  You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
 package org.apache.rocketmq.client.consumer;
 
-import java.util.Collection;
-import java.util.List;
 import org.apache.rocketmq.client.ClientConfig;
 import org.apache.rocketmq.client.consumer.rebalance.AllocateMessageQueueAveragely;
 import org.apache.rocketmq.client.consumer.store.OffsetStore;
@@ -31,6 +13,9 @@ import org.apache.rocketmq.common.message.MessageQueue;
 import org.apache.rocketmq.common.protocol.NamespaceUtil;
 import org.apache.rocketmq.common.protocol.heartbeat.MessageModel;
 import org.apache.rocketmq.remoting.RPCHook;
+
+import java.util.Collection;
+import java.util.List;
 
 public class DefaultLitePullConsumer extends ClientConfig implements LitePullConsumer {
 
@@ -66,10 +51,12 @@ public class DefaultLitePullConsumer extends ClientConfig implements LitePullCon
      * Consumption pattern,default is clustering
      */
     private MessageModel messageModel = MessageModel.CLUSTERING;
+
     /**
      * Message queue listener
      */
     private MessageQueueListener messageQueueListener;
+
     /**
      * Offset Storage
      */
@@ -79,6 +66,7 @@ public class DefaultLitePullConsumer extends ClientConfig implements LitePullCon
      * Queue allocation algorithm
      */
     private AllocateMessageQueueStrategy allocateMessageQueueStrategy = new AllocateMessageQueueAveragely();
+
     /**
      * Whether the unit of subscription group
      */
@@ -268,7 +256,7 @@ public class DefaultLitePullConsumer extends ClientConfig implements LitePullCon
 
     @Override
     public void registerTopicMessageQueueChangeListener(String topic,
-        TopicMessageQueueChangeListener topicMessageQueueChangeListener) throws MQClientException {
+            TopicMessageQueueChangeListener topicMessageQueueChangeListener) throws MQClientException {
         this.defaultLitePullConsumerImpl.registerTopicMessageQueueChangeListener(withNamespace(topic), topicMessageQueueChangeListener);
     }
 
@@ -455,8 +443,8 @@ public class DefaultLitePullConsumer extends ClientConfig implements LitePullCon
 
     public void setConsumeFromWhere(ConsumeFromWhere consumeFromWhere) {
         if (consumeFromWhere != ConsumeFromWhere.CONSUME_FROM_FIRST_OFFSET
-            && consumeFromWhere != ConsumeFromWhere.CONSUME_FROM_LAST_OFFSET
-            && consumeFromWhere != ConsumeFromWhere.CONSUME_FROM_TIMESTAMP) {
+                && consumeFromWhere != ConsumeFromWhere.CONSUME_FROM_LAST_OFFSET
+                && consumeFromWhere != ConsumeFromWhere.CONSUME_FROM_TIMESTAMP) {
             throw new RuntimeException("Invalid ConsumeFromWhere Value", null);
         }
         this.consumeFromWhere = consumeFromWhere;

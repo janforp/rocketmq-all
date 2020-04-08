@@ -93,5 +93,4 @@ public interface MQAdmin {
      */
     MessageExt viewMessage(String topic,
             String msgId) throws RemotingException, MQBrokerException, InterruptedException, MQClientException;
-
 }

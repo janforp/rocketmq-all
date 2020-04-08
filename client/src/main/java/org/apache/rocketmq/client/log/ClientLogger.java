@@ -1,19 +1,3 @@
-/*
- * Licensed to the Apache Software Foundation (ASF) under one or more
- * contributor license agreements.  See the NOTICE file distributed with
- * this work for additional information regarding copyright ownership.
- * The ASF licenses this file to You under the Apache License, Version 2.0
- * (the "License"); you may not use this file except in compliance with
- * the License.  You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
 package org.apache.rocketmq.client.log;
 
 import org.apache.rocketmq.common.constant.LoggerName;
@@ -31,13 +15,21 @@ import org.apache.rocketmq.remoting.common.RemotingHelper;
 public class ClientLogger {
 
     public static final String CLIENT_LOG_USESLF4J = "rocketmq.client.logUseSlf4j";
+
     public static final String CLIENT_LOG_ROOT = "rocketmq.client.logRoot";
+
     public static final String CLIENT_LOG_MAXINDEX = "rocketmq.client.logFileMaxIndex";
+
     public static final String CLIENT_LOG_FILESIZE = "rocketmq.client.logFileMaxSize";
+
     public static final String CLIENT_LOG_LEVEL = "rocketmq.client.logLevel";
+
     public static final String CLIENT_LOG_ADDITIVE = "rocketmq.client.log.additive";
+
     public static final String CLIENT_LOG_FILENAME = "rocketmq.client.logFileName";
+
     public static final String CLIENT_LOG_ASYNC_QUEUESIZE = "rocketmq.client.logAsyncQueueSize";
+
     public static final String ROCKETMQ_CLIENT_APPENDER_NAME = "RocketmqClientAppender";
 
     private static final InternalLogger CLIENT_LOGGER;
@@ -73,8 +65,8 @@ public class ClientLogger {
         Layout layout = LoggingBuilder.newLayoutBuilder().withDefaultLayout().build();
 
         Appender rocketmqClientAppender = LoggingBuilder.newAppenderBuilder()
-            .withRollingFileAppender(logFileName, maxFileSize, maxFileIndex)
-            .withAsync(false, queueSize).withName(ROCKETMQ_CLIENT_APPENDER_NAME).withLayout(layout).build();
+                .withRollingFileAppender(logFileName, maxFileSize, maxFileIndex)
+                .withAsync(false, queueSize).withName(ROCKETMQ_CLIENT_APPENDER_NAME).withLayout(layout).build();
 
         Logger.getRootLogger().addAppender(rocketmqClientAppender);
         return rocketmqClientAppender;
@@ -102,6 +94,7 @@ public class ClientLogger {
     }
 
     static class AppenderProxy extends Appender {
+
         private Appender proxy;
 
         @Override

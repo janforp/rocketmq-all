@@ -1,20 +1,14 @@
-/*
- * Licensed to the Apache Software Foundation (ASF) under one or more
- * contributor license agreements.  See the NOTICE file distributed with
- * this work for additional information regarding copyright ownership.
- * The ASF licenses this file to You under the Apache License, Version 2.0
- * (the "License"); you may not use this file except in compliance with
- * the License.  You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
 package org.apache.rocketmq.client.impl.consumer;
+
+import lombok.Getter;
+import lombok.Setter;
+import org.apache.rocketmq.client.consumer.DefaultMQPushConsumer;
+import org.apache.rocketmq.client.log.ClientLogger;
+import org.apache.rocketmq.common.message.MessageAccessor;
+import org.apache.rocketmq.common.message.MessageConst;
+import org.apache.rocketmq.common.message.MessageExt;
+import org.apache.rocketmq.common.protocol.body.ProcessQueueInfo;
+import org.apache.rocketmq.logging.InternalLogger;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -27,40 +21,65 @@ import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 
-import org.apache.rocketmq.client.consumer.DefaultMQPushConsumer;
-import org.apache.rocketmq.client.log.ClientLogger;
-import org.apache.rocketmq.logging.InternalLogger;
-import org.apache.rocketmq.common.message.MessageAccessor;
-import org.apache.rocketmq.common.message.MessageConst;
-import org.apache.rocketmq.common.message.MessageExt;
-import org.apache.rocketmq.common.protocol.body.ProcessQueueInfo;
-
 /**
  * Queue consumption snapshot
  */
 public class ProcessQueue {
+
     public final static long REBALANCE_LOCK_MAX_LIVE_TIME =
-        Long.parseLong(System.getProperty("rocketmq.client.rebalance.lockMaxLiveTime", "30000"));
+            Long.parseLong(System.getProperty("rocketmq.client.rebalance.lockMaxLiveTime", "30000"));
+
     public final static long REBALANCE_LOCK_INTERVAL = Long.parseLong(System.getProperty("rocketmq.client.rebalance.lockInterval", "20000"));
+
     private final static long PULL_MAX_IDLE_TIME = Long.parseLong(System.getProperty("rocketmq.client.pull.pullMaxIdleTime", "120000"));
+
     private final InternalLogger log = ClientLogger.getLog();
+
     private final ReadWriteLock lockTreeMap = new ReentrantReadWriteLock();
+
+    @Getter
     private final TreeMap<Long, MessageExt> msgTreeMap = new TreeMap<Long, MessageExt>();
+
+    @Getter
     private final AtomicLong msgCount = new AtomicLong();
+
+    @Getter
     private final AtomicLong msgSize = new AtomicLong();
+
+    @Getter
     private final Lock lockConsume = new ReentrantLock();
+
     /**
      * A subset of msgTreeMap, will only be used when orderly consume
      */
     private final TreeMap<Long, MessageExt> consumingMsgOrderlyTreeMap = new TreeMap<Long, MessageExt>();
+
     private final AtomicLong tryUnlockTimes = new AtomicLong(0);
+
     private volatile long queueOffsetMax = 0L;
+
+    @Setter
+    @Getter
     private volatile boolean dropped = false;
+
+    @Setter
+    @Getter
     private volatile long lastPullTimestamp = System.currentTimeMillis();
+
+    @Setter
+    @Getter
     private volatile long lastConsumeTimestamp = System.currentTimeMillis();
+
     private volatile boolean locked = false;
+
+    @Setter
+    @Getter
     private volatile long lastLockTimestamp = System.currentTimeMillis();
+
     private volatile boolean consuming = false;
+
+    @Setter
+    @Getter
     private volatile long msgAccCnt = 0;
 
     public boolean isLockExpired() {
@@ -78,7 +97,6 @@ public class ProcessQueue {
         if (pushConsumer.getDefaultMQPushConsumerImpl().isConsumeOrderly()) {
             return;
         }
-
         int loop = msgTreeMap.size() < 16 ? msgTreeMap.size() : 16;
         for (int i = 0; i < loop; i++) {
             MessageExt msg = null;
@@ -215,26 +233,6 @@ public class ProcessQueue {
         return result;
     }
 
-    public TreeMap<Long, MessageExt> getMsgTreeMap() {
-        return msgTreeMap;
-    }
-
-    public AtomicLong getMsgCount() {
-        return msgCount;
-    }
-
-    public AtomicLong getMsgSize() {
-        return msgSize;
-    }
-
-    public boolean isDropped() {
-        return dropped;
-    }
-
-    public void setDropped(boolean dropped) {
-        this.dropped = dropped;
-    }
-
     public boolean isLocked() {
         return locked;
     }
@@ -359,34 +357,6 @@ public class ProcessQueue {
         }
     }
 
-    public long getLastLockTimestamp() {
-        return lastLockTimestamp;
-    }
-
-    public void setLastLockTimestamp(long lastLockTimestamp) {
-        this.lastLockTimestamp = lastLockTimestamp;
-    }
-
-    public Lock getLockConsume() {
-        return lockConsume;
-    }
-
-    public long getLastPullTimestamp() {
-        return lastPullTimestamp;
-    }
-
-    public void setLastPullTimestamp(long lastPullTimestamp) {
-        this.lastPullTimestamp = lastPullTimestamp;
-    }
-
-    public long getMsgAccCnt() {
-        return msgAccCnt;
-    }
-
-    public void setMsgAccCnt(long msgAccCnt) {
-        this.msgAccCnt = msgAccCnt;
-    }
-
     public long getTryUnlockTimes() {
         return this.tryUnlockTimes.get();
     }
@@ -424,13 +394,4 @@ public class ProcessQueue {
             this.lockTreeMap.readLock().unlock();
         }
     }
-
-    public long getLastConsumeTimestamp() {
-        return lastConsumeTimestamp;
-    }
-
-    public void setLastConsumeTimestamp(long lastConsumeTimestamp) {
-        this.lastConsumeTimestamp = lastConsumeTimestamp;
-    }
-
 }
