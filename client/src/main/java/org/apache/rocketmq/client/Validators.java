@@ -21,6 +21,9 @@ public class Validators {
 
     public static final int CHARACTER_MAX_LENGTH = 255;
 
+    /**
+     * topic最长127位
+     */
     public static final int TOPIC_MAX_LENGTH = 127;
 
     /**
@@ -66,8 +69,10 @@ public class Validators {
         return matcher.matches();
     }
 
-    public static void checkMessage(Message msg, DefaultMQProducer defaultMQProducer)
-            throws MQClientException {
+    /**
+     * 不能空，topic 必须合法，body不能空，body 长度不能超过 4M
+     */
+    public static void checkMessage(Message msg, DefaultMQProducer defaultMQProducer) throws MQClientException {
         if (null == msg) {
             throw new MQClientException(ResponseCode.MESSAGE_ILLEGAL, "the message is null");
         }
@@ -84,11 +89,13 @@ public class Validators {
         }
 
         if (msg.getBody().length > defaultMQProducer.getMaxMessageSize()) {
-            throw new MQClientException(ResponseCode.MESSAGE_ILLEGAL,
-                    "the message body size over max value, MAX: " + defaultMQProducer.getMaxMessageSize());
+            throw new MQClientException(ResponseCode.MESSAGE_ILLEGAL, "the message body size over max value, MAX: " + defaultMQProducer.getMaxMessageSize());
         }
     }
 
+    /**
+     * 不能空，最长127，只允许 ^[%|a-zA-Z0-9_-]+$，不能是保留更关键词
+     */
     public static void checkTopic(String topic) throws MQClientException {
         if (UtilAll.isBlank(topic)) {
             throw new MQClientException("The specified topic is blank", null);
@@ -105,7 +112,7 @@ public class Validators {
                     String.format("The specified topic is longer than topic max length %d.", TOPIC_MAX_LENGTH), null);
         }
 
-        //whether the same with system reserved keyword
+        //whether the same with system reserved keyword：TBW102，保留关键词
         if (topic.equals(MixAll.AUTO_CREATE_TOPIC_KEY_TOPIC)) {
             throw new MQClientException(
                     String.format("The topic[%s] is conflict with AUTO_CREATE_TOPIC_KEY_TOPIC.", topic), null);

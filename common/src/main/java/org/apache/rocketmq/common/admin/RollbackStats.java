@@ -16,5 +16,4 @@ public class RollbackStats {
     private long timestampOffset;
 
     private long rollbackOffset;
-
 }
