@@ -33,26 +33,26 @@ public class TopicPublishInfo {
     private TopicRouteData topicRouteData;
 
     public boolean ok() {
+        //messageQueueList 不为空即可
         return null != this.messageQueueList && !this.messageQueueList.isEmpty();
     }
 
     public MessageQueue selectOneMessageQueue(final String lastBrokerName) {
         if (lastBrokerName == null) {
             return selectOneMessageQueue();
-        } else {
-            int index = this.sendWhichQueue.getAndIncrement();
-            for (int i = 0; i < this.messageQueueList.size(); i++) {
-                int pos = Math.abs(index++) % this.messageQueueList.size();
-                if (pos < 0) {
-                    pos = 0;
-                }
-                MessageQueue mq = this.messageQueueList.get(pos);
-                if (!mq.getBrokerName().equals(lastBrokerName)) {
-                    return mq;
-                }
-            }
-            return selectOneMessageQueue();
         }
+        int index = this.sendWhichQueue.getAndIncrement();
+        for (int i = 0; i < this.messageQueueList.size(); i++) {
+            int pos = Math.abs(index++) % this.messageQueueList.size();
+            if (pos < 0) {
+                pos = 0;
+            }
+            MessageQueue mq = this.messageQueueList.get(pos);
+            if (!mq.getBrokerName().equals(lastBrokerName)) {
+                return mq;
+            }
+        }
+        return selectOneMessageQueue();
     }
 
     public MessageQueue selectOneMessageQueue() {
