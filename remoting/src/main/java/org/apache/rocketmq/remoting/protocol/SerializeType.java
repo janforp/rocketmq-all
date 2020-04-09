@@ -5,7 +5,9 @@ import lombok.Getter;
 
 @AllArgsConstructor
 public enum SerializeType {
+
     JSON((byte) 0),
+
     ROCKETMQ((byte) 1);
 
     @Getter

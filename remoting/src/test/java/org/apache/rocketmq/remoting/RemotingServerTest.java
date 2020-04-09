@@ -1,49 +1,42 @@
-/*
- * Licensed to the Apache Software Foundation (ASF) under one or more
- * contributor license agreements.  See the NOTICE file distributed with
- * this work for additional information regarding copyright ownership.
- * The ASF licenses this file to You under the Apache License, Version 2.0
- * (the "License"); you may not use this file except in compliance with
- * the License.  You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
 package org.apache.rocketmq.remoting;
 
 import io.netty.channel.ChannelHandlerContext;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.Executors;
 import org.apache.rocketmq.remoting.annotation.CFNullable;
 import org.apache.rocketmq.remoting.exception.RemotingCommandException;
 import org.apache.rocketmq.remoting.exception.RemotingConnectException;
 import org.apache.rocketmq.remoting.exception.RemotingSendRequestException;
 import org.apache.rocketmq.remoting.exception.RemotingTimeoutException;
 import org.apache.rocketmq.remoting.exception.RemotingTooMuchRequestException;
-import org.apache.rocketmq.remoting.netty.*;
+import org.apache.rocketmq.remoting.netty.AsyncNettyRequestProcessor;
+import org.apache.rocketmq.remoting.netty.NettyClientConfig;
+import org.apache.rocketmq.remoting.netty.NettyRemotingClient;
+import org.apache.rocketmq.remoting.netty.NettyRemotingServer;
+import org.apache.rocketmq.remoting.netty.NettyServerConfig;
+import org.apache.rocketmq.remoting.netty.ResponseFuture;
 import org.apache.rocketmq.remoting.protocol.LanguageCode;
 import org.apache.rocketmq.remoting.protocol.RemotingCommand;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.Executors;
+
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 
 public class RemotingServerTest {
+
     private static RemotingServer remotingServer;
+
     private static RemotingClient remotingClient;
 
     public static RemotingServer createRemotingServer() throws InterruptedException {
         NettyServerConfig config = new NettyServerConfig();
         RemotingServer remotingServer = new NettyRemotingServer(config);
-        remotingServer.registerProcessor(0, new AsyncNettyRequestProcessor() {
+
+        AsyncNettyRequestProcessor asyncNettyRequestProcessor = new AsyncNettyRequestProcessor() {
             @Override
             public RemotingCommand processRequest(ChannelHandlerContext ctx, RemotingCommand request) {
                 request.setRemark("Hi " + ctx.channel().remoteAddress());
@@ -54,7 +47,15 @@ public class RemotingServerTest {
             public boolean rejectRequest() {
                 return false;
             }
-        }, Executors.newCachedThreadPool());
+        };
+
+        //void registerProcessor(final int requestCode, final NettyRequestProcessor processor, final ExecutorService executor);
+        remotingServer.registerProcessor(
+                0,
+
+                asyncNettyRequestProcessor,
+
+                Executors.newCachedThreadPool());
 
         remotingServer.start();
 
@@ -85,7 +86,7 @@ public class RemotingServerTest {
 
     @Test
     public void testInvokeSync() throws InterruptedException, RemotingConnectException,
-        RemotingSendRequestException, RemotingTimeoutException {
+            RemotingSendRequestException, RemotingTimeoutException {
         RequestHeader requestHeader = new RequestHeader();
         requestHeader.setCount(1);
         requestHeader.setMessageTitle("Welcome");
@@ -99,7 +100,7 @@ public class RemotingServerTest {
 
     @Test
     public void testInvokeOneway() throws InterruptedException, RemotingConnectException,
-        RemotingTimeoutException, RemotingTooMuchRequestException, RemotingSendRequestException {
+            RemotingTimeoutException, RemotingTooMuchRequestException, RemotingSendRequestException {
 
         RemotingCommand request = RemotingCommand.createRequestCommand(0, null);
         request.setRemark("messi");
@@ -108,7 +109,7 @@ public class RemotingServerTest {
 
     @Test
     public void testInvokeAsync() throws InterruptedException, RemotingConnectException,
-        RemotingTimeoutException, RemotingTooMuchRequestException, RemotingSendRequestException {
+            RemotingTimeoutException, RemotingTooMuchRequestException, RemotingSendRequestException {
 
         final CountDownLatch latch = new CountDownLatch(1);
         RemotingCommand request = RemotingCommand.createRequestCommand(0, null);
@@ -117,7 +118,7 @@ public class RemotingServerTest {
             @Override
             public void operationComplete(ResponseFuture responseFuture) {
                 latch.countDown();
-                assertTrue(responseFuture != null);
+                assertNotNull(responseFuture);
                 assertThat(responseFuture.getResponseCommand().getLanguage()).isEqualTo(LanguageCode.JAVA);
                 assertThat(responseFuture.getResponseCommand().getExtFields()).hasSize(2);
             }
@@ -127,6 +128,7 @@ public class RemotingServerTest {
 }
 
 class RequestHeader implements CommandCustomHeader {
+
     @CFNullable
     private Integer count;
 

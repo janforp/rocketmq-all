@@ -1,6 +1,8 @@
 package org.apache.rocketmq.remoting.protocol;
 
 import com.alibaba.fastjson.annotation.JSONField;
+import lombok.Getter;
+import lombok.Setter;
 import org.apache.rocketmq.logging.InternalLogger;
 import org.apache.rocketmq.logging.InternalLoggerFactory;
 import org.apache.rocketmq.remoting.CommandCustomHeader;
@@ -30,8 +32,7 @@ public class RemotingCommand {
 
     private static final int RPC_ONEWAY = 1; // 0, RPC
 
-    private static final Map<Class<? extends CommandCustomHeader>, Field[]> CLASS_HASH_MAP =
-            new HashMap<Class<? extends CommandCustomHeader>, Field[]>();
+    private static final Map<Class<? extends CommandCustomHeader>, Field[]> CLASS_HASH_MAP = new HashMap<Class<? extends CommandCustomHeader>, Field[]>();
 
     private static final Map<Class, String> CANONICAL_NAME_CACHE = new HashMap<Class, String>();
 
@@ -64,6 +65,7 @@ public class RemotingCommand {
     private static SerializeType serializeTypeConfigInThisServer = SerializeType.JSON;
 
     static {
+        //rocketmq.serialize.type，ROCKETMQ_SERIALIZE_TYPE
         final String protocol = System.getProperty(SERIALIZE_TYPE_PROPERTY, System.getenv(SERIALIZE_TYPE_ENV));
         if (!isBlank(protocol)) {
             try {
@@ -74,24 +76,42 @@ public class RemotingCommand {
         }
     }
 
+    @Setter
+    @Getter
     private int code;
 
+    @Setter
+    @Getter
     private LanguageCode language = LanguageCode.JAVA;
 
+    @Setter
+    @Getter
     private int version = 0;
 
+    @Setter
+    @Getter
     private int opaque = requestId.getAndIncrement();
 
+    @Setter
+    @Getter
     private int flag = 0;
 
+    @Setter
+    @Getter
     private String remark;
 
+    @Setter
+    @Getter
     private HashMap<String, String> extFields;
 
     private transient CommandCustomHeader customHeader;
 
+    @Setter
+    @Getter
     private SerializeType serializeTypeCurrentRPC = serializeTypeConfigInThisServer;
 
+    @Setter
+    @Getter
     private transient byte[] body;
 
     protected RemotingCommand() {
@@ -109,6 +129,7 @@ public class RemotingCommand {
         if (configVersion >= 0) {
             cmd.setVersion(configVersion);
         } else {
+            //rocketmq.remoting.version
             String v = System.getProperty(REMOTING_VERSION_KEY);
             if (v != null) {
                 int value = Integer.parseInt(v);
@@ -122,8 +143,7 @@ public class RemotingCommand {
         return createResponseCommand(RemotingSysResponseCode.SYSTEM_ERROR, "not set any response code", classHeader);
     }
 
-    public static RemotingCommand createResponseCommand(int code, String remark,
-            Class<? extends CommandCustomHeader> classHeader) {
+    public static RemotingCommand createResponseCommand(int code, String remark, Class<? extends CommandCustomHeader> classHeader) {
         RemotingCommand cmd = new RemotingCommand();
         cmd.markResponseType();
         cmd.setCode(code);
@@ -161,7 +181,8 @@ public class RemotingCommand {
         byte[] headerData = new byte[headerLength];
         byteBuffer.get(headerData);
 
-        RemotingCommand cmd = headerDecode(headerData, getProtocolType(oriHeaderLen));
+        SerializeType protocolType = getProtocolType(oriHeaderLen);
+        RemotingCommand cmd = headerDecode(headerData, protocolType);
 
         int bodyLength = length - 4 - headerLength;
         byte[] bodyData = null;
@@ -196,7 +217,8 @@ public class RemotingCommand {
     }
 
     public static SerializeType getProtocolType(int source) {
-        return SerializeType.valueOf((byte) ((source >> 24) & 0xFF));
+        byte byteVal = (byte) ((source >> 24) & 0xFF);
+        return SerializeType.valueOf(byteVal);
     }
 
     public static int createNewRequestId() {
@@ -452,14 +474,6 @@ public class RemotingCommand {
         return (this.flag & bits) == bits;
     }
 
-    public int getCode() {
-        return code;
-    }
-
-    public void setCode(int code) {
-        this.code = code;
-    }
-
     @JSONField(serialize = false)
     public RemotingCommandType getType() {
         if (this.isResponseType()) {
@@ -475,62 +489,6 @@ public class RemotingCommand {
         return (this.flag & bits) == bits;
     }
 
-    public LanguageCode getLanguage() {
-        return language;
-    }
-
-    public void setLanguage(LanguageCode language) {
-        this.language = language;
-    }
-
-    public int getVersion() {
-        return version;
-    }
-
-    public void setVersion(int version) {
-        this.version = version;
-    }
-
-    public int getOpaque() {
-        return opaque;
-    }
-
-    public void setOpaque(int opaque) {
-        this.opaque = opaque;
-    }
-
-    public int getFlag() {
-        return flag;
-    }
-
-    public void setFlag(int flag) {
-        this.flag = flag;
-    }
-
-    public String getRemark() {
-        return remark;
-    }
-
-    public void setRemark(String remark) {
-        this.remark = remark;
-    }
-
-    public byte[] getBody() {
-        return body;
-    }
-
-    public void setBody(byte[] body) {
-        this.body = body;
-    }
-
-    public HashMap<String, String> getExtFields() {
-        return extFields;
-    }
-
-    public void setExtFields(HashMap<String, String> extFields) {
-        this.extFields = extFields;
-    }
-
     public void addExtField(String key, String value) {
         if (null == extFields) {
             extFields = new HashMap<String, String>();
@@ -543,13 +501,5 @@ public class RemotingCommand {
         return "RemotingCommand [code=" + code + ", language=" + language + ", version=" + version + ", opaque=" + opaque + ", flag(B)="
                 + Integer.toBinaryString(flag) + ", remark=" + remark + ", extFields=" + extFields + ", serializeTypeCurrentRPC="
                 + serializeTypeCurrentRPC + "]";
-    }
-
-    public SerializeType getSerializeTypeCurrentRPC() {
-        return serializeTypeCurrentRPC;
-    }
-
-    public void setSerializeTypeCurrentRPC(SerializeType serializeTypeCurrentRPC) {
-        this.serializeTypeCurrentRPC = serializeTypeCurrentRPC;
     }
 }

@@ -1,19 +1,3 @@
-/*
- * Licensed to the Apache Software Foundation (ASF) under one or more
- * contributor license agreements.  See the NOTICE file distributed with
- * this work for additional information regarding copyright ownership.
- * The ASF licenses this file to You under the Apache License, Version 2.0
- * (the "License"); you may not use this file except in compliance with
- * the License.  You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
 package org.apache.rocketmq.remoting.protocol;
 
 import java.nio.ByteBuffer;
@@ -23,6 +7,7 @@ import java.util.Iterator;
 import java.util.Map;
 
 public class RocketMQSerializable {
+
     private static final Charset CHARSET_UTF8 = Charset.forName("UTF-8");
 
     public static byte[] rocketMQProtocolEncode(RemotingCommand cmd) {
@@ -75,8 +60,9 @@ public class RocketMQSerializable {
 
     public static byte[] mapSerialize(HashMap<String, String> map) {
         // keySize+key+valSize+val
-        if (null == map || map.isEmpty())
+        if (null == map || map.isEmpty()) {
             return null;
+        }
 
         int totalLength = 0;
         int kvLength;
@@ -85,10 +71,10 @@ public class RocketMQSerializable {
             Map.Entry<String, String> entry = it.next();
             if (entry.getKey() != null && entry.getValue() != null) {
                 kvLength =
-                    // keySize + Key
-                    2 + entry.getKey().getBytes(CHARSET_UTF8).length
-                        // valSize + val
-                        + 4 + entry.getValue().getBytes(CHARSET_UTF8).length;
+                        // keySize + Key
+                        2 + entry.getKey().getBytes(CHARSET_UTF8).length
+                                // valSize + val
+                                + 4 + entry.getValue().getBytes(CHARSET_UTF8).length;
                 totalLength += kvLength;
             }
         }
@@ -117,18 +103,18 @@ public class RocketMQSerializable {
     private static int calTotalLen(int remark, int ext) {
         // int code(~32767)
         int length = 2
-            // LanguageCode language
-            + 1
-            // int version(~32767)
-            + 2
-            // int opaque
-            + 4
-            // int flag
-            + 4
-            // String remark
-            + 4 + remark
-            // HashMap<String, String> extFields
-            + 4 + ext;
+                // LanguageCode language
+                + 1
+                // int version(~32767)
+                + 2
+                // int opaque
+                + 4
+                // int flag
+                + 4
+                // String remark
+                + 4 + remark
+                // HashMap<String, String> extFields
+                + 4 + ext;
 
         return length;
     }
@@ -151,7 +137,8 @@ public class RocketMQSerializable {
         if (remarkLength > 0) {
             byte[] remarkContent = new byte[remarkLength];
             headerBuffer.get(remarkContent);
-            cmd.setRemark(new String(remarkContent, CHARSET_UTF8));
+            String remark = new String(remarkContent, CHARSET_UTF8);
+            cmd.setRemark(remark);
         }
 
         // HashMap<String, String> extFields
@@ -159,14 +146,16 @@ public class RocketMQSerializable {
         if (extFieldsLength > 0) {
             byte[] extFieldsBytes = new byte[extFieldsLength];
             headerBuffer.get(extFieldsBytes);
-            cmd.setExtFields(mapDeserialize(extFieldsBytes));
+            HashMap<String, String> deserialize = mapDeserialize(extFieldsBytes);
+            cmd.setExtFields(deserialize);
         }
         return cmd;
     }
 
     public static HashMap<String, String> mapDeserialize(byte[] bytes) {
-        if (bytes == null || bytes.length <= 0)
+        if (bytes == null || bytes.length <= 0) {
             return null;
+        }
 
         HashMap<String, String> map = new HashMap<String, String>();
         ByteBuffer byteBuffer = ByteBuffer.wrap(bytes);
@@ -184,7 +173,9 @@ public class RocketMQSerializable {
             valContent = new byte[valSize];
             byteBuffer.get(valContent);
 
-            map.put(new String(keyContent, CHARSET_UTF8), new String(valContent, CHARSET_UTF8));
+            String key = new String(keyContent, CHARSET_UTF8);
+            String value = new String(valContent, CHARSET_UTF8);
+            map.put(key, value);
         }
         return map;
     }

@@ -4,6 +4,9 @@ import lombok.AllArgsConstructor;
 import lombok.Getter;
 
 /**
+ *
+ * is short for Transport Layer Security
+ *
  * For server, three SSL modes are supported: disabled, permissive and enforcing.
  * <ol>
  *     <li><strong>disabled:</strong> SSL is not supported; any incoming SSL handshake will be rejected, causing connection closed.</li>

@@ -12,6 +12,7 @@ import java.net.Inet6Address;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.NetworkInterface;
+import java.net.Socket;
 import java.net.SocketAddress;
 import java.nio.channels.Selector;
 import java.nio.channels.SocketChannel;
@@ -150,12 +151,11 @@ public class RemotingUtil {
     }
 
     public static String socketAddress2String(final SocketAddress addr) {
-        StringBuilder sb = new StringBuilder();
         InetSocketAddress inetSocketAddress = (InetSocketAddress) addr;
-        sb.append(inetSocketAddress.getAddress().getHostAddress());
-        sb.append(":");
-        sb.append(inetSocketAddress.getPort());
-        return sb.toString();
+        String sb = inetSocketAddress.getAddress().getHostAddress()
+                + ":"
+                + inetSocketAddress.getPort();
+        return sb;
     }
 
     public static SocketChannel connect(SocketAddress remote) {
@@ -167,11 +167,14 @@ public class RemotingUtil {
         try {
             sc = SocketChannel.open();
             sc.configureBlocking(true);
-            sc.socket().setSoLinger(false, -1);
-            sc.socket().setTcpNoDelay(true);
-            sc.socket().setReceiveBufferSize(1024 * 64);
-            sc.socket().setSendBufferSize(1024 * 64);
-            sc.socket().connect(remote, timeoutMillis);
+
+            Socket socket = sc.socket();
+
+            socket.setSoLinger(false, -1);
+            socket.setTcpNoDelay(true);
+            socket.setReceiveBufferSize(1024 * 64);
+            socket.setSendBufferSize(1024 * 64);
+            socket.connect(remote, timeoutMillis);
             sc.configureBlocking(false);
             return sc;
         } catch (Exception e) {
