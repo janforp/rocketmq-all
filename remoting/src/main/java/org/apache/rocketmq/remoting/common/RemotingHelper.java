@@ -141,13 +141,14 @@ public class RemotingHelper {
         if (null == channel) {
             return "";
         }
-        SocketAddress remote = channel.remoteAddress();
+        SocketAddress remote = channel.remoteAddress();//localhost/127.0.0.1:8888
         final String addr = remote != null ? remote.toString() : "";
 
         if (addr.length() > 0) {
             int index = addr.lastIndexOf("/");
             if (index >= 0) {
-                return addr.substring(index + 1);
+                String remoteAddr = addr.substring(index + 1);
+                return remoteAddr;
             }
 
             return addr;

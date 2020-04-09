@@ -382,8 +382,7 @@ public abstract class NettyRemotingAbstract {
         }
     }
 
-    public RemotingCommand invokeSyncImpl(final Channel channel, final RemotingCommand request,
-            final long timeoutMillis)
+    public RemotingCommand invokeSyncImpl(final Channel channel, final RemotingCommand request, final long timeoutMillis)
             throws InterruptedException, RemotingSendRequestException, RemotingTimeoutException {
         final int opaque = request.getOpaque();
 
@@ -391,10 +390,13 @@ public abstract class NettyRemotingAbstract {
             final ResponseFuture responseFuture = new ResponseFuture(channel, opaque, timeoutMillis, null, null);
             this.responseTable.put(opaque, responseFuture);
             final SocketAddress addr = channel.remoteAddress();
-            channel.writeAndFlush(request).addListener(new ChannelFutureListener() {
+
+            ChannelFuture channelFuture = channel.writeAndFlush(request);
+
+            channelFuture.addListener(new ChannelFutureListener() {
                 @Override
-                public void operationComplete(ChannelFuture f) throws Exception {
-                    if (f.isSuccess()) {
+                public void operationComplete(ChannelFuture future) throws Exception {
+                    if (future.isSuccess()) {
                         responseFuture.setSendRequestOK(true);
                         return;
                     } else {
@@ -402,7 +404,7 @@ public abstract class NettyRemotingAbstract {
                     }
 
                     responseTable.remove(opaque);
-                    responseFuture.setCause(f.cause());
+                    responseFuture.setCause(future.cause());
                     responseFuture.putResponse(null);
                     log.warn("send a request command to channel <" + addr + "> failed.");
                 }

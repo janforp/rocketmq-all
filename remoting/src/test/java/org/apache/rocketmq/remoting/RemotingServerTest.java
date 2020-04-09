@@ -1,6 +1,8 @@
 package org.apache.rocketmq.remoting;
 
 import io.netty.channel.ChannelHandlerContext;
+import lombok.Getter;
+import lombok.Setter;
 import org.apache.rocketmq.remoting.annotation.CFNullable;
 import org.apache.rocketmq.remoting.exception.RemotingCommandException;
 import org.apache.rocketmq.remoting.exception.RemotingConnectException;
@@ -85,14 +87,13 @@ public class RemotingServerTest {
     }
 
     @Test
-    public void testInvokeSync() throws InterruptedException, RemotingConnectException,
-            RemotingSendRequestException, RemotingTimeoutException {
+    public void testInvokeSync() throws InterruptedException, RemotingConnectException, RemotingSendRequestException, RemotingTimeoutException {
         RequestHeader requestHeader = new RequestHeader();
         requestHeader.setCount(1);
         requestHeader.setMessageTitle("Welcome");
         RemotingCommand request = RemotingCommand.createRequestCommand(0, requestHeader);
         RemotingCommand response = remotingClient.invokeSync("localhost:8888", request, 1000 * 3);
-        assertTrue(response != null);
+        assertNotNull(response);
         assertThat(response.getLanguage()).isEqualTo(LanguageCode.JAVA);
         assertThat(response.getExtFields()).hasSize(2);
 
@@ -129,30 +130,18 @@ public class RemotingServerTest {
 
 class RequestHeader implements CommandCustomHeader {
 
+    @Getter
+    @Setter
     @CFNullable
     private Integer count;
 
+    @Getter
+    @Setter
     @CFNullable
     private String messageTitle;
 
     @Override
     public void checkFields() throws RemotingCommandException {
-    }
-
-    public Integer getCount() {
-        return count;
-    }
-
-    public void setCount(Integer count) {
-        this.count = count;
-    }
-
-    public String getMessageTitle() {
-        return messageTitle;
-    }
-
-    public void setMessageTitle(String messageTitle) {
-        this.messageTitle = messageTitle;
     }
 }
 
