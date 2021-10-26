@@ -3,20 +3,35 @@ package org.apache.rocketmq.common.protocol.route;
 import lombok.Getter;
 import lombok.Setter;
 
+/**
+ * 主题队列分布 map
+ */
 public class QueueData implements Comparable<QueueData> {
 
+    /**
+     * 节点名称
+     */
     @Setter
     @Getter
     private String brokerName;
 
+    /**
+     * 读队列数
+     */
     @Setter
     @Getter
     private int readQueueNums;
 
+    /**
+     * 写队列数
+     */
     @Setter
     @Getter
     private int writeQueueNums;
 
+    /**
+     * 权限
+     */
     @Setter
     @Getter
     private int perm;

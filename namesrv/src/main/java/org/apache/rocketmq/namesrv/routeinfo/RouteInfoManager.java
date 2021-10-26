@@ -35,7 +35,9 @@ import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 /**
  * 这个最重要的类，负责缓存整个集群的broker信息，以及topic和queue的配置信息。
- * RouteInfoManager的所有数据通过HashMap缓存在内存中，通过读写锁来控制并发更新。这样可最大程度的提高客户端查询数据的速度。数据更新时会将数据保存到文件中，重启后可恢复数据。
+ * RouteInfoManager的所有数据通过HashMap缓存在内存中，通过读写锁来控制并发更新。
+ * 这样可最大程度的提高客户端查询数据的速度。
+ * 数据更新时会将数据保存到文件中，重启后可恢复数据。
  */
 public class RouteInfoManager {
 
@@ -765,18 +767,30 @@ public class RouteInfoManager {
 @AllArgsConstructor
 class BrokerLiveInfo {
 
+    /**
+     * 上次心态时间
+     */
     @Setter
     @Getter
     private long lastUpdateTimestamp;
 
+    /**
+     *
+     */
     @Setter
     @Getter
     private DataVersion dataVersion;
 
+    /**
+     * 通信通道
+     */
     @Setter
     @Getter
     private Channel channel;
 
+    /**
+     * 备份节点地址
+     */
     @Setter
     @Getter
     private String haServerAddr;

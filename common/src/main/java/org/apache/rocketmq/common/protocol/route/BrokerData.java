@@ -13,14 +13,25 @@ import java.util.Random;
 @NoArgsConstructor
 public class BrokerData implements Comparable<BrokerData> {
 
+    /**
+     * 集群名称
+     */
     @Getter
     @Setter
     private String cluster;
 
+    /**
+     * 节点名称
+     */
     @Getter
     @Setter
     private String brokerName;
 
+    /**
+     * 地址
+     * key:brokerId值为0的机器节点为master,其他为slave
+     * value:服务IP地址，列：192.168.0.1:210000
+     */
     @Getter
     @Setter
     private HashMap<Long/* brokerId */, String/* broker address */> brokerAddrs;

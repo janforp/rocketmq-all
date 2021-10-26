@@ -13,6 +13,7 @@ import org.apache.rocketmq.namesrv.processor.ClusterTestRequestProcessor;
 import org.apache.rocketmq.namesrv.processor.DefaultRequestProcessor;
 import org.apache.rocketmq.namesrv.routeinfo.BrokerHousekeepingService;
 import org.apache.rocketmq.namesrv.routeinfo.RouteInfoManager;
+import org.apache.rocketmq.remoting.ChannelEventListener;
 import org.apache.rocketmq.remoting.RemotingServer;
 import org.apache.rocketmq.remoting.common.TlsMode;
 import org.apache.rocketmq.remoting.netty.NettyRemotingServer;
@@ -41,25 +42,47 @@ public class NamesrvController {
     @Getter
     private final NettyServerConfig nettyServerConfig;
 
+    /**
+     * 执行定时任务
+     * 1.检查broker存活状态
+     * 2.打印配置
+     */
     private final ScheduledExecutorService scheduledExecutorService = Executors.newSingleThreadScheduledExecutor(new ThreadFactoryImpl("NSScheduledThread"));
 
+    /**
+     * 管理kv配置
+     */
     @Getter
     private final KVConfigManager kvConfigManager;
 
+    /**
+     * 管理路由信息的对象，比较重要
+     */
     @Getter
     private final RouteInfoManager routeInfoManager;
 
+    /**
+     * 网络层封装对象，重要
+     */
     @Getter
     @Setter
     private RemotingServer remotingServer;
 
-    private BrokerHousekeepingService brokerHousekeepingService;
+    /**
+     * @see ChannelEventListener
+     * 一个org.apache.rocketmq.remoting.ChannelEventListener实例
+     * 用于监听 channel 状态，当 channel 状态发生变化时，如 close, idle ... 会向事件队列
+     * 发送事件，事件最终由该 service 处理
+     */
+    private final BrokerHousekeepingService brokerHousekeepingService;
 
+    // 业务线程池
     private ExecutorService remotingExecutor;
 
     @Getter
-    private Configuration configuration;
+    private final Configuration configuration;
 
+    // 安全
     private FileWatchService fileWatchService;
 
     public NamesrvController(NamesrvConfig namesrvConfig, NettyServerConfig nettyServerConfig) {
@@ -82,6 +105,7 @@ public class NamesrvController {
 
         this.registerProcessor();
 
+        // 定时任务1，每10s检查 broker 存活状态，将 idle 状态的 Broker 移除
         this.scheduledExecutorService.scheduleAtFixedRate(NamesrvController.this.routeInfoManager::scanNotActiveBroker, 5, 10, TimeUnit.SECONDS);
 
         this.scheduledExecutorService.scheduleAtFixedRate(NamesrvController.this.kvConfigManager::printAllPeriodically, 1, 10, TimeUnit.MINUTES);
@@ -134,21 +158,18 @@ public class NamesrvController {
 
     private void registerProcessor() {
         if (namesrvConfig.isClusterTest()) {
-
             String productEnvName = namesrvConfig.getProductEnvName();
             ClusterTestRequestProcessor clusterTestRequestProcessor = new ClusterTestRequestProcessor(this, productEnvName);
             this.remotingServer.registerDefaultProcessor(clusterTestRequestProcessor, this.remotingExecutor);
-
         } else {
-
             DefaultRequestProcessor defaultRequestProcessor = new DefaultRequestProcessor(this);
             this.remotingServer.registerDefaultProcessor(defaultRequestProcessor, this.remotingExecutor);
         }
     }
 
     public void start() throws Exception {
+        //服务器 网络层 启动
         this.remotingServer.start();
-
         if (this.fileWatchService != null) {
             this.fileWatchService.start();
         }
@@ -158,7 +179,6 @@ public class NamesrvController {
         this.remotingServer.shutdown();
         this.remotingExecutor.shutdown();
         this.scheduledExecutorService.shutdown();
-
         if (this.fileWatchService != null) {
             this.fileWatchService.shutdown();
         }

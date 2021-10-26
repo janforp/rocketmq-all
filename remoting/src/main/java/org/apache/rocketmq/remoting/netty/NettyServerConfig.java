@@ -5,6 +5,9 @@ import lombok.Setter;
 
 public class NettyServerConfig implements Cloneable {
 
+    /**
+     * 服务端启动监听端口
+     */
     @Getter
     @Setter
     private int listenPort = 8888;

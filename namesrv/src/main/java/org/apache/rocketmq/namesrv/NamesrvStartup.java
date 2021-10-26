@@ -31,18 +31,46 @@ public class NamesrvStartup {
 
     private static InternalLogger log;
 
+    /**
+     * *      if (commandLine.hasOption('c')) {
+     * *             // 如果有 -c 选项
+     * *             // 读取
+     * *             String file = commandLine.getOptionValue('c');
+     * *             if (file != null) {
+     * *                 // 读取
+     * *                 InputStream in = new BufferedInputStream(new FileInputStream(file));
+     * *                 properties = new Properties();
+     * *                 properties.load(in);
+     * *                 MixAll.properties2Object(properties, namesrvConfig);
+     * *                 MixAll.properties2Object(properties, nettyServerConfig);
+     * *
+     * *                 namesrvConfig.setConfigStorePath(file);
+     * *
+     * *                 System.out.printf("load config properties file OK, %s%n", file);
+     * *                 in.close();
+     * *             }
+     * *         }
+     */
     @Getter
     private static Properties properties = null;
 
+    /**
+     * 命令行
+     */
     private static CommandLine commandLine = null;
 
     public static void main(String[] args) {
+        // 如果启动时使用了 -c -p ... 设置了参数，这些参数由 args 承接
         main0(args);
     }
 
     public static NamesrvController main0(String[] args) {
 
         try {
+            /**
+             * 创建 namesrv 控制器：
+             * namesrv 控制器：初始化 namesrv,启动namesrv，关闭namesrv
+             */
             NamesrvController controller = createNamesrvController(args);
             start(controller);
             String tip = "The Name Server boot success. serializeType=" + RemotingCommand.getSerializeTypeConfigInThisServer();
@@ -57,26 +85,35 @@ public class NamesrvStartup {
         return null;
     }
 
+    /***
+     * 读取配置信息，初始化控制器
+     */
     public static NamesrvController createNamesrvController(String[] args) throws IOException, JoranException {
         System.setProperty(RemotingCommand.REMOTING_VERSION_KEY, Integer.toString(MQVersion.CURRENT_VERSION));
         //PackageConflictDetect.detectFastjson();
 
         Options options = ServerUtil.buildCommandlineOptions(new Options());
+        // 非核心：启动参数信息，由commandLine管理
         commandLine = ServerUtil.parseCmdLine("mqnamesrv", args, buildCommandlineOptions(options), new PosixParser());
         if (null == commandLine) {
             System.exit(-1);
             return null;
         }
-
         final NamesrvConfig namesrvConfig = new NamesrvConfig();
         final NettyServerConfig nettyServerConfig = new NettyServerConfig();
+        //namesrv服务端启动监听端口
         nettyServerConfig.setListenPort(9876);
         if (commandLine.hasOption('c')) {
+            // 如果有 -c 选项
+            // 读取
             String file = commandLine.getOptionValue('c');
             if (file != null) {
+                // 读取 config 文件数据到 properties 内
                 InputStream in = new BufferedInputStream(new FileInputStream(file));
                 properties = new Properties();
                 properties.load(in);
+
+                // 如果 config 配置文件内的配置涉及到 namesrvConfig 或者 nettyServerConfig 的字段，则进行赋值
                 MixAll.properties2Object(properties, namesrvConfig);
                 MixAll.properties2Object(properties, nettyServerConfig);
 
@@ -88,6 +125,7 @@ public class NamesrvStartup {
         }
 
         if (commandLine.hasOption('p')) {
+            // 不会进来
             InternalLogger console = InternalLoggerFactory.getLogger(LoggerName.NAMESRV_CONSOLE_NAME);
             MixAll.printObjectProperties(console, namesrvConfig);
             MixAll.printObjectProperties(console, nettyServerConfig);
@@ -97,6 +135,7 @@ public class NamesrvStartup {
         MixAll.properties2Object(ServerUtil.commandLine2Properties(commandLine), namesrvConfig);
 
         if (null == namesrvConfig.getRocketmqHome()) {
+            // 不会进来
             System.out.printf("Please set the %s variable in your environment to match the location of the RocketMQ installation%n", MixAll.ROCKETMQ_HOME_ENV);
             System.exit(-2);
         }
@@ -106,12 +145,12 @@ public class NamesrvStartup {
         configurator.setContext(lc);
         lc.reset();
         configurator.doConfigure(namesrvConfig.getRocketmqHome() + "/conf/logback_namesrv.xml");
-
         log = InternalLoggerFactory.getLogger(LoggerName.NAMESRV_LOGGER_NAME);
 
         MixAll.printObjectProperties(log, namesrvConfig);
         MixAll.printObjectProperties(log, nettyServerConfig);
 
+        // 创建控制器
         final NamesrvController controller = new NamesrvController(namesrvConfig, nettyServerConfig);
 
         // remember all configs to prevent discard
