@@ -24,10 +24,18 @@ public class NettyServerConfig implements Cloneable {
     @Setter
     private int serverSelectorThreads = 3;
 
+    /**
+     * // 服务器向 客户端主动发起请求时的并发限制
+     * //1.单向请求的并发限制
+     */
     @Getter
     @Setter
     private int serverOnewaySemaphoreValue = 256;
 
+    /**
+     * // 服务器向 客户端主动发起请求时的并发限制
+     * //2.异步请求的并发限制
+     */
     @Getter
     @Setter
     private int serverAsyncSemaphoreValue = 64;

@@ -52,22 +52,34 @@ public class NettyRemotingServer extends NettyRemotingAbstract implements Remoti
 
     private static final InternalLogger log = InternalLoggerFactory.getLogger(RemotingHelper.ROCKETMQ_REMOTING);
 
+    // netty服务端启动对象
     private final ServerBootstrap serverBootstrap;
 
+    // netty worker 组线程池
     private final EventLoopGroup eventLoopGroupSelector;
 
+    // netty boss 线程池，一般只有一个线程
     private final EventLoopGroup eventLoopGroupBoss;
 
+    // NETty 服务端网络配置
     private final NettyServerConfig nettyServerConfig;
 
+    // 公共线程池，注册处理器时，如果未指定线程池，则使用该线程池
     private final ExecutorService publicExecutor;
 
+    /**
+     * @see org.apache.rocketmq.namesrv.routeinfo.BrokerHousekeepingService namesrv使用
+     * @see org.apache.rocketmq.broker.client.ClientHousekeepingService broker 使用
+     */
     private final ChannelEventListener channelEventListener;
 
+    // 定时任务，支持 scanResponseFuture 任务，负责清理过期的 ResponseFuture
     private final Timer timer = new Timer("ServerHouseKeepingService", true);
 
+    // 当向 channel pipeline 添加 handler 时，制定了 GROUp时候，网络事件传播到当前 handler 时，事件处理器由分配给 handler 的线程执行
     private DefaultEventExecutorGroup defaultEventExecutorGroup;
 
+    // 服务器绑定端口
     private int port = 0;
 
     private static final String HANDSHAKE_HANDLER_NAME = "handshakeHandler";
@@ -90,18 +102,23 @@ public class NettyRemotingServer extends NettyRemotingAbstract implements Remoti
     }
 
     public NettyRemotingServer(final NettyServerConfig nettyServerConfig, final ChannelEventListener channelEventListener) {
+        // 服务器向 客户端主动发起请求时的并发限制
+        //1.单向请求的并发限制
+        //2.异步请求的并发限制
         super(nettyServerConfig.getServerOnewaySemaphoreValue(), nettyServerConfig.getServerAsyncSemaphoreValue());
         this.serverBootstrap = new ServerBootstrap();
         this.nettyServerConfig = nettyServerConfig;
         this.channelEventListener = channelEventListener;
 
+        // 公共线程池的线程数量，默认0，修改为4
         int publicThreadNums = nettyServerConfig.getServerCallbackExecutorThreads();
         if (publicThreadNums <= 0) {
             publicThreadNums = 4;
         }
 
+        // 创建公共线程池
         this.publicExecutor = Executors.newFixedThreadPool(publicThreadNums, new ThreadFactory() {
-            private AtomicInteger threadIndex = new AtomicInteger(0);
+            private final AtomicInteger threadIndex = new AtomicInteger(0);
 
             @Override
             public Thread newThread(Runnable r) {
@@ -111,7 +128,7 @@ public class NettyRemotingServer extends NettyRemotingAbstract implements Remoti
 
         if (useEpoll()) {
             this.eventLoopGroupBoss = new EpollEventLoopGroup(1, new ThreadFactory() {
-                private AtomicInteger threadIndex = new AtomicInteger(0);
+                private final AtomicInteger threadIndex = new AtomicInteger(0);
 
                 @Override
                 public Thread newThread(Runnable r) {
@@ -120,9 +137,9 @@ public class NettyRemotingServer extends NettyRemotingAbstract implements Remoti
             });
 
             this.eventLoopGroupSelector = new EpollEventLoopGroup(nettyServerConfig.getServerSelectorThreads(), new ThreadFactory() {
-                private AtomicInteger threadIndex = new AtomicInteger(0);
+                private final AtomicInteger threadIndex = new AtomicInteger(0);
 
-                private int threadTotal = nettyServerConfig.getServerSelectorThreads();
+                private final int threadTotal = nettyServerConfig.getServerSelectorThreads();
 
                 @Override
                 public Thread newThread(Runnable r) {
@@ -131,7 +148,7 @@ public class NettyRemotingServer extends NettyRemotingAbstract implements Remoti
             });
         } else {
             this.eventLoopGroupBoss = new NioEventLoopGroup(1, new ThreadFactory() {
-                private AtomicInteger threadIndex = new AtomicInteger(0);
+                private final AtomicInteger threadIndex = new AtomicInteger(0);
 
                 @Override
                 public Thread newThread(Runnable r) {
@@ -140,9 +157,9 @@ public class NettyRemotingServer extends NettyRemotingAbstract implements Remoti
             });
 
             this.eventLoopGroupSelector = new NioEventLoopGroup(nettyServerConfig.getServerSelectorThreads(), new ThreadFactory() {
-                private AtomicInteger threadIndex = new AtomicInteger(0);
+                private final AtomicInteger threadIndex = new AtomicInteger(0);
 
-                private int threadTotal = nettyServerConfig.getServerSelectorThreads();
+                private final int threadTotal = nettyServerConfig.getServerSelectorThreads();
 
                 @Override
                 public Thread newThread(Runnable r) {
@@ -178,20 +195,22 @@ public class NettyRemotingServer extends NettyRemotingAbstract implements Remoti
 
     @Override
     public void start() {
+        // 当向 channel pipeline 添加 handler 时，制定了 GROUp时候，网络事件传播到当前 handler 时，事件处理器由分配给 handler 的线程执行
         this.defaultEventExecutorGroup = new DefaultEventExecutorGroup(
-                nettyServerConfig.getServerWorkerThreads(),
+                nettyServerConfig.getServerWorkerThreads(),// 配置的线程数量
+                // 线程工厂
                 new ThreadFactory() {
-
-                    private AtomicInteger threadIndex = new AtomicInteger(0);
+                    private final AtomicInteger threadIndex = new AtomicInteger(0);
 
                     @Override
                     public Thread newThread(Runnable r) {
                         return new Thread(r, "NettyServerCodecThread_" + this.threadIndex.incrementAndGet());
                     }
                 });
-
+        // 创建handler对象
         prepareSharableHandlers();
 
+        // 配置服务端启动对象
         ServerBootstrap childHandler =
                 this.serverBootstrap.group(this.eventLoopGroupBoss, this.eventLoopGroupSelector)
                         .channel(useEpoll() ? EpollServerSocketChannel.class : NioServerSocketChannel.class)
@@ -206,7 +225,9 @@ public class NettyRemotingServer extends NettyRemotingAbstract implements Remoti
                             @Override
                             public void initChannel(SocketChannel ch) throws Exception {
                                 ch.pipeline()
+                                        // ChannelPipeline addLast(EventExecutorGroup group, String name, ChannelHandler handler);
                                         .addLast(defaultEventExecutorGroup, HANDSHAKE_HANDLER_NAME, handshakeHandler)
+                                        // ChannelPipeline addLast(EventExecutorGroup group, ChannelHandler... handlers);
                                         .addLast(defaultEventExecutorGroup,
                                                 encoder,
                                                 new NettyDecoder(),
@@ -234,7 +255,6 @@ public class NettyRemotingServer extends NettyRemotingAbstract implements Remoti
         }
 
         this.timer.scheduleAtFixedRate(new TimerTask() {
-
             @Override
             public void run() {
                 try {

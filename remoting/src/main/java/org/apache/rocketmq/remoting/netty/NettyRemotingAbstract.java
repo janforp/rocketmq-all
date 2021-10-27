@@ -91,6 +91,10 @@ public abstract class NettyRemotingAbstract {
     /**
      * Constructor, specifying capacity of one-way and asynchronous semaphores.
      *
+     * // 服务器向 客户端主动发起请求时的并发限制
+     * //1.单向请求的并发限制
+     * //2.异步请求的并发限制
+     *
      * @param permitsOneway Number of permits for one-way requests.
      * @param permitsAsync Number of permits for asynchronous requests.
      */
@@ -364,7 +368,6 @@ public abstract class NettyRemotingAbstract {
         while (it.hasNext()) {
             Entry<Integer, ResponseFuture> next = it.next();
             ResponseFuture rep = next.getValue();
-
             if ((rep.getBeginTimestamp() + rep.getTimeoutMillis() + 1000) <= System.currentTimeMillis()) {
                 rep.release();
                 it.remove();
