@@ -31,6 +31,7 @@ public class KVConfigManager {
     public void load() {
         String content = null;
         try {
+            // 从namesrvconfig获取kv的路径;
             content = MixAll.file2String(this.namesrvController.getNamesrvConfig().getKvConfigPath());
         } catch (IOException e) {
             log.warn("Load KV config table exception", e);
@@ -38,6 +39,7 @@ public class KVConfigManager {
         if (content != null) {
             KVConfigSerializeWrapper kvConfigSerializeWrapper = KVConfigSerializeWrapper.fromJson(content, KVConfigSerializeWrapper.class);
             if (null != kvConfigSerializeWrapper) {
+                // 读取路径获取参数并加入kv的存储中;
                 this.configTable.putAll(kvConfigSerializeWrapper.getConfigTable());
                 log.info("load KV config table OK");
             }

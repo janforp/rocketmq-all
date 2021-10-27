@@ -95,10 +95,21 @@ public class NamesrvController {
         this.configuration.setStorePathFromConfig(this.namesrvConfig, "configStorePath");
     }
 
+    /**
+     * 配置完后,接着就是启动NamesrvController.首先是初始化.初始化initialize的动作稍有复杂.主要做了
+     *
+     * KvConfigManager的加载
+     * RemotingServer加载和启动
+     * 注册处理器.(处理器指的是处理访问当前计算机处理请求的逻辑)
+     * 开启两个定时器:扫描不活跃的Broker以及打印kvConfigManager的参数情况
+     * 启动FileWatchService,用于SSL/TLS
+     */
     public boolean initialize() {
 
+        // 开始加载对应的参数
         this.kvConfigManager.load();
 
+        // RemotingServer是负责接受来自Broker的注册网络通信
         this.remotingServer = new NettyRemotingServer(this.nettyServerConfig, this.brokerHousekeepingService);
 
         this.remotingExecutor = Executors.newFixedThreadPool(nettyServerConfig.getServerWorkerThreads(), new ThreadFactoryImpl("RemotingExecutorThread_"));
@@ -106,10 +117,13 @@ public class NamesrvController {
         this.registerProcessor();
 
         // 定时任务1，每10s检查 broker 存活状态，将 idle 状态的 Broker 移除
+        // //定时扫面不活跃Broker
         this.scheduledExecutorService.scheduleAtFixedRate(NamesrvController.this.routeInfoManager::scanNotActiveBroker, 5, 10, TimeUnit.SECONDS);
 
+        // //定时打印KV值
         this.scheduledExecutorService.scheduleAtFixedRate(NamesrvController.this.kvConfigManager::printAllPeriodically, 1, 10, TimeUnit.MINUTES);
 
+        // 最后就是处理关于SSL/TLS的事情.说明一下,RocketMQ需要定义路径:CertPath、KeyPath和TrustCertPath的地址,是为了写入文件.如果没有权限会报错的.
         if (TlsSystemConfig.tlsMode != TlsMode.DISABLED) {
             // Register a listener to reload SslContext
             try {
@@ -121,8 +135,10 @@ public class NamesrvController {
                         },
                         new FileWatchService.Listener() {
 
+                            // //证书更改、键值更改
                             boolean certChanged = false;
 
+                            // //证书更改、键值更改
                             boolean keyChanged = false;
 
                             @Override
@@ -169,8 +185,10 @@ public class NamesrvController {
 
     public void start() throws Exception {
         //服务器 网络层 启动
+        //获取netty的remoteServer
         this.remotingServer.start();
         if (this.fileWatchService != null) {
+            //文件监视服务开启
             this.fileWatchService.start();
         }
     }

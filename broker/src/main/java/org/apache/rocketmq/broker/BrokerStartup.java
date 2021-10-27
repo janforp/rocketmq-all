@@ -89,8 +89,7 @@ public class BrokerStartup {
         try {
             //PackageConflictDetect.detectFastjson();
             Options options = ServerUtil.buildCommandlineOptions(new Options());
-            commandLine = ServerUtil.parseCmdLine("mqbroker", args, buildCommandlineOptions(options),
-                    new PosixParser());
+            commandLine = ServerUtil.parseCmdLine("mqbroker", args, buildCommandlineOptions(options), new PosixParser());
             if (null == commandLine) {
                 System.exit(-1);
             }
@@ -99,8 +98,7 @@ public class BrokerStartup {
             final NettyServerConfig nettyServerConfig = new NettyServerConfig();
             final NettyClientConfig nettyClientConfig = new NettyClientConfig();
 
-            nettyClientConfig.setUseTLS(Boolean.parseBoolean(System.getProperty(TLS_ENABLE,
-                    String.valueOf(TlsSystemConfig.tlsMode == TlsMode.ENFORCING))));
+            nettyClientConfig.setUseTLS(Boolean.parseBoolean(System.getProperty(TLS_ENABLE, String.valueOf(TlsSystemConfig.tlsMode == TlsMode.ENFORCING))));
             nettyServerConfig.setListenPort(10911);
             final MessageStoreConfig messageStoreConfig = new MessageStoreConfig();
 
@@ -135,6 +133,7 @@ public class BrokerStartup {
                 System.exit(-2);
             }
 
+            // 多个namesrvAddr用;隔开
             String namesrvAddr = brokerConfig.getNamesrvAddr();
             if (null != namesrvAddr) {
                 try {
@@ -143,9 +142,7 @@ public class BrokerStartup {
                         RemotingUtil.string2SocketAddress(addr);
                     }
                 } catch (Exception e) {
-                    System.out.printf(
-                            "The Name Server Address[%s] illegal, please set it as follows, \"127.0.0.1:9876;192.168.0.1:9876\"%n",
-                            namesrvAddr);
+                    System.out.printf("The Name Server Address[%s] illegal, please set it as follows, \"127.0.0.1:9876;192.168.0.1:9876\"%n", namesrvAddr);
                     System.exit(-3);
                 }
             }
@@ -157,10 +154,9 @@ public class BrokerStartup {
                     break;
                 case SLAVE:
                     if (brokerConfig.getBrokerId() <= 0) {
-                        System.out.printf("Slave's brokerId must be > 0");
+                        System.out.print("Slave's brokerId must be > 0");
                         System.exit(-3);
                     }
-
                     break;
                 default:
                     break;

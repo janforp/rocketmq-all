@@ -254,6 +254,7 @@ public class NettyRemotingServer extends NettyRemotingAbstract implements Remoti
             this.nettyEventExecutor.start();
         }
 
+        // 最后会开一个定时器定时扫描超时的请求.扫描的原理就是就是根据请求开始时间与目前时间的间隔差,如果超过最大阀值就通过线程池去异步销毁.
         this.timer.scheduleAtFixedRate(new TimerTask() {
             @Override
             public void run() {

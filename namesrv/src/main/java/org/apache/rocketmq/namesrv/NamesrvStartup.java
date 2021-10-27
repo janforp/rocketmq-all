@@ -27,6 +27,9 @@ import java.io.InputStream;
 import java.util.Properties;
 import java.util.concurrent.Callable;
 
+/**
+ * NamesrvStartup是启动类.主要的作用是解析来自命令行的参数、配置namesrv和netty的配置文件解析、配置日志上下文以及配置NamesrvController最后启动.
+ */
 public class NamesrvStartup {
 
     private static InternalLogger log;
@@ -70,6 +73,8 @@ public class NamesrvStartup {
             /**
              * 创建 namesrv 控制器：
              * namesrv 控制器：初始化 namesrv,启动namesrv，关闭namesrv
+             *
+             * 这个方式是用于参数配置,例如将启动命令行的参数获取、从配置文件读取默认配置等.
              */
             NamesrvController controller = createNamesrvController(args);
             start(controller);
@@ -103,6 +108,8 @@ public class NamesrvStartup {
         final NettyServerConfig nettyServerConfig = new NettyServerConfig();
         //namesrv服务端启动监听端口
         nettyServerConfig.setListenPort(9876);
+
+        // 根据参数去填补对应的NamesrvConfig对象以及NettyServerConfig对象.
         if (commandLine.hasOption('c')) {
             // 如果有 -c 选项
             // 读取
@@ -140,6 +147,9 @@ public class NamesrvStartup {
             System.exit(-2);
         }
 
+        // 接着获取RocketMq的目录,为产生日志的位置做好准备
+
+        // //实例化日志上下文
         LoggerContext lc = (LoggerContext) LoggerFactory.getILoggerFactory();
         JoranConfigurator configurator = new JoranConfigurator();
         configurator.setContext(lc);
@@ -154,6 +164,7 @@ public class NamesrvStartup {
         final NamesrvController controller = new NamesrvController(namesrvConfig, nettyServerConfig);
 
         // remember all configs to prevent discard
+        // 记住所有的配置都不应该忽视
         controller.getConfiguration().registerConfig(properties);
 
         return controller;

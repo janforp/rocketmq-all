@@ -437,6 +437,9 @@ public class RouteInfoManager {
         return null;
     }
 
+    /**
+     * 扫描不活跃\断线的Broker的原理很简单,仅仅是拿当前时间减去上一次检查的时间,如果时间超过了阀值就会提出对应Broker的Channel.
+     */
     public void scanNotActiveBroker() {
         Iterator<Entry<String, BrokerLiveInfo>> it = this.brokerLiveTable.entrySet().iterator();
         while (it.hasNext()) {
