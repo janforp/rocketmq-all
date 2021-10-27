@@ -265,10 +265,10 @@ public class RemotingCommand {
         this.customHeader = customHeader;
     }
 
-    public CommandCustomHeader decodeCommandCustomHeader(
-            Class<? extends CommandCustomHeader> classHeader) throws RemotingCommandException {
+    public CommandCustomHeader decodeCommandCustomHeader(Class<? extends CommandCustomHeader> classHeader) throws RemotingCommandException {
         CommandCustomHeader objectHeader;
         try {
+            // 构造器
             objectHeader = classHeader.newInstance();
         } catch (InstantiationException e) {
             return null;
@@ -277,41 +277,47 @@ public class RemotingCommand {
         }
 
         if (this.extFields != null) {
-
+            // 该CommandCustomHeader的字段集合
             Field[] fields = getClazzFields(classHeader);
             for (Field field : fields) {
                 if (!Modifier.isStatic(field.getModifiers())) {
+                    // 非静态字段
                     String fieldName = field.getName();
                     if (!fieldName.startsWith("this")) {
+                        // 字段名称不以this开头
                         try {
                             String value = this.extFields.get(fieldName);
                             if (null == value) {
                                 if (!isFieldNullable(field)) {
+                                    // 如果非空字段为空则抛异常
                                     throw new RemotingCommandException("the custom field <" + fieldName + "> is null");
                                 }
                                 continue;
                             }
 
+                            // 校验通过，下面赋值
+
                             field.setAccessible(true);
+                            // class名称
                             String type = getCanonicalName(field.getType());
                             Object valueParsed;
 
-                            if (type.equals(STRING_CANONICAL_NAME)) {
+                            if (type.equals(STRING_CANONICAL_NAME)) {// string
                                 valueParsed = value;
-                            } else if (type.equals(INTEGER_CANONICAL_NAME_1) || type.equals(INTEGER_CANONICAL_NAME_2)) {
+                            } else if (type.equals(INTEGER_CANONICAL_NAME_1) || type.equals(INTEGER_CANONICAL_NAME_2)) {// int 或者 integer
                                 valueParsed = Integer.parseInt(value);
-                            } else if (type.equals(LONG_CANONICAL_NAME_1) || type.equals(LONG_CANONICAL_NAME_2)) {
+                            } else if (type.equals(LONG_CANONICAL_NAME_1) || type.equals(LONG_CANONICAL_NAME_2)) { // long 或者 Long
                                 valueParsed = Long.parseLong(value);
-                            } else if (type.equals(BOOLEAN_CANONICAL_NAME_1) || type.equals(BOOLEAN_CANONICAL_NAME_2)) {
+                            } else if (type.equals(BOOLEAN_CANONICAL_NAME_1) || type.equals(BOOLEAN_CANONICAL_NAME_2)) { // Boolean 或者 boolean
                                 valueParsed = Boolean.parseBoolean(value);
-                            } else if (type.equals(DOUBLE_CANONICAL_NAME_1) || type.equals(DOUBLE_CANONICAL_NAME_2)) {
+                            } else if (type.equals(DOUBLE_CANONICAL_NAME_1) || type.equals(DOUBLE_CANONICAL_NAME_2)) { // double 或者 Double
                                 valueParsed = Double.parseDouble(value);
                             } else {
                                 throw new RemotingCommandException("the custom field <" + fieldName + "> type is not supported");
                             }
 
+                            // 设置值
                             field.set(objectHeader, valueParsed);
-
                         } catch (Throwable e) {
                             log.error("Failed field [{}] decoding", fieldName, e);
                         }
@@ -319,6 +325,7 @@ public class RemotingCommand {
                 }
             }
 
+            // 校验字段
             objectHeader.checkFields();
         }
 
@@ -326,11 +333,12 @@ public class RemotingCommand {
     }
 
     private Field[] getClazzFields(Class<? extends CommandCustomHeader> classHeader) {
+        // 缓存
         Field[] field = CLASS_HASH_MAP.get(classHeader);
-
         if (field == null) {
             field = classHeader.getDeclaredFields();
             synchronized (CLASS_HASH_MAP) {
+                // 同步
                 CLASS_HASH_MAP.put(classHeader, field);
             }
         }
@@ -349,7 +357,6 @@ public class RemotingCommand {
 
     private String getCanonicalName(Class clazz) {
         String name = CANONICAL_NAME_CACHE.get(clazz);
-
         if (name == null) {
             name = clazz.getCanonicalName();
             synchronized (CANONICAL_NAME_CACHE) {
