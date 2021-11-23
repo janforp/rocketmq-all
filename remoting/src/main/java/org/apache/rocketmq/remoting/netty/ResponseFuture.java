@@ -46,6 +46,13 @@ public class ResponseFuture {
     @Setter
     private volatile Throwable cause;
 
+    /**
+     * @param channel ch
+     * @param timeoutMillis 超时时长
+     * @param invokeCallback 请求回调处理对象
+     * @param opaque 请求Id
+     * @param once 封装释放信号量的逻辑
+     */
     public ResponseFuture(Channel channel, int opaque, long timeoutMillis, InvokeCallback invokeCallback, SemaphoreReleaseOnlyOnce once) {
         this.opaque = opaque;
         this.processChannel = channel;

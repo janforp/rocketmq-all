@@ -38,6 +38,13 @@ import java.util.concurrent.locks.ReentrantReadWriteLock;
  * RouteInfoManager的所有数据通过HashMap缓存在内存中，通过读写锁来控制并发更新。
  * 这样可最大程度的提高客户端查询数据的速度。
  * 数据更新时会将数据保存到文件中，重启后可恢复数据。
+ *
+ *
+ * 成员属性里面涉及几个数据结构QueueData、BrokerData、BrokerLiveInfo.它们有以下的描述:
+ *
+ * 一个Topic拥有多个消息队列,一个Broker为每个Topic默认创建4个读队列4个写对列;
+ * 多个Broker组成一个集群,BrokerName相同的即可组成Master-slave架构;
+ * BrokerLiveInfo中的lastUpdateTimestamp存的是最近一次心跳的时间;
  */
 public class RouteInfoManager {
 
@@ -49,26 +56,36 @@ public class RouteInfoManager {
 
     /**
      * Topic和broker的Map，保存了topic在每个broker上的读写Queue的个数以及读写权限
+     *
+     * 消息队列路由消息,消息发送会根据路由表负责均衡
      */
     private final HashMap<String/* topic */, List<QueueData>> topicQueueTable;
 
     /**
      * 注册到nameserv上的所有Broker，按照brokername分组
+     *
+     * Broker基础信息.所在集群名称、brokerName以及主备Broker地址
      */
     private final HashMap<String/* brokerName */, BrokerData> brokerAddrTable;
 
     /**
      * broker的集群对应关系
+     *
+     * Broker集群信息,存储各个集群下所有Broker的名称
      */
     private final HashMap<String/* clusterName */, Set<String/* brokerName */>> clusterAddrTable;
 
     /**
      * broker最新的心跳时间和配置版本号
+     *
+     * Broker状态信息,心跳包会更新
      */
     private final HashMap<String/* brokerAddr */, BrokerLiveInfo> brokerLiveTable;
 
     /**
      * broker和FilterServer的对应关系
+     *
+     * filterServer 列表,用于类模式消息过滤
      */
     private final HashMap<String/* brokerAddr */, List<String>/* Filter Server */> filterServerTable;
 
@@ -116,7 +133,8 @@ public class RouteInfoManager {
         return topicList.encode();
     }
 
-    public RegisterBrokerResult registerBroker(final String clusterName, final String brokerAddr, final String brokerName,
+    public RegisterBrokerResult registerBroker(
+            final String clusterName, final String brokerAddr, final String brokerName,
             final long brokerId, final String haServerAddr, final TopicConfigSerializeWrapper topicConfigWrapper,
             final List<String> filterServerList, final Channel channel) {
 
@@ -154,12 +172,9 @@ public class RouteInfoManager {
                 String oldAddr = brokerData.getBrokerAddrs().put(brokerId, brokerAddr);
                 registerFirst = registerFirst || (null == oldAddr);
 
-                if (null != topicConfigWrapper
-                        && MixAll.MASTER_ID == brokerId) {
-                    if (this.isBrokerTopicConfigChanged(brokerAddr, topicConfigWrapper.getDataVersion())
-                            || registerFirst) {
-                        ConcurrentMap<String, TopicConfig> tcTable =
-                                topicConfigWrapper.getTopicConfigTable();
+                if (null != topicConfigWrapper && MixAll.MASTER_ID == brokerId) {
+                    if (this.isBrokerTopicConfigChanged(brokerAddr, topicConfigWrapper.getDataVersion()) || registerFirst) {
+                        ConcurrentMap<String, TopicConfig> tcTable = topicConfigWrapper.getTopicConfigTable();
                         if (tcTable != null) {
                             for (Map.Entry<String, TopicConfig> entry : tcTable.entrySet()) {
                                 this.createAndUpdateQueueData(brokerName, entry.getValue());

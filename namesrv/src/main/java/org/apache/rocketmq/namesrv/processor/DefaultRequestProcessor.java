@@ -69,12 +69,14 @@ public class DefaultRequestProcessor extends AsyncNettyRequestProcessor implemen
                 return this.deleteKVConfig(ctx, request);
             case RequestCode.QUERY_DATA_VERSION:
                 return queryBrokerTopicConfig(ctx, request);
-            case RequestCode.REGISTER_BROKER:
+            case RequestCode.REGISTER_BROKER: // 注册 broker
                 Version brokerVersion = MQVersion.value2Version(request.getVersion());
                 if (brokerVersion.ordinal() >= MQVersion.Version.V3_0_11.ordinal()) {
                     // 直接按序号排序
                     return this.registerBrokerWithFilterServer(ctx, request);
                 } else {
+
+                    // 一般是高版本
                     return this.registerBroker(ctx, request);
                 }
             case RequestCode.UNREGISTER_BROKER:
@@ -216,13 +218,13 @@ public class DefaultRequestProcessor extends AsyncNettyRequestProcessor implemen
         return response;
     }
 
-    private boolean checksum(ChannelHandlerContext ctx, RemotingCommand request,
-            RegisterBrokerRequestHeader requestHeader) {
+    private boolean checksum(ChannelHandlerContext ctx, RemotingCommand request, RegisterBrokerRequestHeader requestHeader) {
+
+        // 拿到客户端写入的签名校验一下
         if (requestHeader.getBodyCrc32() != 0) {
             final int crc32 = UtilAll.crc32(request.getBody());
             if (crc32 != requestHeader.getBodyCrc32()) {
-                log.warn(String.format("receive registerBroker request,crc32 not match,from %s",
-                        RemotingHelper.parseChannelRemoteAddr(ctx.channel())));
+                log.warn(String.format("receive registerBroker request,crc32 not match,from %s", RemotingHelper.parseChannelRemoteAddr(ctx.channel())));
                 return false;
             }
         }
@@ -253,12 +255,16 @@ public class DefaultRequestProcessor extends AsyncNettyRequestProcessor implemen
         return response;
     }
 
-    public RemotingCommand registerBroker(ChannelHandlerContext ctx,
-            RemotingCommand request) throws RemotingCommandException {
+    public RemotingCommand registerBroker(ChannelHandlerContext ctx, RemotingCommand request) throws RemotingCommandException {
+
+        // response 中包含了 RegisterBrokerResponseHeader 对象
         final RemotingCommand response = RemotingCommand.createResponseCommand(RegisterBrokerResponseHeader.class);
+
+        // 拿到
         final RegisterBrokerResponseHeader responseHeader = (RegisterBrokerResponseHeader) response.readCustomHeader();
-        final RegisterBrokerRequestHeader requestHeader =
-                (RegisterBrokerRequestHeader) request.decodeCommandCustomHeader(RegisterBrokerRequestHeader.class);
+
+        //
+        final RegisterBrokerRequestHeader requestHeader = (RegisterBrokerRequestHeader) request.decodeCommandCustomHeader(RegisterBrokerRequestHeader.class);
 
         if (!checksum(ctx, request, requestHeader)) {
             response.setCode(ResponseCode.SYSTEM_ERROR);

@@ -69,14 +69,18 @@ public class NettyRemotingServer extends NettyRemotingAbstract implements Remoti
 
     /**
      * @see org.apache.rocketmq.namesrv.routeinfo.BrokerHousekeepingService namesrv使用
-     * @see org.apache.rocketmq.broker.client.ClientHousekeepingService broker 使用
+     * @see org.apache.rocketmq.broker.client.ClientHousekeepingService broker 使用,监听客户端的连接状态
      */
     private final ChannelEventListener channelEventListener;
 
-    // 定时任务，支持 scanResponseFuture 任务，负责清理过期的 ResponseFuture
+    /**
+     * 定时任务，支持 scanResponseFuture 任务，负责清理过期的 ResponseFuture
+     *
+     * @see NettyRemotingAbstract#scanResponseTable()
+     */
     private final Timer timer = new Timer("ServerHouseKeepingService", true);
 
-    // 当向 channel pipeline 添加 handler 时，制定了 GROUp时候，网络事件传播到当前 handler 时，事件处理器由分配给 handler 的线程执行
+    // 当向 channel pipeline 添加 handler 时，制定了 GROUP 时候，网络事件传播到当前 handler 时，事件处理器由分配给 handler 的线程执行
     private DefaultEventExecutorGroup defaultEventExecutorGroup;
 
     // 服务器绑定端口
@@ -214,10 +218,14 @@ public class NettyRemotingServer extends NettyRemotingAbstract implements Remoti
         ServerBootstrap childHandler =
                 this.serverBootstrap.group(this.eventLoopGroupBoss, this.eventLoopGroupSelector)
                         .channel(useEpoll() ? EpollServerSocketChannel.class : NioServerSocketChannel.class)
+
+                        // 服务端
                         .option(ChannelOption.SO_BACKLOG, 1024)
                         .option(ChannelOption.SO_REUSEADDR, true)
                         .option(ChannelOption.SO_KEEPALIVE, false)
                         .childOption(ChannelOption.TCP_NODELAY, true)
+
+                        // 客户端
                         .childOption(ChannelOption.SO_SNDBUF, nettyServerConfig.getServerSocketSndBufSize())
                         .childOption(ChannelOption.SO_RCVBUF, nettyServerConfig.getServerSocketRcvBufSize())
                         .localAddress(new InetSocketAddress(this.nettyServerConfig.getListenPort()))
@@ -331,21 +339,41 @@ public class NettyRemotingServer extends NettyRemotingAbstract implements Remoti
         return processorTable.get(requestCode);
     }
 
+    /**
+     * 服务器主动 主动想客户端发起请求的时候使用的方法
+     *
+     * @param channel ch
+     * @param request 请求
+     * @param timeoutMillis 超时时长
+     * @return 请求？
+     */
     @Override
     public RemotingCommand invokeSync(final Channel channel, final RemotingCommand request, final long timeoutMillis)
             throws InterruptedException, RemotingSendRequestException, RemotingTimeoutException {
+
         return this.invokeSyncImpl(channel, request, timeoutMillis);
     }
 
+    /**
+     * 服务器主动 主动想客户端发起请求的时候使用的方法
+     *
+     * @param channel ch
+     * @param request 请求
+     * @param timeoutMillis 超时时长
+     * @param invokeCallback 请求回调处理对象
+     */
     @Override
     public void invokeAsync(Channel channel, RemotingCommand request, long timeoutMillis, InvokeCallback invokeCallback)
             throws InterruptedException, RemotingTooMuchRequestException, RemotingTimeoutException, RemotingSendRequestException {
+
         this.invokeAsyncImpl(channel, request, timeoutMillis, invokeCallback);
     }
 
     @Override
     public void invokeOneway(Channel channel, RemotingCommand request, long timeoutMillis) throws InterruptedException,
             RemotingTooMuchRequestException, RemotingTimeoutException, RemotingSendRequestException {
+
+        // 请求发送完成即可，不关心结果
         this.invokeOnewayImpl(channel, request, timeoutMillis);
     }
 
