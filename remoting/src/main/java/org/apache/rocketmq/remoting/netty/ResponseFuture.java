@@ -81,6 +81,7 @@ public class ResponseFuture {
     }
 
     public RemotingCommand waitResponse(final long timeoutMillis) throws InterruptedException {
+        // 线程挂起原理！
         this.countDownLatch.await(timeoutMillis, TimeUnit.MILLISECONDS);
         return this.responseCommand;
     }
