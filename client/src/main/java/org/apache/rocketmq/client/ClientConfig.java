@@ -25,25 +25,31 @@ public class ClientConfig {
 
     /**
      * Domain name mode access way does not support the delimiter(;), and only one domain name can be set.
+     * 当前的 nameserver 地址配置
      */
     @Setter
     private String namesrvAddr = NameServerAddressUtils.getNameServerAddresses();
 
+    // 客户端ip
     @Getter
     @Setter
     private String clientIP = RemotingUtil.getLocalAddress();
 
+    // 客户端实例名称
     @Getter
     @Setter
     private String instanceName = System.getProperty("rocketmq.client.name", "DEFAULT");
 
     /**
      * 返回到Java虚拟机的可用的处理器数量
+     *
+     * 客户端回调线程池线程数量
      */
     @Getter
     @Setter
     private int clientCallbackExecutorThreads = Runtime.getRuntime().availableProcessors();
 
+    // 命名空间
     @Setter
     protected String namespace;
 
@@ -53,6 +59,7 @@ public class ClientConfig {
 
     /**
      * Pulling topic information interval from the named server
+     * 获取路由信息的间隔时间
      */
     @Getter
     @Setter
@@ -60,6 +67,7 @@ public class ClientConfig {
 
     /**
      * Heartbeat interval in microseconds with message broker
+     * 客户端与broker心跳的间隔时间
      */
     @Getter
     @Setter
@@ -67,6 +75,7 @@ public class ClientConfig {
 
     /**
      * Offset persistent interval for consumer
+     * 消费者持久化消费进度的周期，5s一次
      */
     @Getter
     @Setter
@@ -76,6 +85,7 @@ public class ClientConfig {
     @Setter
     private long pullTimeDelayMillsWhenException = 1000;
 
+    // 唯一模式？？
     @Getter
     @Setter
     private boolean unitMode = false;
@@ -86,6 +96,7 @@ public class ClientConfig {
 
     /**
      * 是否启用vip netty通道以发送消息
+     * broker启动的时候会绑定2哥端口，其中一个是vip通道端口
      */
     @Getter
     @Setter

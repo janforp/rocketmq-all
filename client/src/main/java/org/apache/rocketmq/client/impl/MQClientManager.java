@@ -10,6 +10,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicInteger;
 
+// 客户端实例管理器
 public class MQClientManager {
 
     private final static InternalLogger log = ClientLogger.getLog();
@@ -20,6 +21,7 @@ public class MQClientManager {
 
     /**
      * key:clientId
+     * value:mq客户端实例
      */
     private ConcurrentMap<String, MQClientInstance> factoryTable = new ConcurrentHashMap<String, MQClientInstance>();
 
@@ -36,12 +38,13 @@ public class MQClientManager {
     }
 
     public MQClientInstance getOrCreateMQClientInstance(final ClientConfig clientConfig, RPCHook rpcHook) {
+
+        // 构建客户端Id：IP&instanceName（当前进程PID）
         String clientId = clientConfig.buildMQClientId();
         MQClientInstance instance = this.factoryTable.get(clientId);
         if (null == instance) {
-            instance =
-                    new MQClientInstance(clientConfig.cloneClientConfig(),
-                            this.factoryIndexGenerator.getAndIncrement(), clientId, rpcHook);
+            // 第一次拿不到，则创建
+            instance = new MQClientInstance(clientConfig.cloneClientConfig(), this.factoryIndexGenerator.getAndIncrement(), clientId, rpcHook);
             MQClientInstance prev = this.factoryTable.putIfAbsent(clientId, instance);
             if (prev != null) {
                 instance = prev;

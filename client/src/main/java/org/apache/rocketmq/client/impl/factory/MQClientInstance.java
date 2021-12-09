@@ -95,6 +95,9 @@ public class MQClientInstance {
     @Getter
     private final NettyClientConfig nettyClientConfig;
 
+    /**
+     * 最底层的api
+     */
     @Getter
     private final MQClientAPIImpl mQClientAPIImpl;
 
@@ -773,8 +776,8 @@ public class MQClientInstance {
      */
     @Deprecated
     private void uploadFilterClassToAllFilterServer(final String consumerGroup, final String fullClassName,
-            final String topic,
-            final String filterClassSource) throws UnsupportedEncodingException {
+                                                    final String topic,
+                                                    final String filterClassSource) throws UnsupportedEncodingException {
         byte[] classBody = null;
         int classCRC = 0;
         try {
@@ -1200,8 +1203,8 @@ public class MQClientInstance {
     }
 
     public ConsumeMessageDirectlyResult consumeMessageDirectly(final MessageExt msg,
-            final String consumerGroup,
-            final String brokerName) {
+                                                               final String consumerGroup,
+                                                               final String brokerName) {
         MQConsumerInner mqConsumerInner = this.consumerTable.get(consumerGroup);
         if (null != mqConsumerInner) {
             DefaultMQPushConsumerImpl consumer = (DefaultMQPushConsumerImpl) mqConsumerInner;

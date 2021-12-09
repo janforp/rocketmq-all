@@ -89,7 +89,6 @@ public class NamespaceUtil {
         }
 
         return strBuffer.append(namespace).append(NAMESPACE_SEPARATOR).append(resourceWithoutRetryAndDLQ).toString();
-
     }
 
     public static boolean isAlreadyWithNamespace(String resource, String namespace) {

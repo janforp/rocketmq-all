@@ -20,6 +20,9 @@ public class TopicPublishInfo {
     @Getter
     private boolean haveTopicRouterInfo = false;
 
+    /**
+     * 主题下的队列
+     */
     @Setter
     @Getter
     private List<MessageQueue> messageQueueList = new ArrayList<MessageQueue>();
