@@ -421,7 +421,9 @@ public abstract class NettyRemotingAbstract {
      * @param timeoutMillis 超时时长
      * @return 请求？
      */
-    public RemotingCommand invokeSyncImpl(final Channel channel, final RemotingCommand request, final long timeoutMillis) throws InterruptedException, RemotingSendRequestException, RemotingTimeoutException {
+    public RemotingCommand invokeSyncImpl(final Channel channel, final RemotingCommand request, final long timeoutMillis)
+
+            throws InterruptedException, RemotingSendRequestException, RemotingTimeoutException {
 
         // 请求 id
         final int opaque = request.getOpaque();
@@ -498,7 +500,9 @@ public abstract class NettyRemotingAbstract {
      * @param timeoutMillis  超时时长
      * @param invokeCallback 请求回调处理对象
      */
-    public void invokeAsyncImpl(final Channel channel, final RemotingCommand request, final long timeoutMillis, final InvokeCallback invokeCallback) throws InterruptedException, RemotingTooMuchRequestException, RemotingTimeoutException, RemotingSendRequestException {
+    public void invokeAsyncImpl(final Channel channel, final RemotingCommand request, final long timeoutMillis, final InvokeCallback invokeCallback)
+
+            throws InterruptedException, RemotingTooMuchRequestException, RemotingTimeoutException, RemotingSendRequestException {
 
         // 因为有超时的判断
         long beginStartTime = System.currentTimeMillis();

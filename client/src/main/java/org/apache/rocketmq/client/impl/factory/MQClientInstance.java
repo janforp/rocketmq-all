@@ -223,6 +223,7 @@ public class MQClientInstance {
 
         this.rebalanceService = new RebalanceService(this);
 
+        // 创建了一个 内部生产者实例，来完消息回退
         this.defaultMQProducer = new DefaultMQProducer(MixAll.CLIENT_INNER_PRODUCER_GROUP);
         this.defaultMQProducer.resetClientConfig(clientConfig);
 
@@ -304,12 +305,16 @@ public class MQClientInstance {
         synchronized (this) {
             switch (this.serviceState) {
                 case CREATE_JUST:
+                    // 设置客户端实例的状态，启动成功后会修改
                     this.serviceState = ServiceState.START_FAILED;
                     // If not specified,looking address from name server
                     if (null == this.clientConfig.getNamesrvAddr()) {
+
+                        // 一般不为空
                         this.mQClientAPIImpl.fetchNameServerAddr();
                     }
                     // Start request-response channel
+                    // 启动客户端网络层入口
                     this.mQClientAPIImpl.start();
                     // Start various schedule tasks
                     this.startScheduledTask();

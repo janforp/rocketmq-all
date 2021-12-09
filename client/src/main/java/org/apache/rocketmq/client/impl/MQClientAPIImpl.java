@@ -185,6 +185,9 @@ public class MQClientAPIImpl {
         this.clientRemotingProcessor = clientRemotingProcessor;
 
         this.remotingClient.registerRPCHook(rpcHook);
+
+        // 同一个处理器，注册到不同的业务上
+        // 注册业务处理器
         this.remotingClient.registerProcessor(RequestCode.CHECK_TRANSACTION_STATE, this.clientRemotingProcessor, null);
 
         this.remotingClient.registerProcessor(RequestCode.NOTIFY_CONSUMER_IDS_CHANGED, this.clientRemotingProcessor, null);
@@ -232,6 +235,7 @@ public class MQClientAPIImpl {
     }
 
     public void start() {
+        // 启动网络层
         this.remotingClient.start();
     }
 
