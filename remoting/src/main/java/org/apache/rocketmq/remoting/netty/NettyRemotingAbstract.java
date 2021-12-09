@@ -172,17 +172,24 @@ public abstract class NettyRemotingAbstract {
 
     /**
      * Process incoming request command issued by remote peer.
+     * <p>
+     * 客户端发起的请求
      *
      * @param ctx channel handler context.
      * @param cmd request command.
      */
     public void processRequestCommand(final ChannelHandlerContext ctx, final RemotingCommand cmd) {
+
+        // 根据业务代码找到合适的处理器和线程池资源---pair
         final Pair<NettyRequestProcessor, ExecutorService> matched = this.processorTable.get(cmd.getCode());
+        // 如果没找到，则使用默认的
         final Pair<NettyRequestProcessor, ExecutorService> pair = null == matched ? this.defaultRequestProcessor : matched;
+
+        // 拿到请求id
         final int opaque = cmd.getOpaque();
 
         if (pair != null) {
-            // 核心逻辑
+            // 核心逻辑 start
             Runnable run = new Runnable() {
                 @Override
                 public void run() {
@@ -192,12 +199,20 @@ public abstract class NettyRemotingAbstract {
                         final RemotingResponseCallback callback = new RemotingResponseCallback() {
                             @Override
                             public void callback(RemotingCommand response) {
+
+                                // 执行钩子函数
                                 doAfterRpcHooks(RemotingHelper.parseChannelRemoteAddr(ctx.channel()), cmd, response);
                                 if (!cmd.isOnewayRPC()) {
+                                    // 是否时单向的，如果时，则不响应了，进入这里则说明时需要返回结果的
+
                                     if (response != null) {
+                                        // 设置请求时候来的请求id，客户端根据请求id在 responseFutureTable 中找到 responseFuture 完成结果的交互
                                         response.setOpaque(opaque);
+                                        // 设置为响应类型
                                         response.markResponseType();
                                         try {
+
+                                            // 真正的在网络层响应,交给netty做 IO线程做
                                             ctx.writeAndFlush(response);
                                         } catch (Throwable e) {
                                             log.error("process request over, but response failed", e);
@@ -205,6 +220,7 @@ public abstract class NettyRemotingAbstract {
                                             log.error(response.toString());
                                         }
                                     } else {
+                                        // empty
                                     }
                                 }
                             }
@@ -232,6 +248,8 @@ public abstract class NettyRemotingAbstract {
                 }
             };
 
+            // 核心逻辑 over
+
             if (pair.getObject1().rejectRequest()) {
                 final RemotingCommand response = RemotingCommand.createResponseCommand(RemotingSysResponseCode.SYSTEM_BUSY, "[REJECTREQUEST]system busy, start flow control for a while");
                 response.setOpaque(opaque);
@@ -240,8 +258,10 @@ public abstract class NettyRemotingAbstract {
             }
 
             try {
+
+                // 将 runnable 和 ch 以及 请求 cmd 封装起来
                 final RequestTask requestTask = new RequestTask(run, ctx.channel(), cmd);
-                // 提交到线程池
+                // 提交到线程池，里面会执行上面封装的 run 方法
                 pair.getObject2().submit(requestTask);
             } catch (RejectedExecutionException e) {
                 if ((System.currentTimeMillis() % 10000) == 0) {
@@ -265,6 +285,8 @@ public abstract class NettyRemotingAbstract {
 
     /**
      * Process response from remote peer to the previous issued requests.
+     * <p>
+     * 客户端响应给服务端的结果
      *
      * @param ctx channel handler context.
      * @param cmd response command instance.

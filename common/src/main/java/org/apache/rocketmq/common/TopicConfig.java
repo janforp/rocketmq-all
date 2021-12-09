@@ -14,6 +14,7 @@ public class TopicConfig {
 
     public static int defaultWriteQueueNums = 16;
 
+    // 主题
     @Getter
     @Setter
     private String topicName;
