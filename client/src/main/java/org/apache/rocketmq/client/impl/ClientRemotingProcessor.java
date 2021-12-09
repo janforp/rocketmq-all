@@ -74,7 +74,7 @@ public class ClientRemotingProcessor extends AsyncNettyRequestProcessor implemen
             case RequestCode.CONSUME_MESSAGE_DIRECTLY:
                 return this.consumeMessageDirectly(ctx, request);
 
-            case RequestCode.PUSH_REPLY_MESSAGE_TO_CLIENT:
+            case RequestCode.PUSH_REPLY_MESSAGE_TO_CLIENT: // 回执消息入口
                 return this.receiveReplyMessage(ctx, request);
             default:
                 break;

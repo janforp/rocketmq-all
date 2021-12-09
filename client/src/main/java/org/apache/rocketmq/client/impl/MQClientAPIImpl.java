@@ -160,6 +160,9 @@ public class MQClientAPIImpl {
         System.setProperty(RemotingCommand.REMOTING_VERSION_KEY, Integer.toString(MQVersion.CURRENT_VERSION));
     }
 
+    // 客户端网络层对象，管理客户端于服务器之间连接的 NioSocketChannel 对象
+    // 通过它提供的 invoke 系列方法，客户端可以与服务器进行远程调用
+    // 服务器也可以
     private final RemotingClient remotingClient;
 
     private final TopAddressing topAddressing;
@@ -175,7 +178,10 @@ public class MQClientAPIImpl {
             RPCHook rpcHook, final ClientConfig clientConfig) {
         this.clientConfig = clientConfig;
         topAddressing = new TopAddressing(MixAll.getWSAddr(), clientConfig.getUnitName());
+
+        // 创建网络层对象
         this.remotingClient = new NettyRemotingClient(nettyClientConfig, null);
+        // 赋值
         this.clientRemotingProcessor = clientRemotingProcessor;
 
         this.remotingClient.registerRPCHook(rpcHook);

@@ -79,31 +79,46 @@ public class MQClientInstance {
     @Getter
     private final ClientConfig clientConfig;
 
+    // 索引值一般是0，因为客户端实例一般都是一个进程只有一个
     private final int instanceIndex;
 
+    // 客户端Id：ip&pid
     private final String clientId;
 
+    // 客户端启动时间
     @Getter
     private final long bootTimestamp = System.currentTimeMillis();
 
+    // 生产者映射表，key:组名称，value：生产者或者消费者
     private final ConcurrentMap<String/* group */, MQProducerInner> producerTable = new ConcurrentHashMap<String, MQProducerInner>();
 
+    // 消费者映射表
+    // 生产者映射表，key:组名称，value：生产者或者消费者
     private final ConcurrentMap<String/* group */, MQConsumerInner> consumerTable = new ConcurrentHashMap<String, MQConsumerInner>();
 
+    //
     private final ConcurrentMap<String/* group */, MQAdminExtInner> adminExtTable = new ConcurrentHashMap<String, MQAdminExtInner>();
 
+    // 客户端网络层的配置
     @Getter
     private final NettyClientConfig nettyClientConfig;
 
     /**
      * 最底层的api
+     * 核心api实现，它几乎包含了所有服务端api，他的作用是 将 mq 业务层的数据转换为网络层 RemotingCommand 对象
+     * 然后使用内部的 nettyRemotingClient 网络层对象的 invoke 系列方法完成网络 IO
      */
     @Getter
     private final MQClientAPIImpl mQClientAPIImpl;
 
+    // 不关心
     @Getter
     private final MQAdminImpl mQAdminImpl;
 
+
+    // key topic
+    // value： 主题的路由数据
+    // 客户端本地的路由数据
     @Getter
     private final ConcurrentMap<String/* Topic */, TopicRouteData> topicRouteTable = new ConcurrentHashMap<String, TopicRouteData>();
 
@@ -111,12 +126,21 @@ public class MQClientInstance {
 
     private final Lock lockHeartbeat = new ReentrantLock();
 
-    private final ConcurrentMap<String/* Broker Name */, HashMap<Long/* brokerId */, String/* address */>> brokerAddrTable =
-            new ConcurrentHashMap<String, HashMap<Long, String>>();
+    /**
+     * broker 物理节点映射表
+     * key:brokerName 逻辑层面的对象
+     * value:k是broker,0 的节点是主节点，其他是slave，v 是节点的地址 ip + port
+     */
+    private final ConcurrentMap<String/* Broker Name */, HashMap<Long/* brokerId */, String/* address */>> brokerAddrTable = new ConcurrentHashMap<String, HashMap<Long, String>>();
 
-    private final ConcurrentMap<String/* Broker Name */, HashMap<String/* address */, Integer>> brokerVersionTable =
-            new ConcurrentHashMap<String, HashMap<String, Integer>>();
+    /**
+     * broker 物理节点版本映射表
+     * key:brokerName 逻辑层面的对象
+     * value:k是broker,0 的节点是主节点，其他是slave，v 版本号
+     */
+    private final ConcurrentMap<String/* Broker Name */, HashMap<String/* address */, Integer>> brokerVersionTable = new ConcurrentHashMap<String, HashMap<String, Integer>>();
 
+    // 单线程的调度线程池，用于执行定时任务
     @Getter
     private final ScheduledExecutorService scheduledExecutorService = Executors.newSingleThreadScheduledExecutor(new ThreadFactory() {
         @Override
@@ -125,23 +149,43 @@ public class MQClientInstance {
         }
     });
 
+    /**
+     * 客户端协议处理器，用于处理IO事件
+     */
     private final ClientRemotingProcessor clientRemotingProcessor;
 
+    /**
+     * 拉消息服务
+     */
     @Getter
     private final PullMessageService pullMessageService;
 
+    /**
+     * 负载均衡服务
+     */
     private final RebalanceService rebalanceService;
 
+    /**
+     * TODO 内部生产者，用于处理消费端消息回退 ? 是这样吗？
+     */
     @Getter
     private final DefaultMQProducer defaultMQProducer;
 
+    /**
+     * 统计相关的
+     */
     @Getter
     private final ConsumerStatsManager consumerStatsManager;
 
+    /**
+     * 心跳次数的统计
+     */
     private final AtomicLong sendHeartbeatTimesTotal = new AtomicLong(0);
 
+    // 客户端状态
     private ServiceState serviceState = ServiceState.CREATE_JUST;
 
+    //
     private DatagramSocket datagramSocket;
 
     private Random random = new Random();
@@ -156,8 +200,15 @@ public class MQClientInstance {
         this.nettyClientConfig = new NettyClientConfig();
         this.nettyClientConfig.setClientCallbackExecutorThreads(clientConfig.getClientCallbackExecutorThreads());
         this.nettyClientConfig.setUseTLS(clientConfig.isUseTLS());
+
+        // 创建客户端协议处理器
         this.clientRemotingProcessor = new ClientRemotingProcessor(this);
-        this.mQClientAPIImpl = new MQClientAPIImpl(this.nettyClientConfig, this.clientRemotingProcessor, rpcHook, clientConfig);
+
+        // 创建 mQClientAPIImpl
+        this.mQClientAPIImpl = new MQClientAPIImpl(this.nettyClientConfig,
+                this.clientRemotingProcessor, // 客户端协议处理器，注册到客户端网络层
+                rpcHook, // 注册到客户端网络层
+                clientConfig);
 
         if (this.clientConfig.getNamesrvAddr() != null) {
             this.mQClientAPIImpl.updateNameServerAddressList(this.clientConfig.getNamesrvAddr());
