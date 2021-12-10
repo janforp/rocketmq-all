@@ -3,36 +3,22 @@ package org.apache.rocketmq.common.protocol.heartbeat;
 import java.util.HashSet;
 import java.util.Set;
 
+import lombok.Getter;
+import lombok.Setter;
 import org.apache.rocketmq.remoting.protocol.RemotingSerializable;
 
+@Setter
+@Getter
 public class HeartbeatData extends RemotingSerializable {
+    // ip&pid
     private String clientID;
+
+    // 生产者
     private Set<ProducerData> producerDataSet = new HashSet<ProducerData>();
+
+    // 消费者
     private Set<ConsumerData> consumerDataSet = new HashSet<ConsumerData>();
 
-    public String getClientID() {
-        return clientID;
-    }
-
-    public void setClientID(String clientID) {
-        this.clientID = clientID;
-    }
-
-    public Set<ProducerData> getProducerDataSet() {
-        return producerDataSet;
-    }
-
-    public void setProducerDataSet(Set<ProducerData> producerDataSet) {
-        this.producerDataSet = producerDataSet;
-    }
-
-    public Set<ConsumerData> getConsumerDataSet() {
-        return consumerDataSet;
-    }
-
-    public void setConsumerDataSet(Set<ConsumerData> consumerDataSet) {
-        this.consumerDataSet = consumerDataSet;
-    }
 
     @Override
     public String toString() {
