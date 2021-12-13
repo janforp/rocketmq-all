@@ -419,36 +419,38 @@ public class MQClientAPIImpl {
     }
 
     public SendResult sendMessage(
-            final String addr,
-            final String brokerName,
-            final Message msg,
-            final SendMessageRequestHeader requestHeader,
-            final long timeoutMillis,
-            final CommunicationMode communicationMode,
-            final SendMessageContext context,
-            final DefaultMQProducerImpl producer
+            final String addr, // broker 地址
+            final String brokerName, // 名称
+            final Message msg, // 消息
+            final SendMessageRequestHeader requestHeader, // 消息头
+            final long timeoutMillis, // 超时时间
+            final CommunicationMode communicationMode, // 模式
+            final SendMessageContext context, // 上下文
+            final DefaultMQProducerImpl producer // 发送实例
     ) throws RemotingException, MQBrokerException, InterruptedException {
         return sendMessage(addr, brokerName, msg, requestHeader, timeoutMillis, communicationMode, null, null, null, 0, context, producer);
     }
 
     public SendResult sendMessage(
-            final String addr,
-            final String brokerName,
-            final Message msg,
-            final SendMessageRequestHeader requestHeader,
-            final long timeoutMillis,
-            final CommunicationMode communicationMode,
-            final SendCallback sendCallback,
-            final TopicPublishInfo topicPublishInfo,
-            final MQClientInstance instance,
-            final int retryTimesWhenSendFailed,
-            final SendMessageContext context,
-            final DefaultMQProducerImpl producer
+            final String addr,  // broker 地址
+            final String brokerName, // 名称
+            final Message msg, // 消息
+            final SendMessageRequestHeader requestHeader, // 消息头
+            final long timeoutMillis, // 超时时间
+            final CommunicationMode communicationMode, // 模式
+            final SendCallback sendCallback, // 回调
+            final TopicPublishInfo topicPublishInfo, // 发布
+            final MQClientInstance instance, // 实例
+            final int retryTimesWhenSendFailed, // 重试次数
+            final SendMessageContext context, // 上下文
+            final DefaultMQProducerImpl producer // 发送实例
     ) throws RemotingException, MQBrokerException, InterruptedException {
+
         long beginStartTime = System.currentTimeMillis();
-        RemotingCommand request = null;
+        RemotingCommand request;
         String msgType = msg.getProperty(MessageConst.PROPERTY_MESSAGE_TYPE);
         boolean isReply = msgType != null && msgType.equals(MixAll.REPLY_MESSAGE_FLAG);
+
         if (isReply) {
             if (sendSmartMsg) {
                 SendMessageRequestHeaderV2 requestHeaderV2 = SendMessageRequestHeaderV2.createSendMessageRequestHeaderV2(requestHeader);
@@ -464,6 +466,8 @@ public class MQClientAPIImpl {
                 request = RemotingCommand.createRequestCommand(RequestCode.SEND_MESSAGE, requestHeader);
             }
         }
+
+        // 塞入消息体！！！
         request.setBody(msg.getBody());
 
         switch (communicationMode) {
@@ -476,14 +480,15 @@ public class MQClientAPIImpl {
                 if (timeoutMillis < costTimeAsync) {
                     throw new RemotingTooMuchRequestException("sendMessage call timeout");
                 }
-                this.sendMessageAsync(addr, brokerName, msg, timeoutMillis - costTimeAsync, request, sendCallback, topicPublishInfo, instance,
-                        retryTimesWhenSendFailed, times, context, producer);
+                this.sendMessageAsync(addr, brokerName, msg, timeoutMillis - costTimeAsync, request, sendCallback, topicPublishInfo, instance, retryTimesWhenSendFailed, times, context, producer);
                 return null;
             case SYNC:
                 long costTimeSync = System.currentTimeMillis() - beginStartTime;
                 if (timeoutMillis < costTimeSync) {
+                    // 超时了
                     throw new RemotingTooMuchRequestException("sendMessage call timeout");
                 }
+                // 正常发送消息
                 return this.sendMessageSync(addr, brokerName, msg, timeoutMillis - costTimeSync, request);
             default:
                 assert false;
@@ -500,8 +505,10 @@ public class MQClientAPIImpl {
             final long timeoutMillis,
             final RemotingCommand request
     ) throws RemotingException, MQBrokerException, InterruptedException {
+
         RemotingCommand response = this.remotingClient.invokeSync(addr, request, timeoutMillis);
         assert response != null;
+
         return this.processSendResponse(brokerName, msg, response);
     }
 
@@ -643,6 +650,7 @@ public class MQClientAPIImpl {
             final Message msg,
             final RemotingCommand response
     ) throws MQBrokerException, RemotingCommandException {
+
         switch (response.getCode()) {
             case ResponseCode.FLUSH_DISK_TIMEOUT:
             case ResponseCode.FLUSH_SLAVE_TIMEOUT:

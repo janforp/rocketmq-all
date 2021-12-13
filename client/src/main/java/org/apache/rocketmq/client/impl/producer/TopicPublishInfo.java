@@ -40,6 +40,10 @@ public class TopicPublishInfo {
         return null != this.messageQueueList && !this.messageQueueList.isEmpty();
     }
 
+    /**
+     * @param lastBrokerName 上次发送失败的 brokerName,第一次发送的是为null
+     * @return 队列
+     */
     public MessageQueue selectOneMessageQueue(final String lastBrokerName) {
         if (lastBrokerName == null) {
             return selectOneMessageQueue();
@@ -52,12 +56,16 @@ public class TopicPublishInfo {
             }
             MessageQueue mq = this.messageQueueList.get(pos);
             if (!mq.getBrokerName().equals(lastBrokerName)) {
+                // 跳过上次失败的 brokerName
                 return mq;
             }
         }
         return selectOneMessageQueue();
     }
 
+    /**
+     * 取模即可
+     */
     public MessageQueue selectOneMessageQueue() {
         int index = this.sendWhichQueue.getAndIncrement();
         int pos = Math.abs(index) % this.messageQueueList.size();
