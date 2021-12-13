@@ -102,20 +102,16 @@ public class Validators {
         }
 
         if (!regularExpressionMatcher(topic, PATTERN)) {
-            throw new MQClientException(String.format(
-                    "The specified topic[%s] contains illegal characters, allowing only %s", topic,
-                    VALID_PATTERN_STR), null);
+            throw new MQClientException(String.format("The specified topic[%s] contains illegal characters, allowing only %s", topic, VALID_PATTERN_STR), null);
         }
 
         if (topic.length() > TOPIC_MAX_LENGTH) {
-            throw new MQClientException(
-                    String.format("The specified topic is longer than topic max length %d.", TOPIC_MAX_LENGTH), null);
+            throw new MQClientException(String.format("The specified topic is longer than topic max length %d.", TOPIC_MAX_LENGTH), null);
         }
 
         //whether the same with system reserved keyword：TBW102，保留关键词
         if (topic.equals(MixAll.AUTO_CREATE_TOPIC_KEY_TOPIC)) {
-            throw new MQClientException(
-                    String.format("The topic[%s] is conflict with AUTO_CREATE_TOPIC_KEY_TOPIC.", topic), null);
+            throw new MQClientException(String.format("The topic[%s] is conflict with AUTO_CREATE_TOPIC_KEY_TOPIC.", topic), null);
         }
     }
 }

@@ -49,8 +49,7 @@ public class SendResult {
         this.queueOffset = queueOffset;
     }
 
-    public SendResult(final SendStatus sendStatus, final String msgId, final MessageQueue messageQueue, final long queueOffset,
-            final String transactionId, final String offsetMsgId, final String regionId) {
+    public SendResult(final SendStatus sendStatus, final String msgId, final MessageQueue messageQueue, final long queueOffset, final String transactionId, final String offsetMsgId, final String regionId) {
 
         this.sendStatus = sendStatus;
         this.msgId = msgId;
@@ -71,7 +70,6 @@ public class SendResult {
 
     @Override
     public String toString() {
-        return "SendResult [sendStatus=" + sendStatus + ", msgId=" + msgId + ", offsetMsgId=" + offsetMsgId + ", messageQueue=" + messageQueue
-                + ", queueOffset=" + queueOffset + "]";
+        return "SendResult [sendStatus=" + sendStatus + ", msgId=" + msgId + ", offsetMsgId=" + offsetMsgId + ", messageQueue=" + messageQueue + ", queueOffset=" + queueOffset + "]";
     }
 }

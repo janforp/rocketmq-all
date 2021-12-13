@@ -579,13 +579,35 @@ public class DefaultMQProducerImpl implements MQProducerInner {
 
     }
 
-    private SendResult sendDefaultImpl(Message msg, final CommunicationMode communicationMode, final SendCallback sendCallback, final long timeout) throws MQClientException, RemotingException, MQBrokerException, InterruptedException {
+    private SendResult sendDefaultImpl(
+
+            Message msg,
+
+            // 发送模式
+            final CommunicationMode communicationMode,
+
+            // 回调，同步发送的时候这个参数是空，只有异步的时候才有值
+            final SendCallback sendCallback,
+
+            final long timeout)
+
+            throws MQClientException, RemotingException, MQBrokerException, InterruptedException {
+
+        // 确定生产者状态是运行中，否则抛出异常
         this.makeSureStateOK();
+        // 校验，一般都会通过
         Validators.checkMessage(msg, this.defaultMQProducer);
+
+        // 打印日志使用
         final long invokeID = random.nextLong();
+        // 发送初试时间
         long beginTimestampFirst = System.currentTimeMillis();
+
+        // 本轮发送开始时间
         long beginTimestampPrev = beginTimestampFirst;
+        // 本轮发送结束时间
         long endTimestamp = beginTimestampFirst;
+        // 获取当前主题的发布信息，需要依赖它里面的 MessageQueues 信息选择队列后面去发送消息使用
         TopicPublishInfo topicPublishInfo = this.tryToFindTopicPublishInfo(msg.getTopic());
         if (topicPublishInfo != null && topicPublishInfo.ok()) {
             boolean callTimeout = false;
@@ -714,23 +736,41 @@ public class DefaultMQProducerImpl implements MQProducerInner {
     }
 
     private TopicPublishInfo tryToFindTopicPublishInfo(final String topic) {
+        // 从生产者本地发布信息映射表中尝试获取发布信息
         TopicPublishInfo topicPublishInfo = this.topicPublishInfoTable.get(topic);
+
+        // 如果本地获取不到或者状态不对
         if (null == topicPublishInfo || !topicPublishInfo.ok()) {
+            // 说明生产者本地保存的指定 topic 的发布信息是空的，需要从 客户端获取发布信息
+
+            // 向生产者本地保存一份该 topic 的空的发布信息
             this.topicPublishInfoTable.putIfAbsent(topic, new TopicPublishInfo());
+
+            // 调用客户端的方法：从namesrv 上更新指定主题的路由数据
             this.mQClientFactory.updateTopicRouteInfoFromNameServer(topic);
+
+            // 正常情况下，这一步拿到的主题发布信息是有数据的
+            // 特殊情况，因为 namesrv 上没有该 topic 的路由数据，所以在这里拿到的还是空对象
             topicPublishInfo = this.topicPublishInfoTable.get(topic);
         }
 
         if (topicPublishInfo.isHaveTopicRouterInfo() || topicPublishInfo.ok()) {
+
+            // 正常情况
             return topicPublishInfo;
         } else {
+
+            // 特殊情况
             this.mQClientFactory.updateTopicRouteInfoFromNameServer(topic, true, this.defaultMQProducer);
             topicPublishInfo = this.topicPublishInfoTable.get(topic);
             return topicPublishInfo;
         }
     }
 
-    private SendResult sendKernelImpl(final Message msg, final MessageQueue mq, final CommunicationMode communicationMode, final SendCallback sendCallback, final TopicPublishInfo topicPublishInfo, final long timeout) throws MQClientException, RemotingException, MQBrokerException, InterruptedException {
+    private SendResult sendKernelImpl(final Message msg, final MessageQueue mq, final CommunicationMode communicationMode, final SendCallback sendCallback, final TopicPublishInfo topicPublishInfo, final long timeout)
+
+            throws MQClientException, RemotingException, MQBrokerException, InterruptedException {
+
         long beginStartTime = System.currentTimeMillis();
         String brokerAddr = this.mQClientFactory.findBrokerAddressInPublish(mq.getBrokerName());
         if (null == brokerAddr) {
@@ -1265,7 +1305,10 @@ public class DefaultMQProducerImpl implements MQProducerInner {
      * DEFAULT SYNC -------------------------------------------------------
      */
     public SendResult send(Message msg) throws MQClientException, RemotingException, MQBrokerException, InterruptedException {
-        return send(msg, this.defaultMQProducer.getSendMsgTimeout());
+        return send(msg,
+
+                // 默认3s
+                this.defaultMQProducer.getSendMsgTimeout());
     }
 
     public void endTransaction(final SendResult sendResult, final LocalTransactionState localTransactionState, final Throwable localException) throws RemotingException, MQBrokerException, InterruptedException, UnknownHostException {
