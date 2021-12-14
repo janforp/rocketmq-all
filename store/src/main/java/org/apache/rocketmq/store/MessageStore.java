@@ -1,19 +1,3 @@
-/*
- * Licensed to the Apache Software Foundation (ASF) under one or more
- * contributor license agreements.  See the NOTICE file distributed with
- * this work for additional information regarding copyright ownership.
- * The ASF licenses this file to You under the Apache License, Version 2.0
- * (the "License"); you may not use this file except in compliance with
- * the License.  You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
 package org.apache.rocketmq.store;
 
 import java.util.HashMap;
@@ -55,9 +39,10 @@ public interface MessageStore {
      */
     void destroy();
 
-    /** Store a message into store in async manner, the processor can process the next request
-     *  rather than wait for result
-     *  when result is completed, notify the client in async manner
+    /**
+     * Store a message into store in async manner, the processor can process the next request
+     * rather than wait for result
+     * when result is completed, notify the client in async manner
      *
      * @param msg MessageInstance to store
      * @return a CompletableFuture for the result of store operation
@@ -68,6 +53,7 @@ public interface MessageStore {
 
     /**
      * Store a batch of messages in async manner
+     *
      * @param messageExtBatch the message batch
      * @return a CompletableFuture for the result of store operation
      */
@@ -103,8 +89,7 @@ public interface MessageStore {
      * @param messageFilter Message filter used to screen desired messages.
      * @return Matched messages.
      */
-    GetMessageResult getMessage(final String group, final String topic, final int queueId,
-        final long offset, final int maxMsgNums, final MessageFilter messageFilter);
+    GetMessageResult getMessage(final String group, final String topic, final int queueId, final long offset, final int maxMsgNums, final MessageFilter messageFilter);
 
     /**
      * Get maximum offset of the topic queue.
@@ -264,7 +249,7 @@ public interface MessageStore {
      * @param end end timestamp.
      */
     QueryMessageResult queryMessage(final String topic, final String key, final int maxNum, final long begin,
-        final long end);
+            final long end);
 
     /**
      * Update HA master address.
@@ -392,6 +377,7 @@ public interface MessageStore {
 
     /**
      * handle
+     *
      * @param brokerRole
      */
     void handleScheduleMessageService(BrokerRole brokerRole);

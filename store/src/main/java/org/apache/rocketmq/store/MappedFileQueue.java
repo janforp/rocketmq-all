@@ -9,11 +9,16 @@ import java.util.List;
 import java.util.ListIterator;
 import java.util.concurrent.CopyOnWriteArrayList;
 
+import lombok.Getter;
+import lombok.Setter;
 import org.apache.rocketmq.common.UtilAll;
 import org.apache.rocketmq.common.constant.LoggerName;
 import org.apache.rocketmq.logging.InternalLogger;
 import org.apache.rocketmq.logging.InternalLoggerFactory;
 
+/**
+ * MappedFile 的管理对象
+ */
 public class MappedFileQueue {
 
     private static final InternalLogger log = InternalLoggerFactory.getLogger(LoggerName.STORE_LOGGER_NAME);
@@ -24,37 +29,41 @@ public class MappedFileQueue {
 
     private final String storePath;
 
+    @Getter
+    @Setter
     private final int mappedFileSize;
 
     private final CopyOnWriteArrayList<MappedFile> mappedFiles = new CopyOnWriteArrayList<MappedFile>();
 
     private final AllocateMappedFileService allocateMappedFileService;
 
+    @Getter
+    @Setter
     private long flushedWhere = 0;
 
+    @Getter
+    @Setter
     private long committedWhere = 0;
 
+    @Getter
+    @Setter
     private volatile long storeTimestamp = 0;
 
-    public MappedFileQueue(final String storePath, int mappedFileSize,
-            AllocateMappedFileService allocateMappedFileService) {
+    public MappedFileQueue(final String storePath, int mappedFileSize, AllocateMappedFileService allocateMappedFileService) {
         this.storePath = storePath;
         this.mappedFileSize = mappedFileSize;
         this.allocateMappedFileService = allocateMappedFileService;
     }
 
     public void checkSelf() {
-
         if (!this.mappedFiles.isEmpty()) {
             Iterator<MappedFile> iterator = mappedFiles.iterator();
             MappedFile pre = null;
             while (iterator.hasNext()) {
                 MappedFile cur = iterator.next();
-
                 if (pre != null) {
                     if (cur.getFileFromOffset() - pre.getFileFromOffset() != this.mappedFileSize) {
-                        LOG_ERROR.error("[BUG]The mappedFile queue's data is damaged, the adjacent mappedFile's offset don't match. pre file {}, cur file {}",
-                                pre.getFileName(), cur.getFileName());
+                        LOG_ERROR.error("[BUG]The mappedFile queue's data is damaged, the adjacent mappedFile's offset don't match. pre file {}, cur file {}", pre.getFileName(), cur.getFileName());
                     }
                 }
                 pre = cur;
@@ -142,8 +151,7 @@ public class MappedFileQueue {
             for (File file : files) {
 
                 if (file.length() != this.mappedFileSize) {
-                    log.warn(file + "\t" + file.length()
-                            + " length not matched message store config value, please check it manually");
+                    log.warn(file + "\t" + file.length() + " length not matched message store config value, please check it manually");
                     return false;
                 }
 
@@ -570,33 +578,5 @@ public class MappedFileQueue {
         if (file.isDirectory()) {
             file.delete();
         }
-    }
-
-    public long getFlushedWhere() {
-        return flushedWhere;
-    }
-
-    public void setFlushedWhere(long flushedWhere) {
-        this.flushedWhere = flushedWhere;
-    }
-
-    public long getStoreTimestamp() {
-        return storeTimestamp;
-    }
-
-    public List<MappedFile> getMappedFiles() {
-        return mappedFiles;
-    }
-
-    public int getMappedFileSize() {
-        return mappedFileSize;
-    }
-
-    public long getCommittedWhere() {
-        return committedWhere;
-    }
-
-    public void setCommittedWhere(final long committedWhere) {
-        this.committedWhere = committedWhere;
     }
 }
