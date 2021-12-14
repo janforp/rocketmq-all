@@ -410,22 +410,27 @@ public class MappedFileQueue {
             return 0;
         }
 
-        // ？？
+        // 当前数组长度 - 1，因为当前正在顺序写的文件肯定是不能删除的
         int mfsLength = mfs.length - 1;
-        // 删除数量
+        // 删除文件数量
         int deleteCount = 0;
-        // 被删除的文件
+        // 被删除的文件列表
         List<MappedFile> files = new ArrayList<>();
         if (null != mfs) {
             for (int i = 0; i < mfsLength; i++) {
                 MappedFile mappedFile = (MappedFile) mfs[i];
+
+                // 上次修改时间 + 过期时间 = 当前文件存活时间截止点
                 long liveMaxTimestamp = mappedFile.getLastModifiedTimestamp() + expiredTime;
 
-                if (System.currentTimeMillis() >= liveMaxTimestamp || cleanImmediately) {
+                if (System.currentTimeMillis() >= liveMaxTimestamp // 文件存活时间达到上限
+
+                        // 目录 disk 占用率达到上限的时候会设置该参数为 true ，强制删除
+                        || cleanImmediately) {
                     // 如果当前文件已经很久没修改了，或者要求立即删除，则进入该分支
 
                     if (mappedFile.destroy(intervalForcibly)) {
-                        // 成功
+                        // 成功，加入删除列表
                         files.add(mappedFile);
                         deleteCount++;
 
@@ -436,8 +441,11 @@ public class MappedFileQueue {
 
                         if (deleteFilesInterval > 0 && (i + 1) < mfsLength) {
                             try {
+
+                                // 间隔一段时间
                                 Thread.sleep(deleteFilesInterval);
                             } catch (InterruptedException e) {
+                                // ignore
                             }
                         }
                     } else {
@@ -450,6 +458,7 @@ public class MappedFileQueue {
             }
         }
 
+        // 将删除文件的 mf 从 queue 中移除
         deleteExpiredFile(files);
 
         return deleteCount;
@@ -459,9 +468,9 @@ public class MappedFileQueue {
      * 该方法为 ConsumerQueue 删除过期文件时候， offset 一般是指 CommitLog 内第一条消息的 offset，
      * 遍历每个 mappedFile对象，读取mappedFile最后一条数据，提取出 CAData > msgPhyOffset值，如果这个值 < offset,则删除该mappedFile文件
      *
-     * @param offset
-     * @param unitSize
-     * @return
+     * @param offset 偏移量（commitLog 目录下的最小的物理偏移量）
+     * @param unitSize 每个数据单元的固定大小
+     * @return 删除数量
      */
     public int deleteExpiredFileByOffset(long offset, int unitSize) {
         Object[] mfs = this.copyMappedFiles(0);
@@ -470,15 +479,26 @@ public class MappedFileQueue {
         int deleteCount = 0;
         if (null != mfs) {
 
+            // 当前数组长度 - 1，因为当前正在顺序写的文件肯定是不能删除的
             int mfsLength = mfs.length - 1;
 
+            // 遍历当前正在顺序写的前面的文件
             for (int i = 0; i < mfsLength; i++) {
+                //是否需要删除
                 boolean destroy;
                 MappedFile mappedFile = (MappedFile) mfs[i];
+
+                // 获取当前文件最后一个数据单元
                 SelectMappedBufferResult result = mappedFile.selectMappedBuffer(this.mappedFileSize - unitSize);
                 if (result != null) {
+
+                    // 读取最后一个数据单元的前八个字节(cqData)，其实就是消息的偏移量
                     long maxOffsetInLogicQueue = result.getByteBuffer().getLong();
+
+                    // 释放
                     result.release();
+
+                    // 如果true则说明：当前mf内所有的cqData都是过期数据
                     destroy = maxOffsetInLogicQueue < offset;
                     if (destroy) {
                         log.info("physic min offset " + offset + ", logics in current mappedFile max offset " + maxOffsetInLogicQueue + ", delete it");
@@ -500,6 +520,7 @@ public class MappedFileQueue {
             }
         }
 
+        // 从队列中删除
         deleteExpiredFile(files);
 
         return deleteCount;
