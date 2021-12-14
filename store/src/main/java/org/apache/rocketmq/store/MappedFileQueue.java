@@ -27,14 +27,20 @@ public class MappedFileQueue {
 
     private static final int DELETE_FILES_BATCH_MAX = 10;
 
+    // 目录
     private final String storePath;
 
+    // 如果管理的是 MappedFile 则是 1G,如果是consumerQueue则为六百万字节
     private final int mappedFileSize;
 
+    /**
+     * 维护了多个文件，每个文件都有一个对象
+     */
     private final CopyOnWriteArrayList<MappedFile> mappedFiles = new CopyOnWriteArrayList<MappedFile>();
 
     private final AllocateMappedFileService allocateMappedFileService;
 
+    //
     private long flushedWhere = 0;
 
     private long committedWhere = 0;
@@ -134,8 +140,15 @@ public class MappedFileQueue {
         }
     }
 
+    /**
+     * Broker启动阶段，加载本地磁盘数据使用，该方法获取"storePath"目录下的文件，创建对应的 MappedFile 对象并加入到list内
+     *
+     * @return 成功失败
+     */
     public boolean load() {
+        // 拿到当前目录
         File dir = new File(this.storePath);
+        // 拿到目录下的所有文件
         File[] files = dir.listFiles();
         if (files != null) {
             // ascending order
@@ -227,6 +240,12 @@ public class MappedFileQueue {
         return getLastMappedFile(startOffset, true);
     }
 
+    /**
+     * 获取当前正在写的顺序写的 MappedFile 对象，存储消息 或者 存储 ConsumerQueue 数据的时候 都需要获取当前的 MappedFile 对象
+     * 注意：如果 MappedFile 写满了 或者不存在，则创建新的 MappedFile
+     *
+     * @return 当前正在写的顺序写的 MappedFile 对象
+     */
     public MappedFile getLastMappedFile() {
         MappedFile mappedFileLast = null;
 
@@ -276,6 +295,9 @@ public class MappedFileQueue {
         return true;
     }
 
+    /**
+     * 获取 MappedFileQueue 管理的最小物理偏移量，其实就是获取 list(0) 这个文件名称表示的偏移量
+     */
     public long getMinOffset() {
 
         if (!this.mappedFiles.isEmpty()) {
@@ -290,6 +312,9 @@ public class MappedFileQueue {
         return -1;
     }
 
+    /**
+     * 获取 MappedFileQueue 管理的最大物理偏移量，当前顺序写的 MappedFile 文件名 + MappedFile.wrotePos
+     */
     public long getMaxOffset() {
         MappedFile mappedFile = getLastMappedFile();
         if (mappedFile != null) {
@@ -324,10 +349,21 @@ public class MappedFileQueue {
         }
     }
 
-    public int deleteExpiredFileByTime(final long expiredTime,
+    /**
+     * 该方法为 CommitLog 删除过期文件使用，根据文件保留时长决定释放删除文件
+     *
+     * @param expiredTime
+     * @param deleteFilesInterval
+     * @param intervalForcibly
+     * @param cleanImmediately
+     * @return
+     */
+    public int deleteExpiredFileByTime(
+            final long expiredTime,
             final int deleteFilesInterval,
             final long intervalForcibly,
             final boolean cleanImmediately) {
+
         Object[] mfs = this.copyMappedFiles(0);
 
         if (null == mfs) {
@@ -371,6 +407,14 @@ public class MappedFileQueue {
         return deleteCount;
     }
 
+    /**
+     * 该方法为 ConsumerQueue 删除过期文件时候， offset 一般是指 CommitLog 内第一条消息的 offset，
+     * 遍历每个 mappedFile对象，读取mappedFile最后一条数据，提取出 CAData > msgPhyOffset值，如果这个值 < offset,则删除该mappedFile文件
+     *
+     * @param offset
+     * @param unitSize
+     * @return
+     */
     public int deleteExpiredFileByOffset(long offset, int unitSize) {
         Object[] mfs = this.copyMappedFiles(0);
 
@@ -389,8 +433,7 @@ public class MappedFileQueue {
                     result.release();
                     destroy = maxOffsetInLogicQueue < offset;
                     if (destroy) {
-                        log.info("physic min offset " + offset + ", logics in current mappedFile max offset "
-                                + maxOffsetInLogicQueue + ", delete it");
+                        log.info("physic min offset " + offset + ", logics in current mappedFile max offset " + maxOffsetInLogicQueue + ", delete it");
                     }
                 } else if (!mappedFile.isAvailable()) { // Handle hanged file.
                     log.warn("Found a hanged consume queue file, attempting to delete it.");
@@ -414,6 +457,9 @@ public class MappedFileQueue {
         return deleteCount;
     }
 
+    /**
+     * 根据 flushLeastPages 查找合适的 MappedFile 对象，调用该 MappedFile 的落盘方法，并且更新全局 flushedWhere 值
+     */
     public boolean flush(final int flushLeastPages) {
         boolean result = true;
         MappedFile mappedFile = this.findMappedFileByOffset(this.flushedWhere, this.flushedWhere == 0);
@@ -447,6 +493,8 @@ public class MappedFileQueue {
     /**
      * Finds a mapped file by offset.
      *
+     * 根据偏移量查找区间包含该 offset 的 MappedFile 对象
+     *
      * @param offset Offset.
      * @param returnFirstOnNotFound If the mapped file is not found, then return the first one.
      * @return Mapped file or null (when not found and returnFirstOnNotFound is <code>false</code>).
@@ -457,12 +505,7 @@ public class MappedFileQueue {
             MappedFile lastMappedFile = this.getLastMappedFile();
             if (firstMappedFile != null && lastMappedFile != null) {
                 if (offset < firstMappedFile.getFileFromOffset() || offset >= lastMappedFile.getFileFromOffset() + this.mappedFileSize) {
-                    LOG_ERROR.warn("Offset not matched. Request offset: {}, firstOffset: {}, lastOffset: {}, mappedFileSize: {}, mappedFiles count: {}",
-                            offset,
-                            firstMappedFile.getFileFromOffset(),
-                            lastMappedFile.getFileFromOffset() + this.mappedFileSize,
-                            this.mappedFileSize,
-                            this.mappedFiles.size());
+                    LOG_ERROR.warn("Offset not matched. Request offset: {}, firstOffset: {}, lastOffset: {}, mappedFileSize: {}, mappedFiles count: {}", offset, firstMappedFile.getFileFromOffset(), lastMappedFile.getFileFromOffset() + this.mappedFileSize, this.mappedFileSize, this.mappedFiles.size());
                 } else {
                     int index = (int) ((offset / this.mappedFileSize) - (firstMappedFile.getFileFromOffset() / this.mappedFileSize));
                     MappedFile targetFile = null;
@@ -471,14 +514,12 @@ public class MappedFileQueue {
                     } catch (Exception ignored) {
                     }
 
-                    if (targetFile != null && offset >= targetFile.getFileFromOffset()
-                            && offset < targetFile.getFileFromOffset() + this.mappedFileSize) {
+                    if (targetFile != null && offset >= targetFile.getFileFromOffset() && offset < targetFile.getFileFromOffset() + this.mappedFileSize) {
                         return targetFile;
                     }
 
                     for (MappedFile tmpMappedFile : this.mappedFiles) {
-                        if (offset >= tmpMappedFile.getFileFromOffset()
-                                && offset < tmpMappedFile.getFileFromOffset() + this.mappedFileSize) {
+                        if (offset >= tmpMappedFile.getFileFromOffset() && offset < tmpMappedFile.getFileFromOffset() + this.mappedFileSize) {
                             return tmpMappedFile;
                         }
                     }
