@@ -28,6 +28,12 @@ public class MappedFileQueue {
     private static final int DELETE_FILES_BATCH_MAX = 10;
 
     // 目录
+
+    /**
+     * 当前 MappedFileQueue 对象管理的文件所在的目录
+     * CommitLog:.../store/commitLog
+     * ConsumerQueue: ../store/xxx_topci/0
+     */
     private final String storePath;
 
     // 如果管理的是 MappedFile 则是 1G,如果是consumerQueue则为六百万字节
@@ -35,22 +41,25 @@ public class MappedFileQueue {
 
     /**
      * 维护了多个文件，每个文件都有一个对象
+     * 该目录下的每个文件
      */
     private final CopyOnWriteArrayList<MappedFile> mappedFiles = new CopyOnWriteArrayList<MappedFile>();
 
+    // 创建新 MappedFile 的服务，内部有自己的线程，我们通过向他提交请求，它内部线程处理完后会返回给我们结果，结果就是 MappedFile 对象
     private final AllocateMappedFileService allocateMappedFileService;
 
-    //
+    // 目录下的刷盘位点，其实就是：curMappedFile.fileName + curMappedFile.wrotePos
     private long flushedWhere = 0;
 
     private long committedWhere = 0;
 
+    // 当前目录最后一条消息的存储时间
     private volatile long storeTimestamp = 0;
 
     public MappedFileQueue(final String storePath, int mappedFileSize, AllocateMappedFileService allocateMappedFileService) {
-        this.storePath = storePath;
-        this.mappedFileSize = mappedFileSize;
-        this.allocateMappedFileService = allocateMappedFileService;
+        this.storePath = storePath; // 目录
+        this.mappedFileSize = mappedFileSize; // 文件大小
+        this.allocateMappedFileService = allocateMappedFileService; // 服务对象
     }
 
     public void checkSelf() {
@@ -152,20 +161,27 @@ public class MappedFileQueue {
         File[] files = dir.listFiles();
         if (files != null) {
             // ascending order
+            // 安装文件名称排序
             Arrays.sort(files);
             for (File file : files) {
 
+                // 理论上说，当前目录下的每个文件大小都是 mappedFileSize
                 if (file.length() != this.mappedFileSize) {
                     log.warn(file + "\t" + file.length() + " length not matched message store config value, please check it manually");
                     return false;
                 }
 
                 try {
+                    // 根据当前文件的路径创建对象
                     MappedFile mappedFile = new MappedFile(file.getPath(), mappedFileSize);
 
+                    // 设置位点
+                    // 这里都不是准确值，准确值需要在 recover 节点设置
                     mappedFile.setWrotePosition(this.mappedFileSize);
                     mappedFile.setFlushedPosition(this.mappedFileSize);
                     mappedFile.setCommittedPosition(this.mappedFileSize);
+
+                    // 加入集合
                     this.mappedFiles.add(mappedFile);
                     log.info("load " + file.getPath() + " OK");
                 } catch (IOException e) {
@@ -194,29 +210,53 @@ public class MappedFileQueue {
         return 0;
     }
 
+    /**
+     * @param startOffset 文件起始偏移量
+     * @param needCreate 是否需要创建
+     * @return 对象
+     */
     public MappedFile getLastMappedFile(final long startOffset, boolean needCreate) {
+
+        // 该值控制是否需要创建 mappedFile ，当需要创建 mappedFile 的时候，它充当文件名的结尾
+        // 两种情况会创建
+        // 1.list 内没有 mappedFile
+        // 2.list 中最后一个 mappedFile (当前顺序写的对象)已经写满了
         long createOffset = -1;
         MappedFile mappedFileLast = getLastMappedFile();
 
         if (mappedFileLast == null) {
+            // 情况1：list 内没有 mappedFile
+
+            // createOffset 取值必须是 mappedFileSize 倍数或者 0
             createOffset = startOffset - (startOffset % this.mappedFileSize);
         }
 
         if (mappedFileLast != null && mappedFileLast.isFull()) {
+            // 情况2.list 中最后一个 mappedFile (当前顺序写的对象)已经写满了
+
+            // createOffset 为上一个文件名 + mappedFileSize
             createOffset = mappedFileLast.getFileFromOffset() + this.mappedFileSize;
         }
 
         if (createOffset != -1 && needCreate) {
+            // 真正需要创建新的 mappedFile
+
+            // 待创建文件的绝对路径（storePath/）
             String nextFilePath = this.storePath + File.separator + UtilAll.offset2FileName(createOffset);
-            String nextNextFilePath = this.storePath + File.separator
-                    + UtilAll.offset2FileName(createOffset + this.mappedFileSize);
+            // 每次预创建2个文件
+            // 获取下下次的文件绝对路径
+            String nextNextFilePath = this.storePath + File.separator + UtilAll.offset2FileName(createOffset + this.mappedFileSize);
+
+            // 即将创建的对象
             MappedFile mappedFile = null;
 
             if (this.allocateMappedFileService != null) {
-                mappedFile = this.allocateMappedFileService.putRequestAndReturnMappedFile(nextFilePath,
-                        nextNextFilePath, this.mappedFileSize);
+                // 如果该服务不为空，则使用该服务去创建 mappedFile 对象
+                // 使用该对象创建的好处：当 mappedFileSize >= 1g 的时候，该服务会执行它的预热方法，在物理内存上真正的创建空间，后面通过 mappedFile 写的时候速度会快些
+                mappedFile = this.allocateMappedFileService.putRequestAndReturnMappedFile(nextFilePath, nextNextFilePath, this.mappedFileSize);
             } else {
                 try {
+                    // 自己创建
                     mappedFile = new MappedFile(nextFilePath, this.mappedFileSize);
                 } catch (IOException e) {
                     log.error("create mappedFile exception", e);
@@ -224,7 +264,9 @@ public class MappedFileQueue {
             }
 
             if (mappedFile != null) {
+                // 创建成功
                 if (this.mappedFiles.isEmpty()) {
+                    // 设置第一个的标记
                     mappedFile.setFirstCreateInQueue(true);
                 }
                 this.mappedFiles.add(mappedFile);
@@ -251,6 +293,7 @@ public class MappedFileQueue {
 
         while (!this.mappedFiles.isEmpty()) {
             try {
+                // 最后一个对象
                 mappedFileLast = this.mappedFiles.get(this.mappedFiles.size() - 1);
                 break;
             } catch (IndexOutOfBoundsException e) {
@@ -352,37 +395,42 @@ public class MappedFileQueue {
     /**
      * 该方法为 CommitLog 删除过期文件使用，根据文件保留时长决定释放删除文件
      *
-     * @param expiredTime
-     * @param deleteFilesInterval
-     * @param intervalForcibly
-     * @param cleanImmediately
-     * @return
+     * @param expiredTime 过期时间
+     * @param deleteFilesInterval 删除2个文件的时间间隔
+     * @param intervalForcibly mf.destroy(intervalForcibly)
+     * @param cleanImmediately true:强制删除不考虑过期时间这个条件
+     * @return 删除的数量
      */
-    public int deleteExpiredFileByTime(
-            final long expiredTime,
-            final int deleteFilesInterval,
-            final long intervalForcibly,
-            final boolean cleanImmediately) {
+    public int deleteExpiredFileByTime(final long expiredTime, final int deleteFilesInterval, final long intervalForcibly, final boolean cleanImmediately) {
 
+        // 复制
         Object[] mfs = this.copyMappedFiles(0);
 
         if (null == mfs) {
             return 0;
         }
 
+        // ？？
         int mfsLength = mfs.length - 1;
+        // 删除数量
         int deleteCount = 0;
-        List<MappedFile> files = new ArrayList<MappedFile>();
+        // 被删除的文件
+        List<MappedFile> files = new ArrayList<>();
         if (null != mfs) {
             for (int i = 0; i < mfsLength; i++) {
                 MappedFile mappedFile = (MappedFile) mfs[i];
                 long liveMaxTimestamp = mappedFile.getLastModifiedTimestamp() + expiredTime;
+
                 if (System.currentTimeMillis() >= liveMaxTimestamp || cleanImmediately) {
+                    // 如果当前文件已经很久没修改了，或者要求立即删除，则进入该分支
+
                     if (mappedFile.destroy(intervalForcibly)) {
+                        // 成功
                         files.add(mappedFile);
                         deleteCount++;
 
                         if (files.size() >= DELETE_FILES_BATCH_MAX) {
+                            // 如果超过了每次删除的最大数量，则停止了
                             break;
                         }
 
@@ -459,17 +507,30 @@ public class MappedFileQueue {
 
     /**
      * 根据 flushLeastPages 查找合适的 MappedFile 对象，调用该 MappedFile 的落盘方法，并且更新全局 flushedWhere 值
+     *
+     * @param flushLeastPages 0：强制刷盘，>0 脏页数据必须达到该值的时候才刷盘
+     * @return true：本次刷盘无数据落盘，false:本次刷盘有数据落盘
      */
     public boolean flush(final int flushLeastPages) {
         boolean result = true;
+
+        // 获取当前正在刷盘的文件，大概率就是当前正在顺序写的文件
         MappedFile mappedFile = this.findMappedFileByOffset(this.flushedWhere, this.flushedWhere == 0);
         if (mappedFile != null) {
+
+            // 获取最后一条消息的存储时间
             long tmpTimeStamp = mappedFile.getStoreTimestamp();
+            // 刷盘，返回mf最新的落盘位点
             int offset = mappedFile.flush(flushLeastPages);
+            // mf最新的落盘位点 + mf其实偏移量
             long where = mappedFile.getFileFromOffset() + offset;
+
+            // 如果 where == this.flushedWhere 则说明根本就没刷盘数据
             result = where == this.flushedWhere;
+            // 赋值执行刷盘位点
             this.flushedWhere = where;
             if (0 == flushLeastPages) {
+                // 强制刷盘保存时间
                 this.storeTimestamp = tmpTimeStamp;
             }
         }
@@ -501,12 +562,26 @@ public class MappedFileQueue {
      */
     public MappedFile findMappedFileByOffset(final long offset, final boolean returnFirstOnNotFound) {
         try {
+            // 第一个
             MappedFile firstMappedFile = this.getFirstMappedFile();
+            // 最后一个
             MappedFile lastMappedFile = this.getLastMappedFile();
+
             if (firstMappedFile != null && lastMappedFile != null) {
                 if (offset < firstMappedFile.getFileFromOffset() || offset >= lastMappedFile.getFileFromOffset() + this.mappedFileSize) {
-                    LOG_ERROR.warn("Offset not matched. Request offset: {}, firstOffset: {}, lastOffset: {}, mappedFileSize: {}, mappedFiles count: {}", offset, firstMappedFile.getFileFromOffset(), lastMappedFile.getFileFromOffset() + this.mappedFileSize, this.mappedFileSize, this.mappedFiles.size());
+                    // 传入的 偏移量 是否能够通过校验，进来说明不通过，瞎几把传的，打印日志
+                    LOG_ERROR.warn("Offset not matched. Request offset: {}, firstOffset: {}, lastOffset: {}, mappedFileSize: {}, mappedFiles count: {}", offset, firstMappedFile.getFileFromOffset(),
+                            lastMappedFile.getFileFromOffset() + this.mappedFileSize, this.mappedFileSize, this.mappedFiles.size());
                 } else {
+                    // 传入的 偏移量 通过校验
+
+                    // 滚轮删除，老的首文件可能已经被删除了，所以新的首文件的 fileFromOffset 可能已经不是0了，所以需要计算下标'
+                    // 比如说： commitLog目录下有文件：5g,6g,7g,8g,9g,10g,我们要查找 offset 为 7.6g 的mappedFile
+                    // index = (7.6/1) - (5/1)
+                    // index = 2.6
+                    // (int)2.6 = 2
+                    // 所以 index = 2
+                    // targetFile = mappedFiles.get(2) 其实就是 7g 这个文件
                     int index = (int) ((offset / this.mappedFileSize) - (firstMappedFile.getFileFromOffset() / this.mappedFileSize));
                     MappedFile targetFile = null;
                     try {
@@ -515,9 +590,12 @@ public class MappedFileQueue {
                     }
 
                     if (targetFile != null && offset >= targetFile.getFileFromOffset() && offset < targetFile.getFileFromOffset() + this.mappedFileSize) {
+                        // 再次校验下偏移量，一般情况下满足
+                        // 正常情况在此返回了
                         return targetFile;
                     }
 
+                    // 遍历全部的 mappedFile ，根据偏移量查询
                     for (MappedFile tmpMappedFile : this.mappedFiles) {
                         if (offset >= tmpMappedFile.getFileFromOffset() && offset < tmpMappedFile.getFileFromOffset() + this.mappedFileSize) {
                             return tmpMappedFile;
