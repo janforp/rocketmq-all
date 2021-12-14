@@ -29,24 +29,16 @@ public class MappedFileQueue {
 
     private final String storePath;
 
-    @Getter
-    @Setter
     private final int mappedFileSize;
 
     private final CopyOnWriteArrayList<MappedFile> mappedFiles = new CopyOnWriteArrayList<MappedFile>();
 
     private final AllocateMappedFileService allocateMappedFileService;
 
-    @Getter
-    @Setter
     private long flushedWhere = 0;
 
-    @Getter
-    @Setter
     private long committedWhere = 0;
 
-    @Getter
-    @Setter
     private volatile long storeTimestamp = 0;
 
     public MappedFileQueue(final String storePath, int mappedFileSize, AllocateMappedFileService allocateMappedFileService) {
@@ -578,5 +570,33 @@ public class MappedFileQueue {
         if (file.isDirectory()) {
             file.delete();
         }
+    }
+
+    public long getFlushedWhere() {
+        return flushedWhere;
+    }
+
+    public void setFlushedWhere(long flushedWhere) {
+        this.flushedWhere = flushedWhere;
+    }
+
+    public long getStoreTimestamp() {
+        return storeTimestamp;
+    }
+
+    public List<MappedFile> getMappedFiles() {
+        return mappedFiles;
+    }
+
+    public int getMappedFileSize() {
+        return mappedFileSize;
+    }
+
+    public long getCommittedWhere() {
+        return committedWhere;
+    }
+
+    public void setCommittedWhere(final long committedWhere) {
+        this.committedWhere = committedWhere;
     }
 }
