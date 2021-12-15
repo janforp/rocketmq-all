@@ -30,6 +30,7 @@ public class ConsumeQueue {
 
     private final String storePath;
 
+    // 600w字节
     private final int mappedFileSize;
 
     private long maxPhysicOffset = -1;
@@ -107,8 +108,7 @@ public class ConsumeQueue {
                             maxExtAddr = tagsCode;
                         }
                     } else {
-                        log.info("recover current consume queue file over,  " + mappedFile.getFileName() + " "
-                                + offset + " " + size + " " + tagsCode);
+                        log.info("recover current consume queue file over,  " + mappedFile.getFileName() + " " + offset + " " + size + " " + tagsCode);
                         break;
                     }
                 }
@@ -116,9 +116,7 @@ public class ConsumeQueue {
                 if (mappedFileOffset == mappedFileSizeLogics) {
                     index++;
                     if (index >= mappedFiles.size()) {
-
-                        log.info("recover last consume queue file over, last mapped file "
-                                + mappedFile.getFileName());
+                        log.info("recover last consume queue file over, last mapped file " + mappedFile.getFileName());
                         break;
                     } else {
                         mappedFile = mappedFiles.get(index);
@@ -128,8 +126,7 @@ public class ConsumeQueue {
                         log.info("recover next consume queue file, " + mappedFile.getFileName());
                     }
                 } else {
-                    log.info("recover current consume queue queue over " + mappedFile.getFileName() + " "
-                            + (processOffset + mappedFileOffset));
+                    log.info("recover current consume queue queue over " + mappedFile.getFileName() + " " + (processOffset + mappedFileOffset));
                     break;
                 }
             }
@@ -216,11 +213,11 @@ public class ConsumeQueue {
         return 0;
     }
 
-    public void truncateDirtyLogicFiles(long phyOffet) {
+    public void truncateDirtyLogicFiles(long phyOffset) {
 
         int logicFileSize = this.mappedFileSize;
 
-        this.maxPhysicOffset = phyOffet;
+        this.maxPhysicOffset = phyOffset;
         long maxExtAddr = 1;
         while (true) {
             MappedFile mappedFile = this.mappedFileQueue.getLastMappedFile();
@@ -237,7 +234,7 @@ public class ConsumeQueue {
                     long tagsCode = byteBuffer.getLong();
 
                     if (0 == i) {
-                        if (offset >= phyOffet) {
+                        if (offset >= phyOffset) {
                             this.mappedFileQueue.deleteLastMappedFile();
                             break;
                         } else {
@@ -255,7 +252,7 @@ public class ConsumeQueue {
 
                         if (offset >= 0 && size > 0) {
 
-                            if (offset >= phyOffet) {
+                            if (offset >= phyOffset) {
                                 return;
                             }
 
@@ -387,23 +384,20 @@ public class ConsumeQueue {
                 if (isExtAddr(extAddr)) {
                     tagsCode = extAddr;
                 } else {
-                    log.warn("Save consume queue extend fail, So just save tagsCode! {}, topic:{}, queueId:{}, offset:{}", cqExtUnit,
-                            topic, queueId, request.getCommitLogOffset());
+                    log.warn("Save consume queue extend fail, So just save tagsCode! {}, topic:{}, queueId:{}, offset:{}", cqExtUnit, topic, queueId, request.getCommitLogOffset());
                 }
             }
             boolean result = this.putMessagePositionInfo(request.getCommitLogOffset(),
                     request.getMsgSize(), tagsCode, request.getConsumeQueueOffset());
             if (result) {
-                if (this.defaultMessageStore.getMessageStoreConfig().getBrokerRole() == BrokerRole.SLAVE ||
-                        this.defaultMessageStore.getMessageStoreConfig().isEnableDLegerCommitLog()) {
+                if (this.defaultMessageStore.getMessageStoreConfig().getBrokerRole() == BrokerRole.SLAVE || this.defaultMessageStore.getMessageStoreConfig().isEnableDLegerCommitLog()) {
                     this.defaultMessageStore.getStoreCheckpoint().setPhysicMsgTimestamp(request.getStoreTimestamp());
                 }
                 this.defaultMessageStore.getStoreCheckpoint().setLogicsMsgTimestamp(request.getStoreTimestamp());
                 return;
             } else {
                 // XXX: warn and notify me
-                log.warn("[BUG]put commit log position info to " + topic + ":" + queueId + " " + request.getCommitLogOffset()
-                        + " failed, retry " + i + " times");
+                log.warn("[BUG]put commit log position info to " + topic + ":" + queueId + " " + request.getCommitLogOffset() + " failed, retry " + i + " times");
 
                 try {
                     Thread.sleep(1000);
