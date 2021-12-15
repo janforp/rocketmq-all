@@ -14,37 +14,41 @@ public class ConsumeQueue {
 
     private static final InternalLogger log = InternalLoggerFactory.getLogger(LoggerName.STORE_LOGGER_NAME);
 
+    // 每个 CQDATA 单元的数据字节大小
     public static final int CQ_STORE_UNIT_SIZE = 20;
 
     private static final InternalLogger LOG_ERROR = InternalLoggerFactory.getLogger(LoggerName.STORE_ERROR_LOGGER_NAME);
 
+    // 存储主模块
     private final DefaultMessageStore defaultMessageStore;
 
+    // 当前 cq 文件管理器
     private final MappedFileQueue mappedFileQueue;
 
+    // ConsumeQueue主题
     private final String topic;
 
+    // ConsumeQueue队列，每一个队列都有一个ConsumeQueue对象管理
     private final int queueId;
 
+    // 临时缓冲区，用途：插新的 CQData 使用
     private final ByteBuffer byteBufferIndex;
 
+    // 目录路径，如： ../store/consumerqueue/xxx_topic/0,../store/consumerqueue/xxx_topic/1,../store/consumerqueue/xxx_topic/2 .....
     private final String storePath;
 
-    // 600w字节
+    // 每一个 ConsumeQueue 存储文件大小，默认是 600w字节
     private final int mappedFileSize;
 
+    // 当前 ConsumeQueue 最大消息物理偏移量
     private long maxPhysicOffset = -1;
 
+    // 当前 ConsumeQueue 最小消息物理偏移量
     private volatile long minLogicOffset = 0;
 
     private ConsumeQueueExt consumeQueueExt = null;
 
-    public ConsumeQueue(
-            final String topic,
-            final int queueId,
-            final String storePath,
-            final int mappedFileSize,
-            final DefaultMessageStore defaultMessageStore) {
+    public ConsumeQueue(final String topic, final int queueId, final String storePath, final int mappedFileSize, final DefaultMessageStore defaultMessageStore) {
         this.storePath = storePath;
         this.mappedFileSize = mappedFileSize;
         this.defaultMessageStore = defaultMessageStore;
@@ -52,15 +56,15 @@ public class ConsumeQueue {
         this.topic = topic;
         this.queueId = queueId;
 
-        String queueDir = this.storePath
-                + File.separator + topic
-                + File.separator + queueId;
+        String queueDir = this.storePath + File.separator + topic + File.separator + queueId;
 
         this.mappedFileQueue = new MappedFileQueue(queueDir, mappedFileSize, null);
 
+        // 申请了一个 20 字节大小的缓冲区
         this.byteBufferIndex = ByteBuffer.allocate(CQ_STORE_UNIT_SIZE);
 
         if (defaultMessageStore.getMessageStoreConfig().isEnableConsumeQueueExt()) {
+            // 默认是 false
             this.consumeQueueExt = new ConsumeQueueExt(
                     topic,
                     queueId,
@@ -71,6 +75,9 @@ public class ConsumeQueue {
         }
     }
 
+    /**
+     * ConsumerQueue 启动阶段第一步：load
+     */
     public boolean load() {
         boolean result = this.mappedFileQueue.load();
         log.info("load consume queue " + this.topic + "-" + this.queueId + " " + (result ? "OK" : "Failed"));
@@ -80,6 +87,9 @@ public class ConsumeQueue {
         return result;
     }
 
+    /**
+     * ConsumerQueue 启动阶段第二步：recover
+     */
     public void recover() {
         final List<MappedFile> mappedFiles = this.mappedFileQueue.getMappedFiles();
         if (!mappedFiles.isEmpty()) {
@@ -97,9 +107,12 @@ public class ConsumeQueue {
             long maxExtAddr = 1;
             while (true) {
                 for (int i = 0; i < mappedFileSizeLogics; i += CQ_STORE_UNIT_SIZE) {
+
+                    // 读取 前 20 个字节 start
                     long offset = byteBuffer.getLong();
                     int size = byteBuffer.getInt();
                     long tagsCode = byteBuffer.getLong();
+                    // 读取 前 20 个字节 end
 
                     if (offset >= 0 && size > 0) {
                         mappedFileOffset = i + CQ_STORE_UNIT_SIZE;
@@ -114,11 +127,17 @@ public class ConsumeQueue {
                 }
 
                 if (mappedFileOffset == mappedFileSizeLogics) {
+
+                    // 上一个文件到文件尾了，则继续执行下一个文件
                     index++;
                     if (index >= mappedFiles.size()) {
+
+                        // 所有文件都处理完，退出循环
                         log.info("recover last consume queue file over, last mapped file " + mappedFile.getFileName());
                         break;
                     } else {
+
+                        // 还有下一个文件，继续
                         mappedFile = mappedFiles.get(index);
                         byteBuffer = mappedFile.sliceByteBuffer();
                         processOffset = mappedFile.getFileFromOffset();
@@ -131,6 +150,7 @@ public class ConsumeQueue {
                 }
             }
 
+            // 目录的位点
             processOffset += mappedFileOffset;
             this.mappedFileQueue.setFlushedWhere(processOffset);
             this.mappedFileQueue.setCommittedWhere(processOffset);
@@ -213,6 +233,13 @@ public class ConsumeQueue {
         return 0;
     }
 
+    /**
+     * 该方法的调用者： commitLog 恢复阶段调用
+     *
+     * 该方法主要是将 ConsumerQueue 有效数据文件  与 CommitLog 对齐，将超出部分的数据文件 删除。
+     *
+     * @param phyOffset 准确无误的最大消息物理偏移量
+     */
     public void truncateDirtyLogicFiles(long phyOffset) {
 
         int logicFileSize = this.mappedFileSize;
@@ -235,6 +262,8 @@ public class ConsumeQueue {
 
                     if (0 == i) {
                         if (offset >= phyOffset) {
+                            // 说明 commitLog 部分文件被删除？
+
                             this.mappedFileQueue.deleteLastMappedFile();
                             break;
                         } else {
@@ -369,12 +398,25 @@ public class ConsumeQueue {
         return this.minLogicOffset / CQ_STORE_UNIT_SIZE;
     }
 
+    /**
+     * 上层 DefaultMessageStore 内部的 异步线程 调用，存储主模块开启了一个 异步构建的  ConsumerQueue 文件和索引文件的线程
+     * 该线程启动后，会持续关注 commitLog 文件，当 commitLog 文件内有新数据写入后，立马读出来 将其封装成 DispatchRequest 对象，
+     * 转发给 ConsumerQueue 或者 IndexService
+     *
+     * @param request 由msg封装而来，立马咩有body
+     */
     public void putMessagePositionInfoWrapper(DispatchRequest request) {
         final int maxRetries = 30;
+
+        // 当前是否可写
         boolean canWrite = this.defaultMessageStore.getRunningFlags().isCQWriteable();
+
+        // 最多30次
         for (int i = 0; i < maxRetries && canWrite; i++) {
+
             long tagsCode = request.getTagsCode();
             if (isExtWriteEnable()) {
+                // 一般不进来
                 ConsumeQueueExt.CqExtUnit cqExtUnit = new ConsumeQueueExt.CqExtUnit();
                 cqExtUnit.setFilterBitMap(request.getBitMap());
                 cqExtUnit.setMsgStoreTime(request.getStoreTimestamp());
@@ -387,12 +429,15 @@ public class ConsumeQueue {
                     log.warn("Save consume queue extend fail, So just save tagsCode! {}, topic:{}, queueId:{}, offset:{}", cqExtUnit, topic, queueId, request.getCommitLogOffset());
                 }
             }
-            boolean result = this.putMessagePositionInfo(request.getCommitLogOffset(),
-                    request.getMsgSize(), tagsCode, request.getConsumeQueueOffset());
+
+            // 正常情况返回 true
+            boolean result = this.putMessagePositionInfo(request.getCommitLogOffset(), request.getMsgSize(), tagsCode, request.getConsumeQueueOffset());
             if (result) {
                 if (this.defaultMessageStore.getMessageStoreConfig().getBrokerRole() == BrokerRole.SLAVE || this.defaultMessageStore.getMessageStoreConfig().isEnableDLegerCommitLog()) {
                     this.defaultMessageStore.getStoreCheckpoint().setPhysicMsgTimestamp(request.getStoreTimestamp());
                 }
+
+                // checkPoint 记录最后一条CQData 所管理 msg 的存储时间
                 this.defaultMessageStore.getStoreCheckpoint().setLogicsMsgTimestamp(request.getStoreTimestamp());
                 return;
             } else {
@@ -412,8 +457,13 @@ public class ConsumeQueue {
         this.defaultMessageStore.getRunningFlags().makeLogicsQueueError();
     }
 
-    private boolean putMessagePositionInfo(final long offset, final int size, final long tagsCode,
-            final long cqOffset) {
+    /**
+     * @param offset 当前msg的物理 offset
+     * @param size 当前msg大小
+     * @param tagsCode 当前msg的tagCode
+     * @param cqOffset 当前msg 的 逻辑偏移量 (ConsumerQueue 内的偏移量，转化成 真是物理偏移量的算法：消息的逻辑偏移量 * 20)
+     */
+    private boolean putMessagePositionInfo(final long offset, final int size, final long tagsCode, final long cqOffset) {
 
         if (offset + size <= this.maxPhysicOffset) {
             log.warn("Maybe try to build consume queue repeatedly maxPhysicOffset={} phyOffset={}", maxPhysicOffset, offset);
@@ -422,13 +472,18 @@ public class ConsumeQueue {
 
         this.byteBufferIndex.flip();
         this.byteBufferIndex.limit(CQ_STORE_UNIT_SIZE);
+
+        // 20 个字节加入到临时缓冲区
         this.byteBufferIndex.putLong(offset);
         this.byteBufferIndex.putInt(size);
         this.byteBufferIndex.putLong(tagsCode);
 
+        // 计数出在逻辑队列中的真是物理偏移量
         final long expectLogicOffset = cqOffset * CQ_STORE_UNIT_SIZE;
 
+        // 根据真是物理偏移量获取对应的文件
         MappedFile mappedFile = this.mappedFileQueue.getLastMappedFile(expectLogicOffset);
+
         if (mappedFile != null) {
 
             if (mappedFile.isFirstCreateInQueue() && cqOffset != 0 && mappedFile.getWrotePosition() == 0) {
@@ -436,20 +491,20 @@ public class ConsumeQueue {
                 this.mappedFileQueue.setFlushedWhere(expectLogicOffset);
                 this.mappedFileQueue.setCommittedWhere(expectLogicOffset);
                 this.fillPreBlank(mappedFile, expectLogicOffset);
-                log.info("fill pre blank space " + mappedFile.getFileName() + " " + expectLogicOffset + " "
-                        + mappedFile.getWrotePosition());
+                log.info("fill pre blank space " + mappedFile.getFileName() + " " + expectLogicOffset + " " + mappedFile.getWrotePosition());
             }
 
             if (cqOffset != 0) {
                 long currentLogicOffset = mappedFile.getWrotePosition() + mappedFile.getFileFromOffset();
 
                 if (expectLogicOffset < currentLogicOffset) {
-                    log.warn("Build  consume queue repeatedly, expectLogicOffset: {} currentLogicOffset: {} Topic: {} QID: {} Diff: {}",
-                            expectLogicOffset, currentLogicOffset, this.topic, this.queueId, expectLogicOffset - currentLogicOffset);
+                    // 复写操作
+                    log.warn("Build  consume queue repeatedly, expectLogicOffset: {} currentLogicOffset: {} Topic: {} QID: {} Diff: {}", expectLogicOffset, currentLogicOffset, this.topic, this.queueId, expectLogicOffset - currentLogicOffset);
                     return true;
                 }
 
                 if (expectLogicOffset != currentLogicOffset) {
+                    // 错误的插入
                     LOG_ERROR.warn(
                             "[BUG]logic queue order maybe wrong, expectLogicOffset: {} currentLogicOffset: {} Topic: {} QID: {} Diff: {}",
                             expectLogicOffset,
@@ -460,7 +515,9 @@ public class ConsumeQueue {
                     );
                 }
             }
+
             this.maxPhysicOffset = offset + size;
+            // 追加数据到 commitLog mf 文件
             return mappedFile.appendMessage(this.byteBufferIndex.array());
         }
         return false;
