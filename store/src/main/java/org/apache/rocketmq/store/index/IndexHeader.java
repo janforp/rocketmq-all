@@ -36,6 +36,8 @@ public class IndexHeader {
 
     /**
      * hashSlotcount从第32个字节，共占用4字节
+     *
+     * hash槽
      */
     private static int hashSlotcountIndex = 32;
 
@@ -57,8 +59,16 @@ public class IndexHeader {
 
     private AtomicLong endPhyOffset = new AtomicLong(0);
 
+    /**
+     * 槽位数
+     */
     private AtomicInteger hashSlotCount = new AtomicInteger(0);
 
+    // 从1开始，索引的数量
+
+    /**
+     * 记录该文件当前使用的索引个数
+     */
     private AtomicInteger indexCount = new AtomicInteger(1);
 
     public IndexHeader(final ByteBuffer byteBuffer) {
@@ -66,6 +76,8 @@ public class IndexHeader {
     }
 
     public void load() {
+        // 把 buffer 中的数据赋值给对象
+
         this.beginTimestamp.set(byteBuffer.getLong(beginTimestampIndex));
         this.endTimestamp.set(byteBuffer.getLong(endTimestampIndex));
         this.beginPhyOffset.set(byteBuffer.getLong(beginPhyoffsetIndex));
@@ -80,6 +92,7 @@ public class IndexHeader {
     }
 
     public void updateByteBuffer() {
+        // 从 内存中写入到 buffer
         this.byteBuffer.putLong(beginTimestampIndex, this.beginTimestamp.get());
         this.byteBuffer.putLong(endTimestampIndex, this.endTimestamp.get());
         this.byteBuffer.putLong(beginPhyoffsetIndex, this.beginPhyOffset.get());
