@@ -125,7 +125,7 @@ public class IndexFile {
     /**
      * 追加索引
      *
-     * @param key 需要创建索引的 key
+     * @param key 需要创建索引的 key （unique_key, keys = "aaa bbb ccc" 会分别给 unique_key,aaa,bbb,ccc创建索引）
      * @param phyOffset 消息的偏移量
      * @param storeTimestamp 消息的存储时间
      * @return 成功失败？
@@ -133,26 +133,27 @@ public class IndexFile {
     public boolean putKey(final String key, final long phyOffset, final long storeTimestamp) {
         if (this.indexHeader.getIndexCount() < this.indexNum) { // 当前索引文件还没满
 
-            // 计数得到 hash 值
+            // 计数得到 hash 值（正数）
             int keyHash = indexKeyHashMethod(key);
-            // 计数槽位 下标
+            // 取模得到 key 对应 hash槽位 下标
             int slotPos = keyHash % this.hashSlotNum;
-            // 绝对位置 = 40 + (pos * 4)
+            // 计数出槽位的开始位置（绝对位置 = 40 + (pos * 4)）
             int absSlotPos = IndexHeader.INDEX_HEADER_SIZE + slotPos * hashSlotSize;
             try {
-                // 槽位上的数据
+                // 槽位上的原值，当hash冲突的时候原值是有值的，其他情况就是0
                 // 其实就是索引的位置（从下标开始往后4个字节取一个整数）
                 int slotValue = this.mappedByteBuffer.getInt(absSlotPos);
-                // TODO ？
                 if (slotValue <= invalidIndex || slotValue > this.indexHeader.getIndexCount()) {
+                    // 说明 slotValue 是无效值
                     slotValue = invalidIndex;
                 }
 
-                // 首条消息的存储时间 - 当前消息的存储时间
+                // 当前索引文件内第一条消息的存储时间 - 当前消息的存储时间
                 long timeDiff = storeTimestamp - this.indexHeader.getBeginTimestamp();
-                // 转换为s
+                // 转换为s（又 8 字节转换为 4字节）
                 timeDiff = timeDiff / 1000;
 
+                // 第一条索引插入的时候 timeDiff 设置为 0
                 if (this.indexHeader.getBeginTimestamp() <= 0) {
                     timeDiff = 0;
                 } else if (timeDiff > Integer.MAX_VALUE) {
@@ -161,8 +162,10 @@ public class IndexFile {
                     timeDiff = 0;
                 }
 
-                // 索引下标 = 40 + （500w * 4） + (索引下标 * 20)
+                // 索引条目写入的开始位置 = 40 + （500w * 4） + (索引下标 * 20)
                 int absIndexPos = IndexHeader.INDEX_HEADER_SIZE + this.hashSlotNum * hashSlotSize + this.indexHeader.getIndexCount() * indexSize;
+
+                // 下面是分别写入 20 个字节的索引的步骤
 
                 // 索引前4个字节：存储 hash 值
                 this.mappedByteBuffer.putInt(absIndexPos, keyHash);
@@ -170,15 +173,20 @@ public class IndexFile {
                 this.mappedByteBuffer.putLong(absIndexPos + 4, phyOffset);
                 // 索引的13-16个字节：存储时间差
                 this.mappedByteBuffer.putInt(absIndexPos + 4 + 8, (int) timeDiff);
-                // TODO 索引的17-20个字节：存储下标？
+                // hash 桶的原值，当hash冲突的时候会使用到
                 this.mappedByteBuffer.putInt(absIndexPos + 4 + 8 + 4, slotValue);
 
+                // 向当前key计数出来的 hash 桶内写入索引的编号
                 this.mappedByteBuffer.putInt(absSlotPos, this.indexHeader.getIndexCount());
 
                 if (this.indexHeader.getIndexCount() <= 1) {
+                    // 如果当前是第一条插入的索引，则执行下面的事情
+
                     this.indexHeader.setBeginPhyOffset(phyOffset);
                     this.indexHeader.setBeginTimestamp(storeTimestamp);
                 }
+
+                // 下面是更新 header 的逻辑
 
                 // 索引的下标槽位数量 +1
                 this.indexHeader.incHashSlotCount();
@@ -229,27 +237,43 @@ public class IndexFile {
 
     /**
      * 查询
+     *
+     * @param phyOffsets 里面用于存储查询结果！！！！！！！
+     * @param key 查询的 key
+     * @param maxNum 查询结果的最大数量
      */
     public void selectPhyOffset(final List<Long> phyOffsets, final String key, final int maxNum, final long begin, final long end, boolean lock) {
-        if (this.mappedFile.hold()) {
+        if (this.mappedFile.hold()) { // 引用计数 + 1，查询期间 mf 资源不能释放
+
+            // 获取当前key的hash值，正数
             int keyHash = indexKeyHashMethod(key);
+            // 计算出key对应的hash桶下标
             int slotPos = keyHash % this.hashSlotNum;
+            // 算出 hash 桶存储的开始位置： 40 + 下标 * 4
             int absSlotPos = IndexHeader.INDEX_HEADER_SIZE + slotPos * hashSlotSize;
 
             try {
-                // 获取槽位上的值
+                // 获取槽位上的值,这个值可能是 无效值 也可能是索引编号
                 int slotValue = this.mappedByteBuffer.getInt(absSlotPos);
                 if (slotValue <= invalidIndex || slotValue > this.indexHeader.getIndexCount() || this.indexHeader.getIndexCount() <= 1) {
+                    // 查询没有命中
                     // empty
                 } else {
+
+                    // nextIndexToRead ： 下一个要读的索引编号
                     for (int nextIndexToRead = slotValue; ; ) {
                         if (phyOffsets.size() >= maxNum) {
+                            // 查询达到了上限，则停止查询
                             break;
                         }
 
+                        // 计数当前索引编号的开始位置
                         int absIndexPos = IndexHeader.INDEX_HEADER_SIZE + this.hashSlotNum * hashSlotSize + nextIndexToRead * indexSize;
+
+                        // 读取索引中存储的数据
                         int keyHashRead = this.mappedByteBuffer.getInt(absIndexPos);
                         long phyOffsetRead = this.mappedByteBuffer.getLong(absIndexPos + 4);
+                        // 转换成 ms
                         long timeDiff = this.mappedByteBuffer.getInt(absIndexPos + 4 + 8);
                         int prevIndexRead = this.mappedByteBuffer.getInt(absIndexPos + 4 + 8 + 4);
                         if (timeDiff < 0) {
@@ -258,23 +282,32 @@ public class IndexFile {
 
                         timeDiff *= 1000L;
 
+                        // 计算出 msg 的准确的存储时间
                         long timeRead = this.indexHeader.getBeginTimestamp() + timeDiff;
+
+                        // 时间范围匹配
                         boolean timeMatched = (timeRead >= begin) && (timeRead <= end);
 
+                        // 如果hash 匹配并且 时间匹配，则命中
                         if (keyHash == keyHashRead && timeMatched) {
+                            // 将结果添加到结果集合中
                             phyOffsets.add(phyOffsetRead);
                         }
 
                         if (prevIndexRead <= invalidIndex || prevIndexRead > this.indexHeader.getIndexCount() || prevIndexRead == nextIndexToRead || timeRead < begin) {
+                            // 判断 索引 条目的前驱索引的编号是否无效，无效则跳出查询
                             break;
                         }
 
+                        // 如果有效则继续向前查询，解决 hash 冲突
                         nextIndexToRead = prevIndexRead;
                     }
                 }
             } catch (Exception e) {
                 log.error("selectPhyOffset exception ", e);
             } finally {
+
+                // 引用计数 - 1
                 this.mappedFile.release();
             }
         }
