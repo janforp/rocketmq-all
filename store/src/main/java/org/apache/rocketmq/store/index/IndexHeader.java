@@ -1,38 +1,62 @@
-/*
- * Licensed to the Apache Software Foundation (ASF) under one or more
- * contributor license agreements.  See the NOTICE file distributed with
- * this work for additional information regarding copyright ownership.
- * The ASF licenses this file to You under the Apache License, Version 2.0
- * (the "License"); you may not use this file except in compliance with
- * the License.  You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
 package org.apache.rocketmq.store.index;
 
 import java.nio.ByteBuffer;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 
+/**
+ * IndexFile 的头
+ * 头共40个字节
+ *
+ * 8k --- 8k --- 8k --- 8k --- 4k -- 4k
+ */
 public class IndexHeader {
+
     public static final int INDEX_HEADER_SIZE = 40;
+
+    /**
+     * 开始时间存储从第零个字节开始，共占用8字节
+     */
     private static int beginTimestampIndex = 0;
+
+    /**
+     * 最后存储时间存储从第8个字节开始，共占用8字节
+     */
     private static int endTimestampIndex = 8;
+
+    /**
+     * 开始物理偏移量从第16个字节，共占用8字节
+     */
     private static int beginPhyoffsetIndex = 16;
+
+    /**
+     * 结束物理偏移量从第24个字节，共占用8字节
+     */
     private static int endPhyoffsetIndex = 24;
+
+    /**
+     * hashSlotcount从第32个字节，共占用4字节
+     */
     private static int hashSlotcountIndex = 32;
+
+    /**
+     * indexCount从第36个字节，共占用4字节
+     */
     private static int indexCountIndex = 36;
+
+    /**
+     * 共40个字节的缓冲
+     */
     private final ByteBuffer byteBuffer;
+
     private AtomicLong beginTimestamp = new AtomicLong(0);
+
     private AtomicLong endTimestamp = new AtomicLong(0);
+
     private AtomicLong beginPhyOffset = new AtomicLong(0);
+
     private AtomicLong endPhyOffset = new AtomicLong(0);
+
     private AtomicInteger hashSlotCount = new AtomicInteger(0);
 
     private AtomicInteger indexCount = new AtomicInteger(1);
