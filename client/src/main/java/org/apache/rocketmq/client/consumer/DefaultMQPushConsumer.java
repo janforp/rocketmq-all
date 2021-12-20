@@ -516,6 +516,7 @@ public class DefaultMQPushConsumer extends ClientConfig implements MQPushConsume
      * This method will be removed in a certain version after April 5, 2020, so please do not use this method.
      */
     @Deprecated
+    @SuppressWarnings("all")
     public DefaultMQPushConsumerImpl getDefaultMQPushConsumerImpl() {
         return defaultMQPushConsumerImpl;
     }

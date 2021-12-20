@@ -83,12 +83,12 @@ public interface MQPushConsumer extends MQConsumer {
     void updateCorePoolSize(int corePoolSize);
 
     /**
-     * Suspend the consumption
+     * Suspend the consumption : 停止消费，包括拉取跟消费
      */
     void suspend();
 
     /**
-     * Resume the consumption
+     * Resume the consumption ： 恢复消费
      */
     void resume();
 }
