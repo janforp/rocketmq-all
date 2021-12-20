@@ -210,12 +210,15 @@ public class DefaultMessageStore implements MessageStore {
 
     public void start() throws Exception {
 
+        // ../store/lock 文件
         lock = lockFile.getChannel().tryLock(0, 1, false);
         if (lock == null || lock.isShared() || !lock.isValid()) {
+            // 被占用了
             throw new RuntimeException("Lock failed,MQ already started");
         }
 
         lockFile.getChannel().write(ByteBuffer.wrap("lock".getBytes()));
+        // 写入锁内容
         lockFile.getChannel().force(true);
         {
             /*
@@ -228,6 +231,7 @@ public class DefaultMessageStore implements MessageStore {
             for (ConcurrentMap<Integer, ConsumeQueue> maps : this.consumeQueueTable.values()) {
                 for (ConsumeQueue logic : maps.values()) {
                     if (logic.getMaxPhysicOffset() > maxPhysicalPosInLogicQueue) {
+                        // 循环找到最大的 offset
                         maxPhysicalPosInLogicQueue = logic.getMaxPhysicOffset();
                     }
                 }
@@ -247,8 +251,6 @@ public class DefaultMessageStore implements MessageStore {
                  */
                 log.warn("[TooSmallCqOffset] maxPhysicalPosInLogicQueue={} clMinOffset={}", maxPhysicalPosInLogicQueue, this.commitLog.getMinOffset());
             }
-            log.info("[SetReputOffset] maxPhysicalPosInLogicQueue={} clMinOffset={} clMaxOffset={} clConfirmedOffset={}",
-                    maxPhysicalPosInLogicQueue, this.commitLog.getMinOffset(), this.commitLog.getMaxOffset(), this.commitLog.getConfirmOffset());
             this.reputMessageService.setReputFromOffset(maxPhysicalPosInLogicQueue);
             this.reputMessageService.start();
 
@@ -271,12 +273,16 @@ public class DefaultMessageStore implements MessageStore {
             this.handleScheduleMessageService(messageStoreConfig.getBrokerRole());
         }
 
+        // 消费队列的刷盘服务
         this.flushConsumeQueueService.start();
         this.commitLog.start();
         this.storeStatsService.start();
 
+        // 标志是否正常退出的问题 ../store/abort文件
         this.createTempFile();
         this.addScheduleTask();
+
+        // 设置运行状态为运行中
         this.shutdown = false;
     }
 
@@ -401,22 +407,39 @@ public class DefaultMessageStore implements MessageStore {
         return PutMessageStatus.PUT_OK;
     }
 
+    /**
+     * 1.检查存储模块状态（1.运行状态,2.runningFlags，3.繁忙状态）状态如果不可写，则直接返回
+     * 2.检验消息(1.topic长度检验,2.properties长度校验)
+     * 3.调用 commitLog.asyncPutMessage(msg)进入消息存储阶段
+     * 4.返回存储结果 CompleteFuture 对象
+     *
+     * @param msg MessageInstance to store
+     * @return 存储结果 CompleteFuture 对象
+     */
     @Override
     public CompletableFuture<PutMessageResult> asyncPutMessage(MessageExtBrokerInner msg) {
+
+        // 1.检查存储模块状态（1.运行状态,2.runningFlags，3.繁忙状态）状态如果不可写，则直接返回
         PutMessageStatus checkStoreStatus = this.checkStoreStatus();
         if (checkStoreStatus != PutMessageStatus.PUT_OK) {
+            // 校验不通过，则返回
             return CompletableFuture.completedFuture(new PutMessageResult(checkStoreStatus, null));
         }
 
+        // 2.检验消息(1.topic长度检验,2.properties长度校验)
         PutMessageStatus msgCheckStatus = this.checkMessage(msg);
         if (msgCheckStatus == PutMessageStatus.MESSAGE_ILLEGAL) {
+            // 校验不通过
             return CompletableFuture.completedFuture(new PutMessageResult(msgCheckStatus, null));
         }
 
         long beginTime = this.getSystemClock().now();
+
+        // 真正的逻辑代理给 commitLog 对象执行
         CompletableFuture<PutMessageResult> putResultFuture = this.commitLog.asyncPutMessage(msg);
 
         putResultFuture.thenAccept((result) -> {
+            // 耗时
             long elapsedTime = this.getSystemClock().now() - beginTime;
             if (elapsedTime > 500) {
                 log.warn("putMessage not in lock elapsed time(ms)={}, bodyLength={}", elapsedTime, msg.getBody().length);
@@ -522,8 +545,7 @@ public class DefaultMessageStore implements MessageStore {
         long begin = this.getCommitLog().getBeginTimeInLock();
         long diff = this.systemClock.now() - begin;
 
-        return diff < 10000000
-                && diff > this.messageStoreConfig.getOsPageCacheBusyTimeOutMills();
+        return diff < 10000000 && diff > this.messageStoreConfig.getOsPageCacheBusyTimeOutMills();
     }
 
     @Override
@@ -1297,13 +1319,6 @@ public class DefaultMessageStore implements MessageStore {
                 }
             }
         }, 1, 1, TimeUnit.SECONDS);
-
-        // this.scheduledExecutorService.scheduleAtFixedRate(new Runnable() {
-        // @Override
-        // public void run() {
-        // DefaultMessageStore.this.cleanExpiredConsumerQueue();
-        // }
-        // }, 1, 1, TimeUnit.HOURS);
     }
 
     private void cleanFilesPeriodically() {
@@ -1369,6 +1384,7 @@ public class DefaultMessageStore implements MessageStore {
     }
 
     private void recover(final boolean lastExitOK) {
+        // 最大offset
         long maxPhyOffsetOfConsumeQueue = this.recoverConsumeQueue();
 
         if (lastExitOK) {
