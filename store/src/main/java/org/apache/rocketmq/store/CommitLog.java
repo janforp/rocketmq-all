@@ -44,7 +44,7 @@ public class CommitLog {
 
     protected static final InternalLogger log = InternalLoggerFactory.getLogger(LoggerName.STORE_LOGGER_NAME);
 
-    /**
+    /**zh
      * 文件尾消息魔法值
      */
     // End of file empty MAGIC CODE cbd43194

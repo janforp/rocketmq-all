@@ -18,8 +18,7 @@ public interface MQAdmin {
      * @param newTopic topic name
      * @param queueNum topic's queue number
      */
-    void createTopic(final String key, final String newTopic, final int queueNum)
-            throws MQClientException;
+    void createTopic(final String key, final String newTopic, final int queueNum) throws MQClientException;
 
     /**
      * Creates an topic
@@ -29,8 +28,7 @@ public interface MQAdmin {
      * @param queueNum topic's queue number
      * @param topicSysFlag topic system flag
      */
-    void createTopic(String key, String newTopic, int queueNum, int topicSysFlag)
-            throws MQClientException;
+    void createTopic(String key, String newTopic, int queueNum, int topicSysFlag) throws MQClientException;
 
     /**
      * Gets the message queue offset according to some time in milliseconds<br>
@@ -72,8 +70,7 @@ public interface MQAdmin {
      * @param offsetMsgId message id
      * @return message
      */
-    MessageExt viewMessage(final String offsetMsgId) throws RemotingException, MQBrokerException,
-            InterruptedException, MQClientException;
+    MessageExt viewMessage(final String offsetMsgId) throws RemotingException, MQBrokerException, InterruptedException, MQClientException;
 
     /**
      * Query messages
@@ -85,12 +82,10 @@ public interface MQAdmin {
      * @param end to when
      * @return Instance of QueryResult
      */
-    QueryResult queryMessage(final String topic, final String key, final int maxNum, final long begin,
-            final long end) throws MQClientException, InterruptedException;
+    QueryResult queryMessage(final String topic, final String key, final int maxNum, final long begin, final long end) throws MQClientException, InterruptedException;
 
     /**
      * @return The {@code MessageExt} of given msgId
      */
-    MessageExt viewMessage(String topic,
-            String msgId) throws RemotingException, MQBrokerException, InterruptedException, MQClientException;
+    MessageExt viewMessage(String topic, String msgId) throws RemotingException, MQBrokerException, InterruptedException, MQClientException;
 }

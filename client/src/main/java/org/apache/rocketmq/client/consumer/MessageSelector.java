@@ -1,5 +1,6 @@
 package org.apache.rocketmq.client.consumer;
 
+import lombok.AllArgsConstructor;
 import org.apache.rocketmq.common.filter.ExpressionType;
 
 /**
@@ -12,6 +13,7 @@ import org.apache.rocketmq.common.filter.ExpressionType;
  * </li>
  * </p>
  */
+@AllArgsConstructor
 public class MessageSelector {
 
     /**
@@ -23,11 +25,6 @@ public class MessageSelector {
      * expression content.
      */
     private String expression;
-
-    private MessageSelector(String type, String expression) {
-        this.type = type;
-        this.expression = expression;
-    }
 
     /**
      * Use SLQ92 to select message.
