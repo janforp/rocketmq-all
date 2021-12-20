@@ -670,7 +670,9 @@ public class DefaultMQPushConsumerImpl implements MQConsumerInner {
         // 路由更新服务
         this.updateTopicSubscribeInfoWhenSubscriptionChanged();
         this.mQClientFactory.checkClientInBroker();
+        // 发送心态
         this.mQClientFactory.sendHeartbeatToAllBrokerWithLock();
+        // 唤醒负载均衡线程
         this.mQClientFactory.rebalanceImmediately();
     }
 

@@ -116,7 +116,6 @@ public class MQClientInstance {
     @Getter
     private final MQAdminImpl mQAdminImpl;
 
-
     // key topic
     // value： 主题的路由数据
     // 客户端本地的路由数据
@@ -229,7 +228,8 @@ public class MQClientInstance {
 
         this.consumerStatsManager = new ConsumerStatsManager(this.scheduledExecutorService);
 
-        log.info("Created a new client Instance, InstanceIndex:{}, ClientID:{}, ClientConfig:{}, ClientVersion:{}, SerializerType:{}", this.instanceIndex, this.clientId, this.clientConfig, MQVersion.getVersionDesc(MQVersion.CURRENT_VERSION), RemotingCommand.getSerializeTypeConfigInThisServer());
+        log.info("Created a new client Instance, InstanceIndex:{}, ClientID:{}, ClientConfig:{}, ClientVersion:{}, SerializerType:{}", this.instanceIndex, this.clientId, this.clientConfig,
+                MQVersion.getVersionDesc(MQVersion.CURRENT_VERSION), RemotingCommand.getSerializeTypeConfigInThisServer());
     }
 
     public static TopicPublishInfo topicRouteData2TopicPublishInfo(final String topic, final TopicRouteData route) {
@@ -383,7 +383,6 @@ public class MQClientInstance {
             }
         }, 1000, this.clientConfig.getHeartbeatBrokerInterval(), TimeUnit.MILLISECONDS);
 
-
         // 定时任务3：消费者持久化消费进度
         this.scheduledExecutorService.scheduleAtFixedRate(new Runnable() {
 
@@ -534,10 +533,8 @@ public class MQClientInstance {
     }
 
     public void checkClientInBroker() throws MQClientException {
-        Iterator<Entry<String, MQConsumerInner>> it = this.consumerTable.entrySet().iterator();
 
-        while (it.hasNext()) {
-            Entry<String, MQConsumerInner> entry = it.next();
+        for (Entry<String, MQConsumerInner> entry : this.consumerTable.entrySet()) {
             Set<SubscriptionData> subscriptionInner = entry.getValue().subscriptions();
             if (subscriptionInner == null || subscriptionInner.isEmpty()) {
                 return;
@@ -558,7 +555,8 @@ public class MQClientInstance {
                         if (e instanceof MQClientException) {
                             throw (MQClientException) e;
                         } else {
-                            throw new MQClientException("Check client in broker error, maybe because you use " + subscriptionData.getExpressionType() + " to filter message, but server has not been upgraded to support!" + "This error would not affect the launch of consumer, but may has impact on message receiving if you " + "have use the new features which are not supported by server, please check the log!", e);
+                            throw new MQClientException("Check client in broker error, maybe because you use " + subscriptionData.getExpressionType() + " to filter message, but server has not been upgraded to support!"
+                                    + "This error would not affect the launch of consumer, but may has impact on message receiving if you " + "have use the new features which are not supported by server, please check the log!", e);
                         }
                     }
                 }
@@ -608,7 +606,6 @@ public class MQClientInstance {
     }
 
     public boolean updateTopicRouteInfoFromNameServer(final String topic) {
-
 
         return updateTopicRouteInfoFromNameServer(
 
