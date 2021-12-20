@@ -136,6 +136,11 @@ public class MixAll {
         return wsAddr;
     }
 
+    /**
+     *
+     * @param consumerGroup 用户指定的消费组每次，如 SOCINSCORE_CONSUMER_GROUP
+     * @return %RETRY%SOCINSCORE_CONSUMER_GROUP
+     */
     public static String getRetryTopic(final String consumerGroup) {
         return RETRY_GROUP_TOPIC_PREFIX + consumerGroup;
     }

@@ -15,15 +15,15 @@ public class MQClientManager {
 
     private final static InternalLogger log = ClientLogger.getLog();
 
-    private static MQClientManager instance = new MQClientManager();
+    private static final MQClientManager instance = new MQClientManager();
 
-    private AtomicInteger factoryIndexGenerator = new AtomicInteger();
+    private final AtomicInteger factoryIndexGenerator = new AtomicInteger();
 
     /**
      * key:clientId
      * value:mq客户端实例
      */
-    private ConcurrentMap<String, MQClientInstance> factoryTable = new ConcurrentHashMap<String, MQClientInstance>();
+    private final ConcurrentMap<String, MQClientInstance> factoryTable = new ConcurrentHashMap<String, MQClientInstance>();
 
     private MQClientManager() {
 

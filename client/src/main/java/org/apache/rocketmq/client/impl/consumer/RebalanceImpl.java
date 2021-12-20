@@ -37,6 +37,7 @@ public abstract class RebalanceImpl {
     @Getter
     protected final ConcurrentMap<String/* topic */, Set<MessageQueue>> topicSubscribeInfoTable = new ConcurrentHashMap<String, Set<MessageQueue>>();
 
+    @Getter
     protected final ConcurrentMap<String /* topic */, SubscriptionData> subscriptionInner = new ConcurrentHashMap<String, SubscriptionData>();
 
     @Getter
@@ -226,10 +227,6 @@ public abstract class RebalanceImpl {
         }
 
         this.truncateMessageQueueNotMyTopic();
-    }
-
-    public ConcurrentMap<String, SubscriptionData> getSubscriptionInner() {
-        return subscriptionInner;
     }
 
     private void rebalanceByTopic(final String topic, final boolean isOrder) {

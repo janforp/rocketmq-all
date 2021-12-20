@@ -21,8 +21,13 @@ public class FilterAPI {
         return simple;
     }
 
-    public static SubscriptionData buildSubscriptionData(final String consumerGroup, String topic,
-            String subString) throws Exception {
+    /**
+     * @param consumerGroup 组
+     * @param topic 主题
+     * @param subString tag等
+     * @return SubscriptionData
+     */
+    public static SubscriptionData buildSubscriptionData(final String consumerGroup, String topic, String subString) throws Exception {
         SubscriptionData subscriptionData = new SubscriptionData();
         subscriptionData.setTopic(topic);
         subscriptionData.setSubString(subString);
@@ -36,7 +41,11 @@ public class FilterAPI {
                     if (tag.length() > 0) {
                         String trimString = tag.trim();
                         if (trimString.length() > 0) {
+
+                            // tag
                             subscriptionData.getTagsSet().add(trimString);
+
+                            // hashcode
                             subscriptionData.getCodeSet().add(trimString.hashCode());
                         }
                     }
@@ -49,8 +58,7 @@ public class FilterAPI {
         return subscriptionData;
     }
 
-    public static SubscriptionData build(final String topic, final String subString,
-            final String type) throws Exception {
+    public static SubscriptionData build(final String topic, final String subString, final String type) throws Exception {
         if (ExpressionType.TAG.equals(type) || type == null) {
             return buildSubscriptionData(null, topic, subString);
         }

@@ -5,6 +5,7 @@ import lombok.Getter;
 import lombok.Setter;
 import lombok.ToString;
 import org.apache.rocketmq.common.filter.ExpressionType;
+import org.apache.rocketmq.common.filter.FilterAPI;
 
 import java.util.HashSet;
 import java.util.Set;
@@ -26,10 +27,16 @@ public class SubscriptionData implements Comparable<SubscriptionData> {
     @Setter
     private String subString;
 
+    /**
+     * @see FilterAPI#buildSubscriptionData(java.lang.String, java.lang.String, java.lang.String)
+     */
     @Getter
     @Setter
     private Set<String> tagsSet = new HashSet<String>();
 
+    /**
+     * @see FilterAPI#buildSubscriptionData(java.lang.String, java.lang.String, java.lang.String)
+     */
     @Getter
     @Setter
     private Set<Integer> codeSet = new HashSet<Integer>();

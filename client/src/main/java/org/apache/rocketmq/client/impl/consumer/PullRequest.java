@@ -4,6 +4,9 @@ import lombok.Getter;
 import lombok.Setter;
 import org.apache.rocketmq.common.message.MessageQueue;
 
+/**
+ * 封装拉拉消息请求的具体数据
+ */
 public class PullRequest {
 
     @Setter

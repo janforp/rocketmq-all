@@ -20,13 +20,12 @@ public class PullMessageService extends ServiceThread {
 
     private final MQClientInstance mQClientFactory;
 
-    private final ScheduledExecutorService scheduledExecutorService = Executors
-            .newSingleThreadScheduledExecutor(new ThreadFactory() {
-                @Override
-                public Thread newThread(Runnable r) {
-                    return new Thread(r, "PullMessageServiceScheduledThread");
-                }
-            });
+    private final ScheduledExecutorService scheduledExecutorService = Executors.newSingleThreadScheduledExecutor(new ThreadFactory() {
+        @Override
+        public Thread newThread(Runnable r) {
+            return new Thread(r, "PullMessageServiceScheduledThread");
+        }
+    });
 
     public PullMessageService(MQClientInstance mQClientFactory) {
         this.mQClientFactory = mQClientFactory;
