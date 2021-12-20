@@ -165,15 +165,18 @@ public class DefaultMessageStore implements MessageStore {
         }
     }
 
+    // 由 brokerController调用
     public boolean load() {
         boolean result = true;
 
         try {
+
+            // 如果有历史文件，则 lastExitOK = true
             boolean lastExitOK = !this.isTempFileExist();
             log.info("last shutdown {}", lastExitOK ? "normally" : "abnormally");
 
             if (null != scheduleMessageService) {
-                result = result && this.scheduleMessageService.load();
+                result = this.scheduleMessageService.load();
             }
 
             // load Commit Log
@@ -205,9 +208,6 @@ public class DefaultMessageStore implements MessageStore {
         return result;
     }
 
-    /**
-     * @throws Exception
-     */
     public void start() throws Exception {
 
         lock = lockFile.getChannel().tryLock(0, 1, false);
@@ -218,7 +218,7 @@ public class DefaultMessageStore implements MessageStore {
         lockFile.getChannel().write(ByteBuffer.wrap("lock".getBytes()));
         lockFile.getChannel().force(true);
         {
-            /**
+            /*
              * 1. Make sure the fast-forward messages to be truncated during the recovering according to the max physical offset of the commitlog;
              * 2. DLedger committedPos may be missing, so the maxPhysicalPosInLogicQueue maybe bigger that maxOffset returned by DLedgerCommitLog, just let it go;
              * 3. Calculate the reput offset according to the consume queue;
@@ -237,7 +237,7 @@ public class DefaultMessageStore implements MessageStore {
             }
             if (maxPhysicalPosInLogicQueue < this.commitLog.getMinOffset()) {
                 maxPhysicalPosInLogicQueue = this.commitLog.getMinOffset();
-                /**
+                /*
                  * This happens in following conditions:
                  * 1. If someone removes all the consumequeue files or the disk get damaged.
                  * 2. Launch a new broker, and copy the commitlog from other brokers.
@@ -252,7 +252,7 @@ public class DefaultMessageStore implements MessageStore {
             this.reputMessageService.setReputFromOffset(maxPhysicalPosInLogicQueue);
             this.reputMessageService.start();
 
-            /**
+            /*
              *  1. Finish dispatching the messages fall behind, then to start other services.
              *  2. DLedger committedPos may be missing, so here just require dispatchBehindBytes <= 0
              */
@@ -1277,37 +1277,23 @@ public class DefaultMessageStore implements MessageStore {
 
     private void addScheduleTask() {
 
-        this.scheduledExecutorService.scheduleAtFixedRate(new Runnable() {
-            @Override
-            public void run() {
-                DefaultMessageStore.this.cleanFilesPeriodically();
-            }
-        }, 1000 * 60, this.messageStoreConfig.getCleanResourceInterval(), TimeUnit.MILLISECONDS);
+        this.scheduledExecutorService.scheduleAtFixedRate(DefaultMessageStore.this::cleanFilesPeriodically, 1000 * 60, this.messageStoreConfig.getCleanResourceInterval(), TimeUnit.MILLISECONDS);
 
-        this.scheduledExecutorService.scheduleAtFixedRate(new Runnable() {
-            @Override
-            public void run() {
-                DefaultMessageStore.this.checkSelf();
-            }
-        }, 1, 10, TimeUnit.MINUTES);
+        this.scheduledExecutorService.scheduleAtFixedRate(DefaultMessageStore.this::checkSelf, 1, 10, TimeUnit.MINUTES);
 
-        this.scheduledExecutorService.scheduleAtFixedRate(new Runnable() {
-            @Override
-            public void run() {
-                if (DefaultMessageStore.this.getMessageStoreConfig().isDebugLockEnable()) {
-                    try {
-                        if (DefaultMessageStore.this.commitLog.getBeginTimeInLock() != 0) {
-                            long lockTime = System.currentTimeMillis() - DefaultMessageStore.this.commitLog.getBeginTimeInLock();
-                            if (lockTime > 1000 && lockTime < 10000000) {
-
-                                String stack = UtilAll.jstack();
-                                final String fileName = System.getProperty("user.home") + File.separator + "debug/lock/stack-"
-                                        + DefaultMessageStore.this.commitLog.getBeginTimeInLock() + "-" + lockTime;
-                                MixAll.string2FileNotSafe(stack, fileName);
-                            }
+        this.scheduledExecutorService.scheduleAtFixedRate(() -> {
+            if (DefaultMessageStore.this.getMessageStoreConfig().isDebugLockEnable()) {
+                try {
+                    if (DefaultMessageStore.this.commitLog.getBeginTimeInLock() != 0) {
+                        long lockTime = System.currentTimeMillis() - DefaultMessageStore.this.commitLog.getBeginTimeInLock();
+                        if (lockTime > 1000 && lockTime < 10000000) {
+                            String stack = UtilAll.jstack();
+                            final String fileName = System.getProperty("user.home") + File.separator + "debug/lock/stack-" + DefaultMessageStore.this.commitLog.getBeginTimeInLock() + "-" + lockTime;
+                            MixAll.string2FileNotSafe(stack, fileName);
                         }
-                    } catch (Exception e) {
                     }
+                } catch (Exception e) {
+                    // empty
                 }
             }
         }, 1, 1, TimeUnit.SECONDS);

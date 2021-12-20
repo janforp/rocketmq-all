@@ -7,25 +7,25 @@ import java.nio.MappedByteBuffer;
 import java.nio.channels.FileChannel;
 import java.nio.channels.FileChannel.MapMode;
 
-import org.apache.rocketmq.common.UtilAll;
-import org.apache.rocketmq.common.constant.LoggerName;
-import org.apache.rocketmq.logging.InternalLogger;
-import org.apache.rocketmq.logging.InternalLoggerFactory;
+import lombok.Getter;
+import lombok.Setter;
 
 public class StoreCheckpoint {
-
-    private static final InternalLogger log = InternalLoggerFactory.getLogger(LoggerName.STORE_LOGGER_NAME);
-
-    private final RandomAccessFile randomAccessFile;
 
     private final FileChannel fileChannel;
 
     private final MappedByteBuffer mappedByteBuffer;
 
+    @Getter
+    @Setter
     private volatile long physicMsgTimestamp = 0;
 
+    @Getter
+    @Setter
     private volatile long logicsMsgTimestamp = 0;
 
+    @Getter
+    @Setter
     private volatile long indexMsgTimestamp = 0;
 
     public StoreCheckpoint(final String scpPath) throws IOException {
@@ -33,24 +33,14 @@ public class StoreCheckpoint {
         MappedFile.ensureDirOK(file.getParent());
         boolean fileExists = file.exists();
 
-        this.randomAccessFile = new RandomAccessFile(file, "rw");
-        this.fileChannel = this.randomAccessFile.getChannel();
+        RandomAccessFile randomAccessFile = new RandomAccessFile(file, "rw");
+        this.fileChannel = randomAccessFile.getChannel();
         this.mappedByteBuffer = fileChannel.map(MapMode.READ_WRITE, 0, MappedFile.OS_PAGE_SIZE);
 
         if (fileExists) {
-            log.info("store checkpoint file exists, " + scpPath);
             this.physicMsgTimestamp = this.mappedByteBuffer.getLong(0);
             this.logicsMsgTimestamp = this.mappedByteBuffer.getLong(8);
             this.indexMsgTimestamp = this.mappedByteBuffer.getLong(16);
-
-            log.info("store checkpoint file physicMsgTimestamp " + this.physicMsgTimestamp + ", "
-                    + UtilAll.timeMillisToHumanString(this.physicMsgTimestamp));
-            log.info("store checkpoint file logicsMsgTimestamp " + this.logicsMsgTimestamp + ", "
-                    + UtilAll.timeMillisToHumanString(this.logicsMsgTimestamp));
-            log.info("store checkpoint file indexMsgTimestamp " + this.indexMsgTimestamp + ", "
-                    + UtilAll.timeMillisToHumanString(this.indexMsgTimestamp));
-        } else {
-            log.info("store checkpoint file not exists, " + scpPath);
         }
     }
 
@@ -63,7 +53,7 @@ public class StoreCheckpoint {
         try {
             this.fileChannel.close();
         } catch (IOException e) {
-            log.error("Failed to properly close the channel", e);
+            // log.error("Failed to properly close the channel", e);
         }
     }
 
@@ -71,23 +61,9 @@ public class StoreCheckpoint {
         this.mappedByteBuffer.putLong(0, this.physicMsgTimestamp);
         this.mappedByteBuffer.putLong(8, this.logicsMsgTimestamp);
         this.mappedByteBuffer.putLong(16, this.indexMsgTimestamp);
+
+        // 写到文件中去
         this.mappedByteBuffer.force();
-    }
-
-    public long getPhysicMsgTimestamp() {
-        return physicMsgTimestamp;
-    }
-
-    public void setPhysicMsgTimestamp(long physicMsgTimestamp) {
-        this.physicMsgTimestamp = physicMsgTimestamp;
-    }
-
-    public long getLogicsMsgTimestamp() {
-        return logicsMsgTimestamp;
-    }
-
-    public void setLogicsMsgTimestamp(long logicsMsgTimestamp) {
-        this.logicsMsgTimestamp = logicsMsgTimestamp;
     }
 
     public long getMinTimestampIndex() {
@@ -104,13 +80,4 @@ public class StoreCheckpoint {
 
         return min;
     }
-
-    public long getIndexMsgTimestamp() {
-        return indexMsgTimestamp;
-    }
-
-    public void setIndexMsgTimestamp(long indexMsgTimestamp) {
-        this.indexMsgTimestamp = indexMsgTimestamp;
-    }
-
 }
