@@ -91,13 +91,23 @@ public class DefaultMQPushConsumerImpl implements MQConsumerInner {
     private final DefaultMQPushConsumer defaultMQPushConsumer;
 
     // 负载均衡
+
+    /**
+     * @see RebalanceService
+     */
     @Getter
     private final RebalanceImpl rebalanceImpl = new RebalancePushImpl(this);
 
+    /**
+     * 消息拉下来之后的钩子
+     */
     private final ArrayList<FilterMessageHook> filterMessageHookList = new ArrayList<FilterMessageHook>();
 
     private final long consumerStartTimestamp = System.currentTimeMillis();
 
+    /**
+     * 在消费的时候的钩子
+     */
     private final ArrayList<ConsumeMessageHook> consumeMessageHookList = new ArrayList<ConsumeMessageHook>();
 
     private final RPCHook rpcHook;
@@ -110,6 +120,11 @@ public class DefaultMQPushConsumerImpl implements MQConsumerInner {
     @Setter
     private MQClientInstance mQClientFactory;
 
+    /**
+     * 拉消息逻辑的封装
+     * 热数据：在内存中，会建议下次去 master 拉
+     * 冷数据：在硬盘中，会建议下次去 slave 拉
+     */
     private PullAPIWrapper pullAPIWrapper;
 
     @Getter
@@ -122,8 +137,16 @@ public class DefaultMQPushConsumerImpl implements MQConsumerInner {
 
     private MessageListener messageListenerInner;
 
+    /**
+     * 消息进度存储器
+     *
+     * @see RemoteBrokerOffsetStore
+     */
     private OffsetStore offsetStore;
 
+    /**
+     * 消息消费服务，里面有消费线程池，执行消费任务
+     */
     @Getter
     @Setter
     private ConsumeMessageService consumeMessageService;

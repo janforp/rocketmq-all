@@ -4,11 +4,13 @@ import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
+import lombok.ToString;
 
 import java.io.Serializable;
 
 @NoArgsConstructor
 @AllArgsConstructor
+@ToString
 public class MessageQueue implements Comparable<MessageQueue>, Serializable {
 
     private static final long serialVersionUID = 6191200464116433425L;
@@ -84,10 +86,5 @@ public class MessageQueue implements Comparable<MessageQueue>, Serializable {
             return false;
         }
         return true;
-    }
-
-    @Override
-    public String toString() {
-        return "MessageQueue [topic=" + topic + ", brokerName=" + brokerName + ", queueId=" + queueId + "]";
     }
 }
