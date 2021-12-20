@@ -1353,14 +1353,14 @@ public class MQClientAPIImpl {
         return getTopicRouteInfoFromNameServer(topic, timeoutMillis, false);
     }
 
-    public TopicRouteData getTopicRouteInfoFromNameServer(final String topic, final long timeoutMillis)
-            throws RemotingException, MQClientException, InterruptedException {
+    public TopicRouteData getTopicRouteInfoFromNameServer(final String topic, final long timeoutMillis) throws RemotingException, MQClientException, InterruptedException {
 
         return getTopicRouteInfoFromNameServer(topic, timeoutMillis, true);
     }
 
-    public TopicRouteData getTopicRouteInfoFromNameServer(final String topic, final long timeoutMillis,
-            boolean allowTopicNotExist) throws MQClientException, InterruptedException, RemotingTimeoutException, RemotingSendRequestException, RemotingConnectException {
+    public TopicRouteData getTopicRouteInfoFromNameServer(final String topic, final long timeoutMillis, boolean allowTopicNotExist)
+            throws MQClientException, InterruptedException, RemotingTimeoutException, RemotingSendRequestException, RemotingConnectException {
+
         GetRouteInfoRequestHeader requestHeader = new GetRouteInfoRequestHeader();
         requestHeader.setTopic(topic);
 
@@ -1389,21 +1389,16 @@ public class MQClientAPIImpl {
         throw new MQClientException(response.getCode(), response.getRemark());
     }
 
-    public TopicList getTopicListFromNameServer(final long timeoutMillis)
-            throws RemotingException, MQClientException, InterruptedException {
+    public TopicList getTopicListFromNameServer(final long timeoutMillis) throws RemotingException, MQClientException, InterruptedException {
         RemotingCommand request = RemotingCommand.createRequestCommand(RequestCode.GET_ALL_TOPIC_LIST_FROM_NAMESERVER, null);
 
         RemotingCommand response = this.remotingClient.invokeSync(null, request, timeoutMillis);
         assert response != null;
-        switch (response.getCode()) {
-            case ResponseCode.SUCCESS: {
-                byte[] body = response.getBody();
-                if (body != null) {
-                    return TopicList.decode(body, TopicList.class);
-                }
+        if (response.getCode() == ResponseCode.SUCCESS) {
+            byte[] body = response.getBody();
+            if (body != null) {
+                return TopicList.decode(body, TopicList.class);
             }
-            default:
-                break;
         }
 
         throw new MQClientException(response.getCode(), response.getRemark());
@@ -1419,14 +1414,9 @@ public class MQClientAPIImpl {
 
         RemotingCommand response = this.remotingClient.invokeSync(namesrvAddr, request, timeoutMillis);
         assert response != null;
-        switch (response.getCode()) {
-            case ResponseCode.SUCCESS: {
-                WipeWritePermOfBrokerResponseHeader responseHeader =
-                        (WipeWritePermOfBrokerResponseHeader) response.decodeCommandCustomHeader(WipeWritePermOfBrokerResponseHeader.class);
-                return responseHeader.getWipeTopicCount();
-            }
-            default:
-                break;
+        if (response.getCode() == ResponseCode.SUCCESS) {
+            WipeWritePermOfBrokerResponseHeader responseHeader = (WipeWritePermOfBrokerResponseHeader) response.decodeCommandCustomHeader(WipeWritePermOfBrokerResponseHeader.class);
+            return responseHeader.getWipeTopicCount();
         }
 
         throw new MQClientException(response.getCode(), response.getRemark());
@@ -1438,15 +1428,10 @@ public class MQClientAPIImpl {
         requestHeader.setTopic(topic);
         RemotingCommand request = RemotingCommand.createRequestCommand(RequestCode.DELETE_TOPIC_IN_BROKER, requestHeader);
 
-        RemotingCommand response = this.remotingClient.invokeSync(MixAll.brokerVIPChannel(this.clientConfig.isVipChannelEnabled(), addr),
-                request, timeoutMillis);
+        RemotingCommand response = this.remotingClient.invokeSync(MixAll.brokerVIPChannel(this.clientConfig.isVipChannelEnabled(), addr), request, timeoutMillis);
         assert response != null;
-        switch (response.getCode()) {
-            case ResponseCode.SUCCESS: {
-                return;
-            }
-            default:
-                break;
+        if (response.getCode() == ResponseCode.SUCCESS) {
+            return;
         }
 
         throw new MQClientException(response.getCode(), response.getRemark());
