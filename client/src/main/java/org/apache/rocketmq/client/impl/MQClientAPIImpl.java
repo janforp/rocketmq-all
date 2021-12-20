@@ -1157,12 +1157,8 @@ public class MQClientAPIImpl {
         throw new MQBrokerException(response.getCode(), response.getRemark());
     }
 
-    public void unlockBatchMQ(
-            final String addr,
-            final UnlockBatchRequestBody requestBody,
-            final long timeoutMillis,
-            final boolean oneway
-    ) throws RemotingException, MQBrokerException, InterruptedException {
+    public void unlockBatchMQ(final String addr, final UnlockBatchRequestBody requestBody, final long timeoutMillis, final boolean oneway) throws RemotingException, MQBrokerException, InterruptedException {
+
         RemotingCommand request = RemotingCommand.createRequestCommand(RequestCode.UNLOCK_BATCH_MQ, null);
 
         request.setBody(requestBody.encode());
@@ -1170,16 +1166,10 @@ public class MQClientAPIImpl {
         if (oneway) {
             this.remotingClient.invokeOneway(addr, request, timeoutMillis);
         } else {
-            RemotingCommand response = this.remotingClient
-                    .invokeSync(MixAll.brokerVIPChannel(this.clientConfig.isVipChannelEnabled(), addr), request, timeoutMillis);
-            switch (response.getCode()) {
-                case ResponseCode.SUCCESS: {
-                    return;
-                }
-                default:
-                    break;
+            RemotingCommand response = this.remotingClient.invokeSync(MixAll.brokerVIPChannel(this.clientConfig.isVipChannelEnabled(), addr), request, timeoutMillis);
+            if (response.getCode() == ResponseCode.SUCCESS) {
+                return;
             }
-
             throw new MQBrokerException(response.getCode(), response.getRemark());
         }
     }

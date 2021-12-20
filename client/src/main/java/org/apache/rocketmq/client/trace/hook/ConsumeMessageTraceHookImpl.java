@@ -1,5 +1,6 @@
 package org.apache.rocketmq.client.trace.hook;
 
+import lombok.AllArgsConstructor;
 import org.apache.rocketmq.client.consumer.listener.ConsumeReturnType;
 import org.apache.rocketmq.client.hook.ConsumeMessageContext;
 import org.apache.rocketmq.client.hook.ConsumeMessageHook;
@@ -15,13 +16,10 @@ import org.apache.rocketmq.common.protocol.NamespaceUtil;
 import java.util.ArrayList;
 import java.util.List;
 
+@AllArgsConstructor
 public class ConsumeMessageTraceHookImpl implements ConsumeMessageHook {
 
-    private TraceDispatcher localDispatcher;
-
-    public ConsumeMessageTraceHookImpl(TraceDispatcher localDispatcher) {
-        this.localDispatcher = localDispatcher;
-    }
+    private final TraceDispatcher localDispatcher;
 
     @Override
     public String hookName() {

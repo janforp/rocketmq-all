@@ -1,8 +1,10 @@
 package org.apache.rocketmq.client.impl;
 
+import lombok.AllArgsConstructor;
 import lombok.Getter;
 
 @Getter
+@AllArgsConstructor
 public class FindBrokerResult {
 
     private final String brokerAddr;
@@ -15,11 +17,5 @@ public class FindBrokerResult {
         this.brokerAddr = brokerAddr;
         this.slave = slave;
         this.brokerVersion = 0;
-    }
-
-    public FindBrokerResult(String brokerAddr, boolean slave, int brokerVersion) {
-        this.brokerAddr = brokerAddr;
-        this.slave = slave;
-        this.brokerVersion = brokerVersion;
     }
 }

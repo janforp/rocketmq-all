@@ -26,8 +26,7 @@ import java.util.concurrent.locks.ReentrantReadWriteLock;
  */
 public class ProcessQueue {
 
-    public final static long REBALANCE_LOCK_MAX_LIVE_TIME =
-            Long.parseLong(System.getProperty("rocketmq.client.rebalance.lockMaxLiveTime", "30000"));
+    public final static long REBALANCE_LOCK_MAX_LIVE_TIME = Long.parseLong(System.getProperty("rocketmq.client.rebalance.lockMaxLiveTime", "30000"));
 
     public final static long REBALANCE_LOCK_INTERVAL = Long.parseLong(System.getProperty("rocketmq.client.rebalance.lockInterval", "20000"));
 
@@ -70,6 +69,8 @@ public class ProcessQueue {
     @Getter
     private volatile long lastConsumeTimestamp = System.currentTimeMillis();
 
+    @Setter
+    @Getter
     private volatile boolean locked = false;
 
     @Setter
@@ -90,14 +91,11 @@ public class ProcessQueue {
         return (System.currentTimeMillis() - this.lastPullTimestamp) > PULL_MAX_IDLE_TIME;
     }
 
-    /**
-     * @param pushConsumer
-     */
     public void cleanExpiredMsg(DefaultMQPushConsumer pushConsumer) {
         if (pushConsumer.getDefaultMQPushConsumerImpl().isConsumeOrderly()) {
             return;
         }
-        int loop = msgTreeMap.size() < 16 ? msgTreeMap.size() : 16;
+        int loop = Math.min(msgTreeMap.size(), 16);
         for (int i = 0; i < loop; i++) {
             MessageExt msg = null;
             try {
@@ -214,7 +212,7 @@ public class ProcessQueue {
                         MessageExt prev = msgTreeMap.remove(msg.getQueueOffset());
                         if (prev != null) {
                             removedCnt--;
-                            msgSize.addAndGet(0 - msg.getBody().length);
+                            msgSize.addAndGet(-msg.getBody().length);
                         }
                     }
                     msgCount.addAndGet(removedCnt);
@@ -231,14 +229,6 @@ public class ProcessQueue {
         }
 
         return result;
-    }
-
-    public boolean isLocked() {
-        return locked;
-    }
-
-    public void setLocked(boolean locked) {
-        this.locked = locked;
     }
 
     public void rollback() {
@@ -260,9 +250,9 @@ public class ProcessQueue {
             this.lockTreeMap.writeLock().lockInterruptibly();
             try {
                 Long offset = this.consumingMsgOrderlyTreeMap.lastKey();
-                msgCount.addAndGet(0 - this.consumingMsgOrderlyTreeMap.size());
+                msgCount.addAndGet(-this.consumingMsgOrderlyTreeMap.size());
                 for (MessageExt msg : this.consumingMsgOrderlyTreeMap.values()) {
-                    msgSize.addAndGet(0 - msg.getBody().length);
+                    msgSize.addAndGet(-msg.getBody().length);
                 }
                 this.consumingMsgOrderlyTreeMap.clear();
                 if (offset != null) {
@@ -335,6 +325,7 @@ public class ProcessQueue {
                 this.lockTreeMap.readLock().unlock();
             }
         } catch (InterruptedException e) {
+            // ignore
         }
 
         return true;
@@ -390,6 +381,7 @@ public class ProcessQueue {
             info.setLastPullTimestamp(this.lastPullTimestamp);
             info.setLastConsumeTimestamp(this.lastConsumeTimestamp);
         } catch (Exception e) {
+            // ignore
         } finally {
             this.lockTreeMap.readLock().unlock();
         }
