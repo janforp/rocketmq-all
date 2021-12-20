@@ -27,23 +27,30 @@ public class AllocateMappedFileService extends ServiceThread {
 
     private static int waitTimeOut = 1000 * 5;
 
-    private ConcurrentMap<String, AllocateRequest> requestTable = new ConcurrentHashMap<String, AllocateRequest>();
+    private final ConcurrentMap<String, AllocateRequest> requestTable = new ConcurrentHashMap<String, AllocateRequest>();
 
-    private PriorityBlockingQueue<AllocateRequest> requestQueue = new PriorityBlockingQueue<AllocateRequest>();
+    private final PriorityBlockingQueue<AllocateRequest> requestQueue = new PriorityBlockingQueue<AllocateRequest>();
 
     private volatile boolean hasException = false;
 
-    private DefaultMessageStore messageStore;
+    private final DefaultMessageStore messageStore;
 
     public AllocateMappedFileService(DefaultMessageStore messageStore) {
         this.messageStore = messageStore;
     }
 
+    /**
+     * 提交创建任务的接口
+     *
+     * @param nextFilePath 全路径
+     * @param nextNextFilePath 全路径
+     * @param fileSize 大小
+     * @return 结果
+     */
     public MappedFile putRequestAndReturnMappedFile(String nextFilePath, String nextNextFilePath, int fileSize) {
         int canSubmitRequests = 2;
         if (this.messageStore.getMessageStoreConfig().isTransientStorePoolEnable()) {
-            if (this.messageStore.getMessageStoreConfig().isFastFailIfNoBufferInStorePool()
-                    && BrokerRole.SLAVE != this.messageStore.getMessageStoreConfig().getBrokerRole()) { //if broker is slave, don't fast fail even no buffer in pool
+            if (this.messageStore.getMessageStoreConfig().isFastFailIfNoBufferInStorePool() && BrokerRole.SLAVE != this.messageStore.getMessageStoreConfig().getBrokerRole() /*//if broker is slave, don't fast fail even no buffer in pool*/) {
                 canSubmitRequests = this.messageStore.getTransientStorePool().availableBufferNums() - this.requestQueue.size();
             }
         }
@@ -122,11 +129,14 @@ public class AllocateMappedFileService extends ServiceThread {
         }
     }
 
+    /**
+     * 基于优先级队列工作
+     */
     public void run() {
         log.info(this.getServiceName() + " service started");
 
         while (!this.isStopped() && this.mmapOperation()) {
-
+            // 循环创建，直到成功
         }
         log.info(this.getServiceName() + " service end");
     }
@@ -211,7 +221,7 @@ public class AllocateMappedFileService extends ServiceThread {
 
     static class AllocateRequest implements Comparable<AllocateRequest> {
 
-        // Full file path
+        // Full file path       全路径
         @Getter
         @Setter
         private String filePath;
@@ -224,6 +234,7 @@ public class AllocateMappedFileService extends ServiceThread {
         @Setter
         private CountDownLatch countDownLatch = new CountDownLatch(1);
 
+        // 保存结果的
         @Getter
         @Setter
         private volatile MappedFile mappedFile = null;
