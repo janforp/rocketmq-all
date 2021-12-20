@@ -130,6 +130,13 @@ public class DefaultMQPushConsumer extends ClientConfig implements MQPushConsume
 
     /**
      * Queue allocation algorithm specifying how message queues are allocated to each consumer clients.
+     * 队列分配策略，负载均衡程序依赖的对象
+     *
+     * group内有 C1,C2 两台消费者
+     *
+     * topic-A 有队列(0,1,2,3,4,5)
+     *
+     * C1,C2分别消费哪些队列中的消息，由该对象决定，如果是平均分配则 C1(0,1,2), C2(3,4,5)
      */
     @Getter
     @Setter
@@ -137,19 +144,25 @@ public class DefaultMQPushConsumer extends ClientConfig implements MQPushConsume
 
     /**
      * Subscription relationship
+     * 当前消费者订阅的主题以及tag的映射
      */
     @Getter
     private Map<String /* topic */, String /* sub expression */> subscription = new HashMap<String, String>();
 
     /**
      * Message listener
+     *
+     * @see MessageListenerConcurrently
+     * @see MessageListenerOrderly (局部顺序消费),只能保证某个队列内消息的顺序性，如果想保证全局顺序，则创建一个topic只分配一个队列！！！！！
+     *
+     * TODO 使用场景"数据库的 binLog 的 同步，一般用顺序消费,可以研究下
      */
     @Getter
     @Setter
     private MessageListener messageListener;
 
     /**
-     * Offset Storage
+     * Offset Storage:消费进度的存储器，也可以用来持久化
      */
     private OffsetStore offsetStore;
 
@@ -241,7 +254,7 @@ public class DefaultMQPushConsumer extends ClientConfig implements MQPushConsume
     private int consumeMessageBatchMaxSize = 1;
 
     /**
-     * Batch pull size
+     * Batch pull size,每次最大能拉多少条消息
      */
     @Getter
     @Setter
@@ -267,6 +280,8 @@ public class DefaultMQPushConsumer extends ClientConfig implements MQPushConsume
      *
      * If messages are re-consumed more than {@code #maxReconsumeTimes} before success, it's be directed to a deletion
      * queue waiting.
+     *
+     * 没多重复消费的次数（失败重试的场景）默认16
      */
     @Getter
     @Setter
@@ -281,6 +296,8 @@ public class DefaultMQPushConsumer extends ClientConfig implements MQPushConsume
 
     /**
      * Maximum amount of time in minutes a message may block the consuming thread.
+     *
+     * 消息消费超时的时间
      */
     @Getter
     @Setter
