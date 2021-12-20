@@ -148,16 +148,16 @@ public class AllocateMappedFileService extends ServiceThread {
         boolean isSuccess = false;
         AllocateRequest req = null;
         try {
+
+            // 拿到一个请求
             req = this.requestQueue.take();
             AllocateRequest expectedRequest = this.requestTable.get(req.getFilePath());
             if (null == expectedRequest) {
-                log.warn("this mmap request expired, maybe cause timeout " + req.getFilePath() + " "
-                        + req.getFileSize());
+                log.warn("this mmap request expired, maybe cause timeout " + req.getFilePath() + " " + req.getFileSize());
                 return true;
             }
             if (expectedRequest != req) {
-                log.warn("never expected here,  maybe cause timeout " + req.getFilePath() + " "
-                        + req.getFileSize() + ", req:" + req + ", expectedRequest:" + expectedRequest);
+                log.warn("never expected here,  maybe cause timeout " + req.getFilePath() + " " + req.getFileSize() + ", req:" + req + ", expectedRequest:" + expectedRequest);
                 return true;
             }
 
@@ -180,17 +180,13 @@ public class AllocateMappedFileService extends ServiceThread {
                 long elapsedTime = UtilAll.computeElapsedTimeMilliseconds(beginTime);
                 if (elapsedTime > 10) {
                     int queueSize = this.requestQueue.size();
-                    log.warn("create mappedFile spent time(ms) " + elapsedTime + " queue size " + queueSize
-                            + " " + req.getFilePath() + " " + req.getFileSize());
+                    log.warn("create mappedFile spent time(ms) " + elapsedTime + " queue size " + queueSize + " " + req.getFilePath() + " " + req.getFileSize());
                 }
 
                 // pre write mappedFile
-                if (mappedFile.getFileSize() >= this.messageStore.getMessageStoreConfig()
-                        .getMappedFileSizeCommitLog()
-                        &&
-                        this.messageStore.getMessageStoreConfig().isWarmMapedFileEnable()) {
-                    mappedFile.warmMappedFile(this.messageStore.getMessageStoreConfig().getFlushDiskType(),
-                            this.messageStore.getMessageStoreConfig().getFlushLeastPagesWhenWarmMapedFile());
+                if (mappedFile.getFileSize() >= this.messageStore.getMessageStoreConfig().getMappedFileSizeCommitLog() && this.messageStore.getMessageStoreConfig().isWarmMapedFileEnable()) {
+                    // 预热
+                    mappedFile.warmMappedFile(this.messageStore.getMessageStoreConfig().getFlushDiskType(), this.messageStore.getMessageStoreConfig().getFlushLeastPagesWhenWarmMapedFile());
                 }
 
                 req.setMappedFile(mappedFile);
@@ -262,8 +258,6 @@ public class AllocateMappedFileService extends ServiceThread {
                     return 0;
                 }
             }
-            // return this.fileSize < other.fileSize ? 1 : this.fileSize >
-            // other.fileSize ? -1 : 0;
         }
 
         @Override
