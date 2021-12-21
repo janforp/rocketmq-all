@@ -3,9 +3,11 @@ package org.apache.rocketmq.remoting.netty;
 import io.netty.channel.Channel;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
+import lombok.ToString;
 
 @AllArgsConstructor
 @Getter
+@ToString
 public class NettyEvent {
 
     private final NettyEventType type;
@@ -13,9 +15,4 @@ public class NettyEvent {
     private final String remoteAddr;
 
     private final Channel channel;
-
-    @Override
-    public String toString() {
-        return "NettyEvent [type=" + type + ", remoteAddr=" + remoteAddr + ", channel=" + channel + "]";
-    }
 }

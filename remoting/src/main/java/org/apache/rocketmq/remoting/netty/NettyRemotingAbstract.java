@@ -19,6 +19,7 @@ import org.apache.rocketmq.remoting.exception.RemotingSendRequestException;
 import org.apache.rocketmq.remoting.exception.RemotingTimeoutException;
 import org.apache.rocketmq.remoting.exception.RemotingTooMuchRequestException;
 import org.apache.rocketmq.remoting.protocol.RemotingCommand;
+import org.apache.rocketmq.remoting.protocol.RemotingCommandType;
 import org.apache.rocketmq.remoting.protocol.RemotingSysResponseCode;
 
 import java.net.SocketAddress;
@@ -119,6 +120,7 @@ public abstract class NettyRemotingAbstract {
      * @param event Netty event instance.
      */
     public void putNettyEvent(final NettyEvent event) {
+        // 添加到 netty 事件队列中
         this.nettyEventExecutor.putNettyEvent(event);
     }
 
@@ -136,17 +138,16 @@ public abstract class NettyRemotingAbstract {
      *
      * @param ctx Channel handler context.
      * @param msg incoming remoting command.
-     * @throws Exception if there were any error while processing the incoming command.
      */
-    public void processMessageReceived(ChannelHandlerContext ctx, RemotingCommand msg) throws Exception {
-        final RemotingCommand cmd = msg;
-        if (cmd != null) {
-            switch (cmd.getType()) {
+    public void processMessageReceived(ChannelHandlerContext ctx, RemotingCommand msg) {
+        if (msg != null) {
+            RemotingCommandType type = msg.getType();
+            switch (type) {
                 case REQUEST_COMMAND: // 客户端发起的请求
-                    processRequestCommand(ctx, cmd);
+                    processRequestCommand(ctx, msg);
                     break;
                 case RESPONSE_COMMAND: // 客户端响应给服务端的结果
-                    processResponseCommand(ctx, cmd);
+                    processResponseCommand(ctx, msg);
                     break;
                 default:
                     break;
@@ -652,9 +653,8 @@ public abstract class NettyRemotingAbstract {
 
         private final LinkedBlockingQueue<NettyEvent> eventQueue = new LinkedBlockingQueue<NettyEvent>();
 
-        private final int maxSize = 10000;
-
         public void putNettyEvent(final NettyEvent event) {
+            int maxSize = 10000;
             if (this.eventQueue.size() <= maxSize) {
                 this.eventQueue.add(event);
             } else {
