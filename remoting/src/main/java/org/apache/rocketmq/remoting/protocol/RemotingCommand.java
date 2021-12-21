@@ -3,6 +3,7 @@ package org.apache.rocketmq.remoting.protocol;
 import com.alibaba.fastjson.annotation.JSONField;
 import lombok.Getter;
 import lombok.Setter;
+import lombok.ToString;
 import org.apache.rocketmq.logging.InternalLogger;
 import org.apache.rocketmq.logging.InternalLoggerFactory;
 import org.apache.rocketmq.remoting.CommandCustomHeader;
@@ -18,6 +19,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 
+@ToString
 public class RemotingCommand {
 
     public static final String SERIALIZE_TYPE_PROPERTY = "rocketmq.serialize.type";
@@ -34,39 +36,51 @@ public class RemotingCommand {
 
     private static final Map<Class<? extends CommandCustomHeader>, Field[]> CLASS_HASH_MAP = new HashMap<Class<? extends CommandCustomHeader>, Field[]>();
 
-    private static final Map<Class, String> CANONICAL_NAME_CACHE = new HashMap<Class, String>();
+    private static final Map<Class<?>, String> CANONICAL_NAME_CACHE = new HashMap<Class<?>, String>();
 
     // 1, Oneway
     // 1, RESPONSE_COMMAND
     private static final Map<Field, Boolean> NULLABLE_FIELD_CACHE = new HashMap<Field, Boolean>();
 
+    // java.lang.String
     private static final String STRING_CANONICAL_NAME = String.class.getCanonicalName();
 
+    // java.lang.Double
     private static final String DOUBLE_CANONICAL_NAME_1 = Double.class.getCanonicalName();
 
+    // double
     private static final String DOUBLE_CANONICAL_NAME_2 = double.class.getCanonicalName();
 
+    // java.lang.Integer
     private static final String INTEGER_CANONICAL_NAME_1 = Integer.class.getCanonicalName();
 
+    // int
     private static final String INTEGER_CANONICAL_NAME_2 = int.class.getCanonicalName();
 
+    // java.lang.Long
     private static final String LONG_CANONICAL_NAME_1 = Long.class.getCanonicalName();
 
+    // long
     private static final String LONG_CANONICAL_NAME_2 = long.class.getCanonicalName();
 
+    // java.lang.Boolean
     private static final String BOOLEAN_CANONICAL_NAME_1 = Boolean.class.getCanonicalName();
 
+    // boolean
     private static final String BOOLEAN_CANONICAL_NAME_2 = boolean.class.getCanonicalName();
 
     private static volatile int configVersion = -1;
 
-    private static AtomicInteger requestId = new AtomicInteger(0);
+    /**
+     * @see RemotingCommand#opaque
+     */
+    private static final AtomicInteger requestId = new AtomicInteger(0);
 
     private static SerializeType serializeTypeConfigInThisServer = SerializeType.JSON;
 
     static {
         //rocketmq.serialize.type，ROCKETMQ_SERIALIZE_TYPE
-        final String protocol = System.getProperty(SERIALIZE_TYPE_PROPERTY, System.getenv(SERIALIZE_TYPE_ENV));
+        final String protocol = System.getProperty(SERIALIZE_TYPE_PROPERTY/* rocketmq.serialize.type */, System.getenv(SERIALIZE_TYPE_ENV /* ROCKETMQ_SERIALIZE_TYPE */));
         if (!isBlank(protocol)) {
             try {
                 serializeTypeConfigInThisServer = SerializeType.valueOf(protocol);
@@ -76,6 +90,9 @@ public class RemotingCommand {
         }
     }
 
+    /**
+     * 该请求的类型
+     */
     @Setter
     @Getter
     private int code;
@@ -155,9 +172,8 @@ public class RemotingCommand {
         if (classHeader != null) {
             try {
                 // 反射创建用户自定义 header 对象
-                CommandCustomHeader objectHeader = classHeader.newInstance();
                 // 赋值
-                cmd.customHeader = objectHeader;
+                cmd.customHeader = classHeader.newInstance();
             } catch (InstantiationException e) {
                 return null;
             } catch (IllegalAccessException e) {
@@ -194,6 +210,7 @@ public class RemotingCommand {
             bodyData = new byte[bodyLength];
             byteBuffer.get(bodyData);
         }
+        assert cmd != null;
         cmd.body = bodyData;
 
         return cmd;
@@ -265,8 +282,10 @@ public class RemotingCommand {
         return customHeader;
     }
 
+    @SuppressWarnings("unused")
     public void writeCustomHeader(CommandCustomHeader customHeader) {
         this.customHeader = customHeader;
+
     }
 
     public CommandCustomHeader decodeCommandCustomHeader(Class<? extends CommandCustomHeader> classHeader) throws RemotingCommandException {
@@ -359,7 +378,7 @@ public class RemotingCommand {
         return NULLABLE_FIELD_CACHE.get(field);
     }
 
-    private String getCanonicalName(Class clazz) {
+    private String getCanonicalName(Class<?> clazz) {
         String name = CANONICAL_NAME_CACHE.get(clazz);
         if (name == null) {
             name = clazz.getCanonicalName();
@@ -480,6 +499,7 @@ public class RemotingCommand {
     }
 
     @JSONField(serialize = false)
+    @SuppressWarnings("all")
     public boolean isOnewayRPC() {
         int bits = 1 << RPC_ONEWAY;
         return (this.flag & bits) == bits;
@@ -505,12 +525,5 @@ public class RemotingCommand {
             extFields = new HashMap<String, String>();
         }
         extFields.put(key, value);
-    }
-
-    @Override
-    public String toString() {
-        return "RemotingCommand [code=" + code + ", language=" + language + ", version=" + version + ", opaque=" + opaque + ", flag(B)="
-                + Integer.toBinaryString(flag) + ", remark=" + remark + ", extFields=" + extFields + ", serializeTypeCurrentRPC="
-                + serializeTypeCurrentRPC + "]";
     }
 }

@@ -11,7 +11,7 @@ public enum SerializeType {
     ROCKETMQ((byte) 1);
 
     @Getter
-    private byte code;
+    private final byte code;
 
     public static SerializeType valueOf(byte code) {
         for (SerializeType serializeType : SerializeType.values()) {
