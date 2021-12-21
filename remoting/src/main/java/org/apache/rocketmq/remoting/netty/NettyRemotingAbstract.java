@@ -6,6 +6,7 @@ import io.netty.channel.ChannelFutureListener;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.handler.ssl.SslContext;
 import io.netty.handler.ssl.SslHandler;
+import lombok.Getter;
 import org.apache.rocketmq.logging.InternalLogger;
 import org.apache.rocketmq.logging.InternalLoggerFactory;
 import org.apache.rocketmq.remoting.ChannelEventListener;
@@ -86,6 +87,7 @@ public abstract class NettyRemotingAbstract {
     /**
      * custom rpc hooks
      */
+    @Getter
     protected List<RPCHook> rpcHooks = new ArrayList<RPCHook>();
 
     static {
@@ -220,8 +222,6 @@ public abstract class NettyRemotingAbstract {
                                             log.error(cmd.toString());
                                             log.error(response.toString());
                                         }
-                                    } else {
-                                        // empty
                                     }
                                 }
                             }
@@ -370,15 +370,6 @@ public abstract class NettyRemotingAbstract {
     }
 
     /**
-     * Custom RPC hooks.
-     *
-     * @return RPC hooks if specified; null otherwise.
-     */
-    public List<RPCHook> getRPCHooks() {
-        return rpcHooks;
-    }
-
-    /**
      * This method specifies thread pool to use while invoking callback methods.
      *
      * @return Dedicated thread pool instance if specified; or null if the callback is supposed to be executed in the
@@ -424,9 +415,7 @@ public abstract class NettyRemotingAbstract {
      * @param timeoutMillis 超时时长
      * @return 请求？
      */
-    public RemotingCommand invokeSyncImpl(final Channel channel, final RemotingCommand request, final long timeoutMillis)
-
-            throws InterruptedException, RemotingSendRequestException, RemotingTimeoutException {
+    public RemotingCommand invokeSyncImpl(final Channel channel, final RemotingCommand request, final long timeoutMillis) throws InterruptedException, RemotingSendRequestException, RemotingTimeoutException {
 
         // 请求 id
         final int opaque = request.getOpaque();
@@ -447,7 +436,7 @@ public abstract class NettyRemotingAbstract {
             // 注册监听器:channel线程回调
             channelFuture.addListener(new ChannelFutureListener() {
                 @Override
-                public void operationComplete(ChannelFuture future) throws Exception {
+                public void operationComplete(ChannelFuture future) {
 
                     // 如果写成功，则
                     if (future.isSuccess()) {
@@ -503,9 +492,7 @@ public abstract class NettyRemotingAbstract {
      * @param timeoutMillis  超时时长
      * @param invokeCallback 请求回调处理对象
      */
-    public void invokeAsyncImpl(final Channel channel, final RemotingCommand request, final long timeoutMillis, final InvokeCallback invokeCallback)
-
-            throws InterruptedException, RemotingTooMuchRequestException, RemotingTimeoutException, RemotingSendRequestException {
+    public void invokeAsyncImpl(final Channel channel, final RemotingCommand request, final long timeoutMillis, final InvokeCallback invokeCallback) throws InterruptedException, RemotingTooMuchRequestException, RemotingTimeoutException, RemotingSendRequestException {
 
         // 因为有超时的判断
         long beginStartTime = System.currentTimeMillis();
@@ -544,7 +531,7 @@ public abstract class NettyRemotingAbstract {
                 // 2.注册 写刷 操作监听器，监听器由 IO 线程回调
                 channel.writeAndFlush(request).addListener(new ChannelFutureListener() {
                     @Override
-                    public void operationComplete(ChannelFuture f) throws Exception {
+                    public void operationComplete(ChannelFuture f) {
                         if (f.isSuccess()) {
                             // 成功
                             responseFuture.setSendRequestOK(true);
@@ -597,9 +584,7 @@ public abstract class NettyRemotingAbstract {
      * @param channel the channel which is close already
      */
     protected void failFast(final Channel channel) {
-        Iterator<Entry<Integer, ResponseFuture>> it = responseTable.entrySet().iterator();
-        while (it.hasNext()) {
-            Entry<Integer, ResponseFuture> entry = it.next();
+        for (Entry<Integer, ResponseFuture> entry : responseTable.entrySet()) {
             if (entry.getValue().getProcessChannel() == channel) {
                 Integer opaque = entry.getKey();
                 if (opaque != null) {
@@ -624,7 +609,7 @@ public abstract class NettyRemotingAbstract {
             try {
                 channel.writeAndFlush(request).addListener(new ChannelFutureListener() {
                     @Override
-                    public void operationComplete(ChannelFuture f) throws Exception {
+                    public void operationComplete(ChannelFuture f) {
                         // 操作完成，不管成功失败，都释放信号量
                         once.release();
                         if (!f.isSuccess()) {
