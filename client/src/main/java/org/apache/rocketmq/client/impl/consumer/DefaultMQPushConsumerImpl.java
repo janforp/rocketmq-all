@@ -69,6 +69,7 @@ public class DefaultMQPushConsumerImpl implements MQConsumerInner {
     /**
      * Delay some time when exception occur
      */
+    @Setter
     private long pullTimeDelayMillsWhenException = 3000;
 
     /**
@@ -88,6 +89,7 @@ public class DefaultMQPushConsumerImpl implements MQConsumerInner {
     private final InternalLogger log = ClientLogger.getLog();
 
     // 门面
+    @Getter
     private final DefaultMQPushConsumer defaultMQPushConsumer;
 
     // 负载均衡
@@ -143,6 +145,8 @@ public class DefaultMQPushConsumerImpl implements MQConsumerInner {
      *
      * @see RemoteBrokerOffsetStore
      */
+    @Getter
+    @Setter
     private OffsetStore offsetStore;
 
     /**
@@ -232,9 +236,6 @@ public class DefaultMQPushConsumerImpl implements MQConsumerInner {
         return resultQueues;
     }
 
-    public DefaultMQPushConsumer getDefaultMQPushConsumer() {
-        return defaultMQPushConsumer;
-    }
 
     public long earliestMsgStoreTime(MessageQueue mq) throws MQClientException {
         return this.mQClientFactory.getMQAdminImpl().earliestMsgStoreTime(mq);
@@ -248,14 +249,11 @@ public class DefaultMQPushConsumerImpl implements MQConsumerInner {
         return this.mQClientFactory.getMQAdminImpl().minOffset(mq);
     }
 
-    public OffsetStore getOffsetStore() {
-        return offsetStore;
-    }
-
-    public void setOffsetStore(OffsetStore offsetStore) {
-        this.offsetStore = offsetStore;
-    }
-
+    /**
+     * 真正的拉数据
+     *
+     * @param pullRequest 请求
+     */
     public void pullMessage(final PullRequest pullRequest) {
         final ProcessQueue processQueue = pullRequest.getProcessQueue();
         if (processQueue.isDropped()) {
@@ -1071,9 +1069,5 @@ public class DefaultMQPushConsumerImpl implements MQConsumerInner {
                 msg.setTopic(NamespaceUtil.withoutNamespace(msg.getTopic(), this.defaultMQPushConsumer.getNamespace()));
             }
         }
-    }
-
-    public void setPullTimeDelayMillsWhenException(long pullTimeDelayMillsWhenException) {
-        this.pullTimeDelayMillsWhenException = pullTimeDelayMillsWhenException;
     }
 }
