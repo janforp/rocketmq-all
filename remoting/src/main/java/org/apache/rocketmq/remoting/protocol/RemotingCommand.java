@@ -34,10 +34,19 @@ public class RemotingCommand {
 
     private static final int RPC_ONEWAY = 1; // 0, RPC
 
+    /**
+     * @see RemotingCommand#getClazzFields(java.lang.Class)
+     */
     private static final Map<Class<? extends CommandCustomHeader>, Field[]> CLASS_HASH_MAP = new HashMap<Class<? extends CommandCustomHeader>, Field[]>();
 
+    /**
+     * @see RemotingCommand#getCanonicalName(java.lang.Class) key:class,value:名称
+     */
     private static final Map<Class<?>, String> CANONICAL_NAME_CACHE = new HashMap<Class<?>, String>();
 
+    /**
+     * @see RemotingCommand#isFieldNullable(java.lang.reflect.Field)
+     */
     // 1, Oneway
     // 1, RESPONSE_COMMAND
     private static final Map<Field, Boolean> NULLABLE_FIELD_CACHE = new HashMap<Field, Boolean>();
@@ -90,6 +99,10 @@ public class RemotingCommand {
         }
     }
 
+    @Setter
+    @Getter
+    private SerializeType serializeTypeCurrentRPC = serializeTypeConfigInThisServer;
+
     /**
      * 该请求的类型
      */
@@ -109,6 +122,9 @@ public class RemotingCommand {
     @Getter
     private int opaque = requestId.getAndIncrement();
 
+    /**
+     * TODO 标记是响应还是请求？？
+     */
     @Setter
     @Getter
     private int flag = 0;
@@ -117,15 +133,14 @@ public class RemotingCommand {
     @Getter
     private String remark;
 
+    /**
+     * 字段的名称跟值的映射表
+     */
     @Setter
     @Getter
     private HashMap<String, String> extFields;
 
     private transient CommandCustomHeader customHeader;
-
-    @Setter
-    @Getter
-    private SerializeType serializeTypeCurrentRPC = serializeTypeConfigInThisServer;
 
     @Setter
     @Getter
@@ -137,6 +152,7 @@ public class RemotingCommand {
     public static RemotingCommand createRequestCommand(int code, CommandCustomHeader customHeader) {
         RemotingCommand cmd = new RemotingCommand();
         cmd.setCode(code);
+        // 请求
         cmd.customHeader = customHeader;
         setCmdVersion(cmd);
         return cmd;
@@ -147,7 +163,7 @@ public class RemotingCommand {
             cmd.setVersion(configVersion);
         } else {
             //rocketmq.remoting.version
-            String v = System.getProperty(REMOTING_VERSION_KEY);
+            String v = System.getProperty(REMOTING_VERSION_KEY /* rocketmq.remoting.version */);
             if (v != null) {
                 int value = Integer.parseInt(v);
                 cmd.setVersion(value);
@@ -157,7 +173,7 @@ public class RemotingCommand {
     }
 
     public static RemotingCommand createResponseCommand(Class<? extends CommandCustomHeader> classHeader) {
-        return createResponseCommand(RemotingSysResponseCode.SYSTEM_ERROR, "not set any response code", classHeader);
+        return createResponseCommand(RemotingSysResponseCode.SYSTEM_ERROR /* 1 */, "not set any response code", classHeader);
     }
 
     public static RemotingCommand createResponseCommand(int code, String remark, Class<? extends CommandCustomHeader> classHeader) {
@@ -172,7 +188,6 @@ public class RemotingCommand {
         if (classHeader != null) {
             try {
                 // 反射创建用户自定义 header 对象
-                // 赋值
                 cmd.customHeader = classHeader.newInstance();
             } catch (InstantiationException e) {
                 return null;
@@ -180,7 +195,6 @@ public class RemotingCommand {
                 return null;
             }
         }
-
         return cmd;
     }
 
@@ -217,6 +231,7 @@ public class RemotingCommand {
     }
 
     public static int getHeaderLength(int length) {
+        // TODO ????
         return length & 0xFFFFFF;
     }
 
@@ -298,59 +313,71 @@ public class RemotingCommand {
         } catch (IllegalAccessException e) {
             return null;
         }
-
-        if (this.extFields != null) {
-            // 该CommandCustomHeader的字段集合
-            Field[] fields = getClazzFields(classHeader);
-            for (Field field : fields) {
-                if (!Modifier.isStatic(field.getModifiers())) {
-                    // 非静态字段
-                    String fieldName = field.getName();
-                    if (!fieldName.startsWith("this")) {
-                        // 字段名称不以this开头
-                        try {
-                            String value = this.extFields.get(fieldName);
-                            if (null == value) {
-                                if (!isFieldNullable(field)) {
-                                    // 如果非空字段为空则抛异常
-                                    throw new RemotingCommandException("the custom field <" + fieldName + "> is null");
-                                }
-                                continue;
-                            }
-
-                            // 校验通过，下面赋值
-
-                            field.setAccessible(true);
-                            // class名称
-                            String type = getCanonicalName(field.getType());
-                            Object valueParsed;
-
-                            if (type.equals(STRING_CANONICAL_NAME)) {// string
-                                valueParsed = value;
-                            } else if (type.equals(INTEGER_CANONICAL_NAME_1) || type.equals(INTEGER_CANONICAL_NAME_2)) {// int 或者 integer
-                                valueParsed = Integer.parseInt(value);
-                            } else if (type.equals(LONG_CANONICAL_NAME_1) || type.equals(LONG_CANONICAL_NAME_2)) { // long 或者 Long
-                                valueParsed = Long.parseLong(value);
-                            } else if (type.equals(BOOLEAN_CANONICAL_NAME_1) || type.equals(BOOLEAN_CANONICAL_NAME_2)) { // Boolean 或者 boolean
-                                valueParsed = Boolean.parseBoolean(value);
-                            } else if (type.equals(DOUBLE_CANONICAL_NAME_1) || type.equals(DOUBLE_CANONICAL_NAME_2)) { // double 或者 Double
-                                valueParsed = Double.parseDouble(value);
-                            } else {
-                                throw new RemotingCommandException("the custom field <" + fieldName + "> type is not supported");
-                            }
-
-                            // 设置值
-                            field.set(objectHeader, valueParsed);
-                        } catch (Throwable e) {
-                            log.error("Failed field [{}] decoding", fieldName, e);
-                        }
-                    }
-                }
-            }
-
-            // 校验字段
-            objectHeader.checkFields();
+        if (this.extFields == null) {
+            return objectHeader;
         }
+
+        // 该CommandCustomHeader的字段集合
+        Field[] fields = getClazzFields(classHeader);
+        for (Field field : fields) {
+            if (Modifier.isStatic(field.getModifiers())) {
+                continue;
+            }
+            // 非静态字段
+            String fieldName = field.getName();
+            if (fieldName.startsWith("this")) {
+                // TODO 什么字段会以 this 开头呢？？？？
+                continue;
+            }
+            // 字段名称不以this开头
+            try {
+
+                // 拿到该字段的值
+                String value = this.extFields.get(fieldName);
+                if (null == value) {
+                    if (!isFieldNullable(field)) {
+                        // 如果非空字段为空则抛异常
+                        throw new RemotingCommandException("the custom field <" + fieldName + "> is null");
+                    }
+                    continue;
+                }
+
+                // 校验通过，下面赋值
+
+                field.setAccessible(true);
+                // class名称
+                String type = getCanonicalName(field.getType());
+
+                // 解析出来的值
+                Object valueParsed;
+
+                if (type.equals(STRING_CANONICAL_NAME)) {
+                    // string
+                    valueParsed = value;
+                } else if (type.equals(INTEGER_CANONICAL_NAME_1) || type.equals(INTEGER_CANONICAL_NAME_2)) {
+                    // int 或者 integer
+                    valueParsed = Integer.parseInt(value);
+                } else if (type.equals(LONG_CANONICAL_NAME_1) || type.equals(LONG_CANONICAL_NAME_2)) {
+                    // long 或者 Long
+                    valueParsed = Long.parseLong(value);
+                } else if (type.equals(BOOLEAN_CANONICAL_NAME_1) || type.equals(BOOLEAN_CANONICAL_NAME_2)) {
+                    // Boolean 或者 boolean
+                    valueParsed = Boolean.parseBoolean(value);
+                } else if (type.equals(DOUBLE_CANONICAL_NAME_1) || type.equals(DOUBLE_CANONICAL_NAME_2)) {
+                    // double 或者 Double
+                    valueParsed = Double.parseDouble(value);
+                } else {
+                    throw new RemotingCommandException("the custom field <" + fieldName + "> type is not supported");
+                }
+
+                // 设置值
+                field.set(objectHeader, valueParsed);
+            } catch (Throwable e) {
+                log.error("Failed field [{}] decoding", fieldName, e);
+            }
+        }
+        // 校验字段,定义者自己实现
+        objectHeader.checkFields();
 
         return objectHeader;
     }
@@ -368,6 +395,12 @@ public class RemotingCommand {
         return field;
     }
 
+    /**
+     * 该字段是否可以为null
+     *
+     * @param field 字段
+     * @return 该字段是否可以为null
+     */
     private boolean isFieldNullable(Field field) {
         if (!NULLABLE_FIELD_CACHE.containsKey(field)) {
             Annotation annotation = field.getAnnotation(CFNotNull.class);
@@ -433,29 +466,33 @@ public class RemotingCommand {
     }
 
     public void makeCustomHeaderToNet() {
-        if (this.customHeader != null) {
-            Field[] fields = getClazzFields(customHeader.getClass());
-            if (null == this.extFields) {
-                this.extFields = new HashMap<String, String>();
+        if (this.customHeader == null) {
+            return;
+        }
+        Field[] fields = getClazzFields(customHeader.getClass());
+        if (null == this.extFields) {
+            this.extFields = new HashMap<String, String>();
+        }
+
+        for (Field field : fields) {
+            if (Modifier.isStatic(field.getModifiers())) {
+                continue;
+            }
+            String name = field.getName();
+            if (name.startsWith("this")) {
+                continue;
+            }
+            Object value = null;
+            try {
+                field.setAccessible(true);
+                // 从该对象中拿到该字段的值
+                value = field.get(this.customHeader);
+            } catch (Exception e) {
+                log.error("Failed to access field [{}]", name, e);
             }
 
-            for (Field field : fields) {
-                if (!Modifier.isStatic(field.getModifiers())) {
-                    String name = field.getName();
-                    if (!name.startsWith("this")) {
-                        Object value = null;
-                        try {
-                            field.setAccessible(true);
-                            value = field.get(this.customHeader);
-                        } catch (Exception e) {
-                            log.error("Failed to access field [{}]", name, e);
-                        }
-
-                        if (value != null) {
-                            this.extFields.put(name, value.toString());
-                        }
-                    }
-                }
+            if (value != null) {
+                this.extFields.put(name, value.toString());
             }
         }
     }
