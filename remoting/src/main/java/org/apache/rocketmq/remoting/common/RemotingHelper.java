@@ -137,20 +137,25 @@ public class RemotingHelper {
         }
     }
 
+    /**
+     * 通过channel解析出远程的地址
+     *
+     * @param channel 连接
+     * @return 远程的地址
+     */
     public static String parseChannelRemoteAddr(final Channel channel) {
         if (null == channel) {
             return "";
         }
-        SocketAddress remote = channel.remoteAddress();//localhost/127.0.0.1:8888
+        //localhost/127.0.0.1:8888
+        SocketAddress remote = channel.remoteAddress();
         final String addr = remote != null ? remote.toString() : "";
 
         if (addr.length() > 0) {
             int index = addr.lastIndexOf("/");
             if (index >= 0) {
-                String remoteAddr = addr.substring(index + 1);
-                return remoteAddr;
+                return addr.substring(index + 1);
             }
-
             return addr;
         }
 
