@@ -168,6 +168,7 @@ public class DefaultMQPushConsumer extends ClientConfig implements MQPushConsume
 
     /**
      * Minimum consumer thread number
+     * 最小消费线程
      */
     @Getter
     @Setter
@@ -175,6 +176,7 @@ public class DefaultMQPushConsumer extends ClientConfig implements MQPushConsume
 
     /**
      * Max consumer thread number
+     * 最大消费线程
      */
     @Getter
     @Setter

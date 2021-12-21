@@ -70,7 +70,7 @@ public class DefaultMQPushConsumerImpl implements MQConsumerInner {
      * Delay some time when exception occur
      */
     @Setter
-    private long pullTimeDelayMillsWhenException = 3000;
+    private long pullTimeDelayMillsWhenException;
 
     /**
      * Flow control interval

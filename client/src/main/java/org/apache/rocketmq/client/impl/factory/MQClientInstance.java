@@ -79,9 +79,6 @@ public class MQClientInstance {
     @Getter
     private final ClientConfig clientConfig;
 
-    // 索引值一般是0，因为客户端实例一般都是一个进程只有一个
-    private final int instanceIndex;
-
     // 客户端Id：ip&pid
     @Getter
     private final String clientId;
@@ -150,11 +147,6 @@ public class MQClientInstance {
     });
 
     /**
-     * 客户端协议处理器，用于处理IO事件
-     */
-    private final ClientRemotingProcessor clientRemotingProcessor;
-
-    /**
      * 拉消息服务
      */
     @Getter
@@ -196,16 +188,19 @@ public class MQClientInstance {
 
     public MQClientInstance(ClientConfig clientConfig, int instanceIndex, String clientId, RPCHook rpcHook) {
         this.clientConfig = clientConfig;
-        this.instanceIndex = instanceIndex;
+        // 索引值一般是0，因为客户端实例一般都是一个进程只有一个
         this.nettyClientConfig = new NettyClientConfig();
         this.nettyClientConfig.setClientCallbackExecutorThreads(clientConfig.getClientCallbackExecutorThreads());
         this.nettyClientConfig.setUseTLS(clientConfig.isUseTLS());
 
         // 创建客户端协议处理器
-        this.clientRemotingProcessor = new ClientRemotingProcessor(this);
+        /**
+         * 客户端协议处理器，用于处理IO事件
+         */
+        ClientRemotingProcessor clientRemotingProcessor = new ClientRemotingProcessor(this);
 
         // 创建 mQClientAPIImpl
-        this.mQClientAPIImpl = new MQClientAPIImpl(this.nettyClientConfig, this.clientRemotingProcessor, // 客户端协议处理器，注册到客户端网络层
+        this.mQClientAPIImpl = new MQClientAPIImpl(this.nettyClientConfig, clientRemotingProcessor, // 客户端协议处理器，注册到客户端网络层
                 rpcHook, // 注册到客户端网络层
                 clientConfig);
 
@@ -228,7 +223,7 @@ public class MQClientInstance {
 
         this.consumerStatsManager = new ConsumerStatsManager(this.scheduledExecutorService);
 
-        log.info("Created a new client Instance, InstanceIndex:{}, ClientID:{}, ClientConfig:{}, ClientVersion:{}, SerializerType:{}", this.instanceIndex, this.clientId, this.clientConfig,
+        log.info("Created a new client Instance, InstanceIndex:{}, ClientID:{}, ClientConfig:{}, ClientVersion:{}, SerializerType:{}", instanceIndex, this.clientId, this.clientConfig,
                 MQVersion.getVersionDesc(MQVersion.CURRENT_VERSION), RemotingCommand.getSerializeTypeConfigInThisServer());
     }
 
