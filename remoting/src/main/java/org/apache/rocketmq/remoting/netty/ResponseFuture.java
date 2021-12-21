@@ -3,6 +3,7 @@ package org.apache.rocketmq.remoting.netty;
 import io.netty.channel.Channel;
 import lombok.Getter;
 import lombok.Setter;
+import lombok.ToString;
 import org.apache.rocketmq.remoting.InvokeCallback;
 import org.apache.rocketmq.remoting.common.SemaphoreReleaseOnlyOnce;
 import org.apache.rocketmq.remoting.protocol.RemotingCommand;
@@ -11,6 +12,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
+@ToString
 public class ResponseFuture {
 
     @Getter
@@ -22,6 +24,11 @@ public class ResponseFuture {
     @Getter
     private final long timeoutMillis;
 
+    /**
+     * 如果该字段不为空，则在响应的时候回调该对象
+     *
+     * @see NettyRemotingAbstract#processResponseCommand(io.netty.channel.ChannelHandlerContext, org.apache.rocketmq.remoting.protocol.RemotingCommand)
+     */
     @Getter
     private final InvokeCallback invokeCallback;
 
@@ -32,6 +39,9 @@ public class ResponseFuture {
 
     private final SemaphoreReleaseOnlyOnce once;
 
+    /**
+     * 保证每个响应只执行一次回调
+     */
     private final AtomicBoolean executeCallbackOnlyOnce = new AtomicBoolean(false);
 
     @Getter
@@ -52,6 +62,7 @@ public class ResponseFuture {
      * @param invokeCallback 请求回调处理对象
      * @param opaque 请求Id
      * @param once 封装释放信号量的逻辑
+     * @see NettyRemotingAbstract#invokeAsyncImpl(io.netty.channel.Channel, org.apache.rocketmq.remoting.protocol.RemotingCommand, long, org.apache.rocketmq.remoting.InvokeCallback)
      */
     public ResponseFuture(Channel channel, int opaque, long timeoutMillis, InvokeCallback invokeCallback, SemaphoreReleaseOnlyOnce once) {
         this.opaque = opaque;
@@ -80,6 +91,7 @@ public class ResponseFuture {
         return diff > this.timeoutMillis;
     }
 
+    @SuppressWarnings("all")
     public RemotingCommand waitResponse(final long timeoutMillis) throws InterruptedException {
         // 线程挂起原理！
         this.countDownLatch.await(timeoutMillis, TimeUnit.MILLISECONDS);
@@ -89,18 +101,5 @@ public class ResponseFuture {
     public void putResponse(final RemotingCommand responseCommand) {
         this.responseCommand = responseCommand;
         this.countDownLatch.countDown();
-    }
-
-    @Override
-    public String toString() {
-        return "ResponseFuture [responseCommand=" + responseCommand
-                + ", sendRequestOK=" + sendRequestOK
-                + ", cause=" + cause
-                + ", opaque=" + opaque
-                + ", processChannel=" + processChannel
-                + ", timeoutMillis=" + timeoutMillis
-                + ", invokeCallback=" + invokeCallback
-                + ", beginTimestamp=" + beginTimestamp
-                + ", countDownLatch=" + countDownLatch + "]";
     }
 }

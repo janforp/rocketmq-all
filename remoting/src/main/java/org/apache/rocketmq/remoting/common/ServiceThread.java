@@ -26,7 +26,15 @@ public abstract class ServiceThread implements Runnable {
         this.thread = new Thread(this, threadName);
     }
 
+    /**
+     * 子类自己实现
+     *
+     * @return 服务名称
+     */
     public abstract String getServiceName();
+
+    @Override
+    public abstract void run();
 
     public void start() {
         this.thread.start();
@@ -42,20 +50,23 @@ public abstract class ServiceThread implements Runnable {
         synchronized (this) {
             if (!this.hasNotified) {
                 this.hasNotified = true;
+
+                // TODO ？？？
                 this.notify();
             }
         }
 
         try {
             if (interrupt) {
+                // 中断一下执行任务的线程，至于是否响应，需要看线程自己了
                 this.thread.interrupt();
             }
             long beginTime = System.currentTimeMillis();
-            long jointime = this.getJointime();
+            long joinTime = this.getJointime();
             //是主线程等待子线程的终止。也就是说主线程的代码块中，如果碰到了t.join()方法，此时主线程需要等待（阻塞），等待子线程结束了(Waits for this thread to die.),才能继续执行t.join()之后的代码块。
-            this.thread.join(jointime);
+            this.thread.join(joinTime);
             long elapsedTime = System.currentTimeMillis() - beginTime;
-            log.info("join thread " + this.getServiceName() + " elapsed time(ms) " + elapsedTime + " " + jointime);
+            log.info("join thread " + this.getServiceName() + " elapsed time(ms) " + elapsedTime + " " + joinTime);
         } catch (InterruptedException e) {
             log.error("Interrupted", e);
         }
@@ -64,4 +75,5 @@ public abstract class ServiceThread implements Runnable {
     public long getJointime() {
         return JOIN_TIME;
     }
+
 }
