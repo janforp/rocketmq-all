@@ -15,8 +15,7 @@ public class NettyDecoder extends LengthFieldBasedFrameDecoder {
 
     private static final InternalLogger log = InternalLoggerFactory.getLogger(RemotingHelper.ROCKETMQ_REMOTING);
 
-    private static final int FRAME_MAX_LENGTH =
-            Integer.parseInt(System.getProperty("com.rocketmq.remoting.frameMaxLength", "16777216"));
+    private static final int FRAME_MAX_LENGTH = Integer.parseInt(System.getProperty("com.rocketmq.remoting.frameMaxLength", "16777216"));
 
     public NettyDecoder() {
         super(FRAME_MAX_LENGTH, 0, 4, 0, 4);

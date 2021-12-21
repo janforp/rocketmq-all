@@ -141,6 +141,8 @@ public abstract class NettyRemotingAbstract {
      *
      * @param ctx Channel handler context.
      * @param msg incoming remoting command.
+     * @see NettyRemotingClient.NettyClientHandler
+     * @see NettyRemotingServer.NettyServerHandler
      */
     public void processMessageReceived(ChannelHandlerContext ctx, RemotingCommand msg) {
         if (msg != null) {

@@ -21,14 +21,11 @@ public interface RemotingServer extends RemotingService {
     Pair<NettyRequestProcessor, ExecutorService> getProcessorPair(final int requestCode);
 
     RemotingCommand invokeSync(final Channel channel, final RemotingCommand request, final long timeoutMillis)
-
             throws InterruptedException, RemotingSendRequestException, RemotingTimeoutException;
 
     void invokeAsync(final Channel channel, final RemotingCommand request, final long timeoutMillis, final InvokeCallback invokeCallback)
-
             throws InterruptedException, RemotingTooMuchRequestException, RemotingTimeoutException, RemotingSendRequestException;
 
     void invokeOneway(final Channel channel, final RemotingCommand request, final long timeoutMillis)
-
             throws InterruptedException, RemotingTooMuchRequestException, RemotingTimeoutException, RemotingSendRequestException;
 }
