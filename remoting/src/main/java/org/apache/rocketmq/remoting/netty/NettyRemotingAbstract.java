@@ -416,6 +416,8 @@ public abstract class NettyRemotingAbstract {
     /**
      * 服务器主动 主动想客户端发起请求的时候使用的方法 ---- 同步调用 服务器业务线程需要在这里等待Client返回结果之后整个调用才完毕
      *
+     * 真正发送请求，网络连接的地方，发送消息的最底层方法了！！！！！！！！！！！
+     *
      * @param channel       ch
      * @param request       请求
      * @param timeoutMillis 超时时长
