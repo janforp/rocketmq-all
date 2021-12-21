@@ -22,6 +22,7 @@ import io.netty.handler.timeout.IdleState;
 import io.netty.handler.timeout.IdleStateEvent;
 import io.netty.handler.timeout.IdleStateHandler;
 import io.netty.util.concurrent.DefaultEventExecutorGroup;
+import lombok.Getter;
 import org.apache.rocketmq.logging.InternalLogger;
 import org.apache.rocketmq.logging.InternalLoggerFactory;
 import org.apache.rocketmq.remoting.ChannelEventListener;
@@ -71,6 +72,7 @@ public class NettyRemotingServer extends NettyRemotingAbstract implements Remoti
      * @see org.apache.rocketmq.namesrv.routeinfo.BrokerHousekeepingService namesrv使用
      * @see org.apache.rocketmq.broker.client.ClientHousekeepingService broker 使用,监听客户端的连接状态
      */
+    @Getter
     private final ChannelEventListener channelEventListener;
 
     /**
@@ -378,11 +380,6 @@ public class NettyRemotingServer extends NettyRemotingAbstract implements Remoti
     }
 
     @Override
-    public ChannelEventListener getChannelEventListener() {
-        return channelEventListener;
-    }
-
-    @Override
     public ExecutorService getCallbackExecutor() {
         return this.publicExecutor;
     }
@@ -406,7 +403,7 @@ public class NettyRemotingServer extends NettyRemotingAbstract implements Remoti
         }
 
         @Override
-        protected void channelRead0(ChannelHandlerContext ctx, ByteBuf msg) throws Exception {
+        protected void channelRead0(ChannelHandlerContext ctx, ByteBuf msg) {
 
             // mark the current position so that we can peek the first byte to determine if the content is starting with
             // TLS handshake
@@ -461,7 +458,7 @@ public class NettyRemotingServer extends NettyRemotingAbstract implements Remoti
     class NettyServerHandler extends SimpleChannelInboundHandler<RemotingCommand> {
 
         @Override
-        protected void channelRead0(ChannelHandlerContext ctx, RemotingCommand msg) throws Exception {
+        protected void channelRead0(ChannelHandlerContext ctx, RemotingCommand msg) {
             processMessageReceived(ctx, msg);
         }
     }
@@ -506,7 +503,7 @@ public class NettyRemotingServer extends NettyRemotingAbstract implements Remoti
         }
 
         @Override
-        public void userEventTriggered(ChannelHandlerContext ctx, Object evt) throws Exception {
+        public void userEventTriggered(ChannelHandlerContext ctx, Object evt) {
             if (evt instanceof IdleStateEvent) {
                 IdleStateEvent event = (IdleStateEvent) evt;
                 if (event.state().equals(IdleState.ALL_IDLE)) {
@@ -524,7 +521,7 @@ public class NettyRemotingServer extends NettyRemotingAbstract implements Remoti
         }
 
         @Override
-        public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) throws Exception {
+        public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) {
             final String remoteAddress = RemotingHelper.parseChannelRemoteAddr(ctx.channel());
             log.warn("NETTY SERVER PIPELINE: exceptionCaught {}", remoteAddress);
             log.warn("NETTY SERVER PIPELINE: exceptionCaught exception.", cause);
