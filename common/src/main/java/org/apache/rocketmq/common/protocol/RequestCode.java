@@ -10,6 +10,10 @@ public class RequestCode {
 
     public static final int PULL_MESSAGE = 11;
 
+    /**
+     * @see org.apache.rocketmq.client.impl.MQClientAPIImpl#queryMessage(java.lang.String, org.apache.rocketmq.common.protocol.header.QueryMessageRequestHeader, long, org.apache.rocketmq.remoting.InvokeCallback, java.lang.Boolean)
+     * @see org.apache.rocketmq.broker.processor.QueryMessageProcessor#queryMessage(io.netty.channel.ChannelHandlerContext, org.apache.rocketmq.remoting.protocol.RemotingCommand)
+     */
     public static final int QUERY_MESSAGE = 12;
 
     public static final int QUERY_BROKER_OFFSET = 13;
@@ -64,6 +68,9 @@ public class RequestCode {
 
     public static final int UNREGISTER_CLIENT = 35;
 
+    /**
+     * @see org.apache.rocketmq.client.impl.MQClientAPIImpl#consumerSendMessageBack(java.lang.String, org.apache.rocketmq.common.message.MessageExt, java.lang.String, int, long, int)
+     */
     public static final int CONSUMER_SEND_MSG_BACK = 36;
 
     public static final int END_TRANSACTION = 37;

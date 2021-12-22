@@ -42,8 +42,6 @@ public class ConsumeMessageConcurrentlyService implements ConsumeMessageService 
 
     private final MessageListenerConcurrently messageListener;
 
-    private final BlockingQueue<Runnable> consumeRequestQueue;
-
     private final ThreadPoolExecutor consumeExecutor;
 
     private final String consumerGroup;
@@ -52,21 +50,20 @@ public class ConsumeMessageConcurrentlyService implements ConsumeMessageService 
 
     private final ScheduledExecutorService cleanExpireMsgExecutors;
 
-    public ConsumeMessageConcurrentlyService(DefaultMQPushConsumerImpl defaultMQPushConsumerImpl,
-            MessageListenerConcurrently messageListener) {
+    public ConsumeMessageConcurrentlyService(DefaultMQPushConsumerImpl defaultMQPushConsumerImpl, MessageListenerConcurrently messageListener) {
         this.defaultMQPushConsumerImpl = defaultMQPushConsumerImpl;
         this.messageListener = messageListener;
 
         this.defaultMQPushConsumer = this.defaultMQPushConsumerImpl.getDefaultMQPushConsumer();
         this.consumerGroup = this.defaultMQPushConsumer.getConsumerGroup();
-        this.consumeRequestQueue = new LinkedBlockingQueue<Runnable>();
+        BlockingQueue<Runnable> consumeRequestQueue = new LinkedBlockingQueue<Runnable>();
 
         this.consumeExecutor = new ThreadPoolExecutor(
                 this.defaultMQPushConsumer.getConsumeThreadMin(),
                 this.defaultMQPushConsumer.getConsumeThreadMax(),
                 1000 * 60,
                 TimeUnit.MILLISECONDS,
-                this.consumeRequestQueue,
+                consumeRequestQueue,
                 new ThreadFactoryImpl("ConsumeMessageThread_"));
 
         this.scheduledExecutorService = Executors.newSingleThreadScheduledExecutor(new ThreadFactoryImpl("ConsumeMessageScheduledThread_"));
@@ -231,10 +228,7 @@ public class ConsumeMessageConcurrentlyService implements ConsumeMessageService 
     }
 
     private void cleanExpireMsg() {
-        Iterator<Map.Entry<MessageQueue, ProcessQueue>> it =
-                this.defaultMQPushConsumerImpl.getRebalanceImpl().getProcessQueueTable().entrySet().iterator();
-        while (it.hasNext()) {
-            Map.Entry<MessageQueue, ProcessQueue> next = it.next();
+        for (Map.Entry<MessageQueue, ProcessQueue> next : this.defaultMQPushConsumerImpl.getRebalanceImpl().getProcessQueueTable().entrySet()) {
             ProcessQueue pq = next.getValue();
             pq.cleanExpiredMsg(this.defaultMQPushConsumer);
         }

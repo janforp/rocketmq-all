@@ -54,6 +54,7 @@ public class DefaultMQPushConsumer extends ClientConfig implements MQPushConsume
     /**
      * Internal implementation. Most of the functions herein are delegated to it.
      */
+    @Getter
     protected final transient DefaultMQPushConsumerImpl defaultMQPushConsumerImpl;
 
     /**
@@ -535,15 +536,6 @@ public class DefaultMQPushConsumer extends ClientConfig implements MQPushConsume
      * This method will be removed in a certain version after April 5, 2020, so please do not use this method.
      */
     @Deprecated
-    @SuppressWarnings("all")
-    public DefaultMQPushConsumerImpl getDefaultMQPushConsumerImpl() {
-        return defaultMQPushConsumerImpl;
-    }
-
-    /**
-     * This method will be removed in a certain version after April 5, 2020, so please do not use this method.
-     */
-    @Deprecated
     public void setSubscription(Map<String, String> subscription) {
         Map<String, String> subscriptionWithNamespace = new HashMap<String, String>();
         for (String topic : subscription.keySet()) {
@@ -606,7 +598,11 @@ public class DefaultMQPushConsumer extends ClientConfig implements MQPushConsume
      */
     @Override
     public void start() throws MQClientException {
-        setConsumerGroup(NamespaceUtil.wrapNamespace(this.getNamespace(), this.consumerGroup));
+
+        String wrapNamespace = NamespaceUtil.wrapNamespace(this.getNamespace(), this.consumerGroup);
+
+        // 设置当前消费者的消费者组
+        setConsumerGroup(wrapNamespace);
         this.defaultMQPushConsumerImpl.start();
         if (null != traceDispatcher) {
             try {

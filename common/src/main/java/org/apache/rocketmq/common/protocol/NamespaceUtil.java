@@ -78,7 +78,7 @@ public class NamespaceUtil {
         }
 
         String resourceWithoutRetryAndDLQ = withOutRetryAndDLQ(resourceWithOutNamespace);
-        StringBuffer strBuffer = new StringBuffer();
+        StringBuilder strBuffer = new StringBuilder();
 
         if (isRetryTopic(resourceWithOutNamespace)) {
             strBuffer.append(MixAll.RETRY_GROUP_TOPIC_PREFIX);

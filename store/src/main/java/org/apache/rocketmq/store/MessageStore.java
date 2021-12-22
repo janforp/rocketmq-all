@@ -248,8 +248,7 @@ public interface MessageStore {
      * @param begin begin timestamp.
      * @param end end timestamp.
      */
-    QueryMessageResult queryMessage(final String topic, final String key, final int maxNum, final long begin,
-            final long end);
+    QueryMessageResult queryMessage(final String topic, final String key, final int maxNum, final long begin, final long end);
 
     /**
      * Update HA master address.

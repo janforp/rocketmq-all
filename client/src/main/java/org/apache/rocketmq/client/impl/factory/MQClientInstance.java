@@ -294,7 +294,6 @@ public class MQClientInstance {
     }
 
     public void start() throws MQClientException {
-
         synchronized (this) {
             switch (this.serviceState) {
                 case CREATE_JUST:
@@ -302,7 +301,6 @@ public class MQClientInstance {
                     this.serviceState = ServiceState.START_FAILED;
                     // If not specified,looking address from name server
                     if (null == this.clientConfig.getNamesrvAddr()) {
-
                         // 一般不为空
                         this.mQClientAPIImpl.fetchNameServerAddr();
                     }

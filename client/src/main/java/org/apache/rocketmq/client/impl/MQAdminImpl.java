@@ -247,11 +247,9 @@ public class MQAdminImpl {
         return queryMessage(topic, key, maxNum, begin, end, false);
     }
 
-    public MessageExt queryMessageByUniqKey(String topic,
-            String uniqKey) throws InterruptedException, MQClientException {
+    public MessageExt queryMessageByUniqKey(String topic, String uniqKey) throws InterruptedException, MQClientException {
 
-        QueryResult qr = this.queryMessage(topic, uniqKey, 32,
-                MessageClientIDSetter.getNearlyTimeFromID(uniqKey).getTime() - 1000, Long.MAX_VALUE, true);
+        QueryResult qr = this.queryMessage(topic, uniqKey, 32, MessageClientIDSetter.getNearlyTimeFromID(uniqKey).getTime() - 1000, Long.MAX_VALUE, true);
         if (qr != null && qr.getMessageList() != null && qr.getMessageList().size() > 0) {
             return qr.getMessageList().get(0);
         } else {
@@ -306,33 +304,24 @@ public class MQAdminImpl {
                                 try {
                                     RemotingCommand response = responseFuture.getResponseCommand();
                                     if (response != null) {
-                                        switch (response.getCode()) {
-                                            case ResponseCode.SUCCESS: {
-                                                QueryMessageResponseHeader responseHeader = null;
-                                                try {
-                                                    responseHeader =
-                                                            (QueryMessageResponseHeader) response
-                                                                    .decodeCommandCustomHeader(QueryMessageResponseHeader.class);
-                                                } catch (RemotingCommandException e) {
-                                                    log.error("decodeCommandCustomHeader exception", e);
-                                                    return;
-                                                }
-
-                                                List<MessageExt> wrappers =
-                                                        MessageDecoder.decodes(ByteBuffer.wrap(response.getBody()), true);
-
-                                                QueryResult qr = new QueryResult(responseHeader.getIndexLastUpdateTimestamp(), wrappers);
-                                                try {
-                                                    lock.writeLock().lock();
-                                                    queryResultList.add(qr);
-                                                } finally {
-                                                    lock.writeLock().unlock();
-                                                }
-                                                break;
+                                        if (response.getCode() == ResponseCode.SUCCESS) {
+                                            QueryMessageResponseHeader responseHeader;
+                                            try {
+                                                responseHeader = (QueryMessageResponseHeader) response.decodeCommandCustomHeader(QueryMessageResponseHeader.class);
+                                            } catch (RemotingCommandException e) {
+                                                log.error("decodeCommandCustomHeader exception", e);
+                                                return;
                                             }
-                                            default:
-                                                log.warn("getResponseCommand failed, {} {}", response.getCode(), response.getRemark());
-                                                break;
+                                            List<MessageExt> wrappers = MessageDecoder.decodes(ByteBuffer.wrap(response.getBody()), true);
+                                            QueryResult qr = new QueryResult(responseHeader.getIndexLastUpdateTimestamp(), wrappers);
+                                            try {
+                                                lock.writeLock().lock();
+                                                queryResultList.add(qr);
+                                            } finally {
+                                                lock.writeLock().unlock();
+                                            }
+                                        } else {
+                                            log.warn("getResponseCommand failed, {} {}", response.getCode(), response.getRemark());
                                         }
                                     } else {
                                         log.warn("getResponseCommand return null");

@@ -170,15 +170,20 @@ public class IndexService {
 
     public QueryOffsetResult queryOffset(String topic, String key, int maxNum, long begin, long end) {
         List<Long> phyOffsets = new ArrayList<Long>(maxNum);
-
         long indexLastUpdateTimestamp = 0;
         long indexLastUpdatePhyoffset = 0;
+
         maxNum = Math.min(maxNum, this.defaultMessageStore.getMessageStoreConfig().getMaxMsgsNumBatch());
         try {
             this.readWriteLock.readLock().lock();
             if (!this.indexFileList.isEmpty()) {
+
+                // 从尾开始往前遍历
                 for (int i = this.indexFileList.size(); i > 0; i--) {
+                    // 拿到索引文件
                     IndexFile f = this.indexFileList.get(i - 1);
+
+                    // 是否是最后一个文件
                     boolean lastFile = i == this.indexFileList.size();
                     if (lastFile) {
                         indexLastUpdateTimestamp = f.getEndTimestamp();
@@ -186,7 +191,7 @@ public class IndexService {
                     }
 
                     if (f.isTimeMatched(begin, end)) {
-
+                        // 时间能够满足，则去该文件查询，并且把结果存储到集合 phyOffsets 中
                         f.selectPhyOffset(phyOffsets, buildKey(topic, key), maxNum, begin, end, lastFile);
                     }
 

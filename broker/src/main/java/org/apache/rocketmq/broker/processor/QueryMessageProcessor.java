@@ -37,6 +37,7 @@ import org.apache.rocketmq.remoting.exception.RemotingCommandException;
 import org.apache.rocketmq.remoting.netty.AsyncNettyRequestProcessor;
 import org.apache.rocketmq.remoting.netty.NettyRequestProcessor;
 import org.apache.rocketmq.remoting.protocol.RemotingCommand;
+import org.apache.rocketmq.store.MessageStore;
 import org.apache.rocketmq.store.QueryMessageResult;
 import org.apache.rocketmq.store.SelectMappedBufferResult;
 
@@ -70,15 +71,10 @@ public class QueryMessageProcessor extends AsyncNettyRequestProcessor implements
         return false;
     }
 
-    public RemotingCommand queryMessage(ChannelHandlerContext ctx, RemotingCommand request)
-            throws RemotingCommandException {
-        final RemotingCommand response =
-                RemotingCommand.createResponseCommand(QueryMessageResponseHeader.class);
-        final QueryMessageResponseHeader responseHeader =
-                (QueryMessageResponseHeader) response.readCustomHeader();
-        final QueryMessageRequestHeader requestHeader =
-                (QueryMessageRequestHeader) request
-                        .decodeCommandCustomHeader(QueryMessageRequestHeader.class);
+    public RemotingCommand queryMessage(ChannelHandlerContext ctx, RemotingCommand request) throws RemotingCommandException {
+        final RemotingCommand response = RemotingCommand.createResponseCommand(QueryMessageResponseHeader.class);
+        final QueryMessageResponseHeader responseHeader = (QueryMessageResponseHeader) response.readCustomHeader();
+        final QueryMessageRequestHeader requestHeader = (QueryMessageRequestHeader) request.decodeCommandCustomHeader(QueryMessageRequestHeader.class);
 
         response.setOpaque(request.getOpaque());
 
@@ -87,10 +83,8 @@ public class QueryMessageProcessor extends AsyncNettyRequestProcessor implements
             requestHeader.setMaxNum(this.brokerController.getMessageStoreConfig().getDefaultQueryMaxNum());
         }
 
-        final QueryMessageResult queryMessageResult =
-                this.brokerController.getMessageStore().queryMessage(requestHeader.getTopic(),
-                        requestHeader.getKey(), requestHeader.getMaxNum(), requestHeader.getBeginTimestamp(),
-                        requestHeader.getEndTimestamp());
+        MessageStore messageStore = this.brokerController.getMessageStore();
+        final QueryMessageResult queryMessageResult = messageStore.queryMessage(requestHeader.getTopic(), requestHeader.getKey(), requestHeader.getMaxNum(), requestHeader.getBeginTimestamp(), requestHeader.getEndTimestamp());
         assert queryMessageResult != null;
 
         responseHeader.setIndexLastUpdatePhyoffset(queryMessageResult.getIndexLastUpdatePhyoffset());

@@ -1376,10 +1376,9 @@ public class DefaultMQProducerImpl implements MQProducerInner {
      * DEFAULT SYNC -------------------------------------------------------
      */
     public SendResult send(Message msg) throws MQClientException, RemotingException, MQBrokerException, InterruptedException {
-        return send(msg,
 
-                // 默认3s
-                this.defaultMQProducer.getSendMsgTimeout());
+        // 默认3s
+        return send(msg, this.defaultMQProducer.getSendMsgTimeout());
     }
 
     public void endTransaction(final SendResult sendResult, final LocalTransactionState localTransactionState, final Throwable localException) throws RemotingException, MQBrokerException, InterruptedException, UnknownHostException {
