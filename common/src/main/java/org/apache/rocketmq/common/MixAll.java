@@ -474,13 +474,17 @@ public class MixAll {
     }
 
     public static boolean compareAndIncreaseOnly(final AtomicLong target, final long value) {
+        // 自增之前的值
         long prev = target.get();
+
+        // 循环，只要 value 大于 target 中的值就不会停止
         while (value > prev) {
             boolean updated = target.compareAndSet(prev, value);
             if (updated) {
                 return true;
             }
 
+            // 并发了，继续取到最新的值，然后继续循环
             prev = target.get();
         }
 

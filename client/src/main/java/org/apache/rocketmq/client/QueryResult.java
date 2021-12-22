@@ -2,11 +2,13 @@ package org.apache.rocketmq.client;
 
 import lombok.AllArgsConstructor;
 import lombok.Getter;
+import lombok.ToString;
 import org.apache.rocketmq.common.message.MessageExt;
 
 import java.util.List;
 
 @AllArgsConstructor
+@ToString
 public class QueryResult {
 
     @Getter
@@ -14,10 +16,4 @@ public class QueryResult {
 
     @Getter
     private final List<MessageExt> messageList;
-
-    @Override
-    public String toString() {
-        return "QueryResult [indexLastUpdateTimestamp=" + indexLastUpdateTimestamp + ", messageList="
-                + messageList + "]";
-    }
 }

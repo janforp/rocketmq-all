@@ -104,8 +104,6 @@ public class BrokerController {
 
     private final NettyServerConfig nettyServerConfig;
 
-    private final NettyClientConfig nettyClientConfig;
-
     private final MessageStoreConfig messageStoreConfig;
 
     private final ConsumerOffsetManager consumerOffsetManager;
@@ -128,14 +126,11 @@ public class BrokerController {
 
     private final SubscriptionGroupManager subscriptionGroupManager;
 
-    private final ConsumerIdsChangeListener consumerIdsChangeListener;
-
     private final RebalanceLockManager rebalanceLockManager = new RebalanceLockManager();
 
     private final BrokerOuterAPI brokerOuterAPI;
 
-    private final ScheduledExecutorService scheduledExecutorService = Executors.newSingleThreadScheduledExecutor(new ThreadFactoryImpl(
-            "BrokerControllerScheduledThread"));
+    private final ScheduledExecutorService scheduledExecutorService = Executors.newSingleThreadScheduledExecutor(new ThreadFactoryImpl("BrokerControllerScheduledThread"));
 
     private final SlaveSynchronize slaveSynchronize;
 
@@ -219,15 +214,14 @@ public class BrokerController {
     ) {
         this.brokerConfig = brokerConfig;
         this.nettyServerConfig = nettyServerConfig;
-        this.nettyClientConfig = nettyClientConfig;
         this.messageStoreConfig = messageStoreConfig;
         this.consumerOffsetManager = new ConsumerOffsetManager(this);
         this.topicConfigManager = new TopicConfigManager(this);
         this.pullMessageProcessor = new PullMessageProcessor(this);
         this.pullRequestHoldService = new PullRequestHoldService(this);
         this.messageArrivingListener = new NotifyMessageArrivingListener(this.pullRequestHoldService);
-        this.consumerIdsChangeListener = new DefaultConsumerIdsChangeListener(this);
-        this.consumerManager = new ConsumerManager(this.consumerIdsChangeListener);
+        ConsumerIdsChangeListener consumerIdsChangeListener = new DefaultConsumerIdsChangeListener(this);
+        this.consumerManager = new ConsumerManager(consumerIdsChangeListener);
         this.consumerFilterManager = new ConsumerFilterManager(this);
         this.producerManager = new ProducerManager();
         this.clientHousekeepingService = new ClientHousekeepingService(this);
@@ -254,7 +248,7 @@ public class BrokerController {
         this.configuration = new Configuration(
                 log,
                 BrokerPathConfigHelper.getBrokerConfigPath(),
-                this.brokerConfig, this.nettyServerConfig, this.nettyClientConfig, this.messageStoreConfig
+                this.brokerConfig, this.nettyServerConfig, nettyClientConfig, this.messageStoreConfig
         );
     }
 

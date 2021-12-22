@@ -1,5 +1,9 @@
 package org.apache.rocketmq.common.protocol;
 
+/**
+ * @see org.apache.rocketmq.broker.processor.AdminBrokerProcessor#processRequest(io.netty.channel.ChannelHandlerContext, org.apache.rocketmq.remoting.protocol.RemotingCommand)
+ * @see org.apache.rocketmq.broker.BrokerController#registerProcessor() 这个方法将所有的业务code都注册了处理器
+ */
 public class RequestCode {
 
     public static final int SEND_MESSAGE = 10;
@@ -32,12 +36,28 @@ public class RequestCode {
 
     public static final int SEARCH_OFFSET_BY_TIMESTAMP = 29;
 
+    /**
+     * @see org.apache.rocketmq.broker.processor.AdminBrokerProcessor#getMaxOffset(io.netty.channel.ChannelHandlerContext, org.apache.rocketmq.remoting.protocol.RemotingCommand)
+     * @see org.apache.rocketmq.client.impl.MQClientAPIImpl#getMaxOffset(java.lang.String, java.lang.String, int, long)
+     */
     public static final int GET_MAX_OFFSET = 30;
 
+    /**
+     * @see org.apache.rocketmq.client.impl.MQClientAPIImpl#getMinOffset(java.lang.String, java.lang.String, int, long)
+     * @see org.apache.rocketmq.broker.processor.AdminBrokerProcessor#getMinOffset(io.netty.channel.ChannelHandlerContext, org.apache.rocketmq.remoting.protocol.RemotingCommand)
+     */
     public static final int GET_MIN_OFFSET = 31;
 
+    /**
+     * @see org.apache.rocketmq.client.impl.MQClientAPIImpl#getEarliestMsgStoretime(java.lang.String, java.lang.String, int, long)
+     * @see org.apache.rocketmq.broker.processor.AdminBrokerProcessor#getEarliestMsgStoretime(io.netty.channel.ChannelHandlerContext, org.apache.rocketmq.remoting.protocol.RemotingCommand)
+     */
     public static final int GET_EARLIEST_MSG_STORETIME = 32;
 
+    /**
+     * @see org.apache.rocketmq.client.impl.MQClientAPIImpl#viewMessage(java.lang.String, long, long)
+     * @see org.apache.rocketmq.broker.processor.QueryMessageProcessor#viewMessageById(io.netty.channel.ChannelHandlerContext, org.apache.rocketmq.remoting.protocol.RemotingCommand)
+     */
     public static final int VIEW_MESSAGE_BY_ID = 33;
 
     public static final int HEART_BEAT = 34;

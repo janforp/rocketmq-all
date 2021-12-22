@@ -162,7 +162,7 @@ public class DefaultMQPushConsumer extends ClientConfig implements MQPushConsume
     private MessageListener messageListener;
 
     /**
-     * Offset Storage:消费进度的存储器，也可以用来持久化
+     * Offset Storage:消费进度的存储器，也可以用来持久化偏移量
      */
     private OffsetStore offsetStore;
 

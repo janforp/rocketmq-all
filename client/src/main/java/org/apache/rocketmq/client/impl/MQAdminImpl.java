@@ -35,6 +35,7 @@ import org.apache.rocketmq.remoting.protocol.RemotingCommand;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Set;
@@ -62,54 +63,52 @@ public class MQAdminImpl {
     }
 
     public void createTopic(String key, String newTopic, int queueNum, int topicSysFlag) throws MQClientException {
+        MQClientAPIImpl mqClientAPIImpl = this.mQClientFactory.getMQClientAPIImpl();
         try {
             Validators.checkTopic(newTopic);
-            TopicRouteData topicRouteData = this.mQClientFactory.getMQClientAPIImpl().getTopicRouteInfoFromNameServer(key, timeoutMillis);
+            // 拿到该主题的路由信息
+            TopicRouteData topicRouteData = mqClientAPIImpl.getTopicRouteInfoFromNameServer(key, timeoutMillis);
             List<BrokerData> brokerDataList = topicRouteData.getBrokerDatas();
-            if (brokerDataList != null && !brokerDataList.isEmpty()) {
-                Collections.sort(brokerDataList);
+            if (brokerDataList == null || brokerDataList.isEmpty()) {
+                throw new MQClientException("Not found broker, maybe key is wrong", null);
+            }
+            // 按 brokerName 排序
+            Collections.sort(brokerDataList);
 
-                boolean createOKAtLeastOnce = false;
-                MQClientException exception = null;
+            boolean createOKAtLeastOnce = false;
+            MQClientException exception = null;
 
-                StringBuilder orderTopicString = new StringBuilder();
+            for (BrokerData brokerData : brokerDataList) {
+                // HashMap<Long/* brokerId */, String/* broker address */>
+                HashMap<Long, String> brokerAddrs = brokerData.getBrokerAddrs();
+                // master 节点地址
+                String addr = brokerAddrs.get(MixAll.MASTER_ID);
+                if (addr != null) {
+                    TopicConfig topicConfig = new TopicConfig(newTopic);
+                    topicConfig.setReadQueueNums(queueNum);
+                    topicConfig.setWriteQueueNums(queueNum);
+                    topicConfig.setTopicSysFlag(topicSysFlag);
 
-                for (BrokerData brokerData : brokerDataList) {
-                    String addr = brokerData.getBrokerAddrs().get(MixAll.MASTER_ID);
-                    if (addr != null) {
-                        TopicConfig topicConfig = new TopicConfig(newTopic);
-                        topicConfig.setReadQueueNums(queueNum);
-                        topicConfig.setWriteQueueNums(queueNum);
-                        topicConfig.setTopicSysFlag(topicSysFlag);
-
-                        boolean createOK = false;
-                        for (int i = 0; i < 5; i++) {
-                            try {
-                                this.mQClientFactory.getMQClientAPIImpl().createTopic(addr, key, topicConfig, timeoutMillis);
-                                createOK = true;
-                                createOKAtLeastOnce = true;
-                                break;
-                            } catch (Exception e) {
-                                if (4 == i) {
-                                    exception = new MQClientException("create topic to broker exception", e);
-                                }
+                    // 最多循环5次
+                    for (int i = 0; i < 5; i++) {
+                        try {
+                            // 发送请求创建
+                            mqClientAPIImpl.createTopic(addr, key, topicConfig, timeoutMillis);
+                            // createOK = true;
+                            createOKAtLeastOnce = true;
+                            break;
+                        } catch (Exception e) {
+                            if (4 == i) {
+                                // 最后一次循环，如果还是发生了异常，则直接给异常赋值了
+                                exception = new MQClientException("create topic to broker exception", e);
                             }
-                        }
-
-                        if (createOK) {
-                            orderTopicString.append(brokerData.getBrokerName());
-                            orderTopicString.append(":");
-                            orderTopicString.append(queueNum);
-                            orderTopicString.append(";");
                         }
                     }
                 }
+            }
 
-                if (exception != null && !createOKAtLeastOnce) {
-                    throw exception;
-                }
-            } else {
-                throw new MQClientException("Not found broker, maybe key is wrong", null);
+            if (exception != null && !createOKAtLeastOnce) {
+                throw exception;
             }
         } catch (Exception e) {
             throw new MQClientException("create new topic failed", e);
@@ -171,8 +170,7 @@ public class MQAdminImpl {
 
         if (brokerAddr != null) {
             try {
-                return this.mQClientFactory.getMQClientAPIImpl().searchOffset(brokerAddr, mq.getTopic(), mq.getQueueId(), timestamp,
-                        timeoutMillis);
+                return this.mQClientFactory.getMQClientAPIImpl().searchOffset(brokerAddr, mq.getTopic(), mq.getQueueId(), timestamp, timeoutMillis);
             } catch (Exception e) {
                 throw new MQClientException("Invoke Broker[" + brokerAddr + "] exception", e);
             }
@@ -226,8 +224,7 @@ public class MQAdminImpl {
 
         if (brokerAddr != null) {
             try {
-                return this.mQClientFactory.getMQClientAPIImpl().getEarliestMsgStoretime(brokerAddr, mq.getTopic(), mq.getQueueId(),
-                        timeoutMillis);
+                return this.mQClientFactory.getMQClientAPIImpl().getEarliestMsgStoretime(brokerAddr, mq.getTopic(), mq.getQueueId(), timeoutMillis);
             } catch (Exception e) {
                 throw new MQClientException("Invoke Broker[" + brokerAddr + "] exception", e);
             }
@@ -236,22 +233,17 @@ public class MQAdminImpl {
         throw new MQClientException("The broker[" + mq.getBrokerName() + "] not exist", null);
     }
 
-    public MessageExt viewMessage(
-            String msgId) throws RemotingException, MQBrokerException, InterruptedException, MQClientException {
-
-        MessageId messageId = null;
+    public MessageExt viewMessage(String msgId) throws RemotingException, MQBrokerException, InterruptedException, MQClientException {
+        MessageId messageId;
         try {
             messageId = MessageDecoder.decodeMessageId(msgId);
         } catch (Exception e) {
             throw new MQClientException(ResponseCode.NO_MESSAGE, "query message by id finished, but no message.");
         }
-        return this.mQClientFactory.getMQClientAPIImpl().viewMessage(RemotingUtil.socketAddress2String(messageId.getAddress()),
-                messageId.getOffset(), timeoutMillis);
+        return this.mQClientFactory.getMQClientAPIImpl().viewMessage(RemotingUtil.socketAddress2String(messageId.getAddress()), messageId.getOffset(), timeoutMillis);
     }
 
-    public QueryResult queryMessage(String topic, String key, int maxNum, long begin,
-            long end) throws MQClientException,
-            InterruptedException {
+    public QueryResult queryMessage(String topic, String key, int maxNum, long begin, long end) throws MQClientException, InterruptedException {
         return queryMessage(topic, key, maxNum, begin, end, false);
     }
 
@@ -267,157 +259,161 @@ public class MQAdminImpl {
         }
     }
 
-    protected QueryResult queryMessage(String topic, String key, int maxNum, long begin, long end,
-            boolean isUniqKey) throws MQClientException,
-            InterruptedException {
+    protected QueryResult queryMessage(String topic, String key, int maxNum, long begin, long end, boolean isUniqKey) throws MQClientException, InterruptedException {
         TopicRouteData topicRouteData = this.mQClientFactory.getAnExistTopicRouteData(topic);
         if (null == topicRouteData) {
             this.mQClientFactory.updateTopicRouteInfoFromNameServer(topic);
             topicRouteData = this.mQClientFactory.getAnExistTopicRouteData(topic);
         }
+        if (topicRouteData == null) {
+            throw new MQClientException(ResponseCode.TOPIC_NOT_EXIST, "The topic[" + topic + "] not matched route info");
+        }
 
-        if (topicRouteData != null) {
-            List<String> brokerAddrs = new LinkedList<String>();
-            for (BrokerData brokerData : topicRouteData.getBrokerDatas()) {
-                String addr = brokerData.selectBrokerAddr();
-                if (addr != null) {
-                    brokerAddrs.add(addr);
-                }
+        // 保存所有broker 的地址
+        List<String> brokerAddrs = new LinkedList<String>();
+        for (BrokerData brokerData : topicRouteData.getBrokerDatas()) {
+            // 遍历所有的 broker
+
+            // 拿到 broker 的地址
+            String addr = brokerData.selectBrokerAddr();
+            if (addr != null) {
+                brokerAddrs.add(addr);
+            }
+        }
+        if (brokerAddrs.isEmpty()) {
+            throw new MQClientException(ResponseCode.TOPIC_NOT_EXIST, "The topic[" + topic + "] not matched route info");
+        }
+
+        // 门闩
+        final CountDownLatch countDownLatch = new CountDownLatch(brokerAddrs.size());
+        // 保存结果
+        final List<QueryResult> queryResultList = new LinkedList<QueryResult>();
+        final ReadWriteLock lock = new ReentrantReadWriteLock(false);
+
+        for (String addr : brokerAddrs) {
+            try {
+                QueryMessageRequestHeader requestHeader = new QueryMessageRequestHeader();
+                requestHeader.setTopic(topic);
+                requestHeader.setKey(key);
+                requestHeader.setMaxNum(maxNum);
+                requestHeader.setBeginTimestamp(begin);
+                requestHeader.setEndTimestamp(end);
+
+                this.mQClientFactory.getMQClientAPIImpl().queryMessage(addr, requestHeader, timeoutMillis * 3,
+                        new InvokeCallback() {
+                            @Override
+                            public void operationComplete(ResponseFuture responseFuture) {
+                                try {
+                                    RemotingCommand response = responseFuture.getResponseCommand();
+                                    if (response != null) {
+                                        switch (response.getCode()) {
+                                            case ResponseCode.SUCCESS: {
+                                                QueryMessageResponseHeader responseHeader = null;
+                                                try {
+                                                    responseHeader =
+                                                            (QueryMessageResponseHeader) response
+                                                                    .decodeCommandCustomHeader(QueryMessageResponseHeader.class);
+                                                } catch (RemotingCommandException e) {
+                                                    log.error("decodeCommandCustomHeader exception", e);
+                                                    return;
+                                                }
+
+                                                List<MessageExt> wrappers =
+                                                        MessageDecoder.decodes(ByteBuffer.wrap(response.getBody()), true);
+
+                                                QueryResult qr = new QueryResult(responseHeader.getIndexLastUpdateTimestamp(), wrappers);
+                                                try {
+                                                    lock.writeLock().lock();
+                                                    queryResultList.add(qr);
+                                                } finally {
+                                                    lock.writeLock().unlock();
+                                                }
+                                                break;
+                                            }
+                                            default:
+                                                log.warn("getResponseCommand failed, {} {}", response.getCode(), response.getRemark());
+                                                break;
+                                        }
+                                    } else {
+                                        log.warn("getResponseCommand return null");
+                                    }
+                                } finally {
+                                    countDownLatch.countDown();
+                                }
+                            }
+                        }, isUniqKey);
+            } catch (Exception e) {
+                log.warn("queryMessage exception", e);
             }
 
-            if (!brokerAddrs.isEmpty()) {
-                final CountDownLatch countDownLatch = new CountDownLatch(brokerAddrs.size());
-                final List<QueryResult> queryResultList = new LinkedList<QueryResult>();
-                final ReadWriteLock lock = new ReentrantReadWriteLock(false);
+        }
 
-                for (String addr : brokerAddrs) {
-                    try {
-                        QueryMessageRequestHeader requestHeader = new QueryMessageRequestHeader();
-                        requestHeader.setTopic(topic);
-                        requestHeader.setKey(key);
-                        requestHeader.setMaxNum(maxNum);
-                        requestHeader.setBeginTimestamp(begin);
-                        requestHeader.setEndTimestamp(end);
+        boolean ok = countDownLatch.await(timeoutMillis * 4, TimeUnit.MILLISECONDS);
+        if (!ok) {
+            log.warn("queryMessage, maybe some broker failed");
+        }
 
-                        this.mQClientFactory.getMQClientAPIImpl().queryMessage(addr, requestHeader, timeoutMillis * 3,
-                                new InvokeCallback() {
-                                    @Override
-                                    public void operationComplete(ResponseFuture responseFuture) {
-                                        try {
-                                            RemotingCommand response = responseFuture.getResponseCommand();
-                                            if (response != null) {
-                                                switch (response.getCode()) {
-                                                    case ResponseCode.SUCCESS: {
-                                                        QueryMessageResponseHeader responseHeader = null;
-                                                        try {
-                                                            responseHeader =
-                                                                    (QueryMessageResponseHeader) response
-                                                                            .decodeCommandCustomHeader(QueryMessageResponseHeader.class);
-                                                        } catch (RemotingCommandException e) {
-                                                            log.error("decodeCommandCustomHeader exception", e);
-                                                            return;
-                                                        }
+        long indexLastUpdateTimestamp = 0;
+        List<MessageExt> messageList = new LinkedList<MessageExt>();
+        for (QueryResult qr : queryResultList) {
+            if (qr.getIndexLastUpdateTimestamp() > indexLastUpdateTimestamp) {
+                indexLastUpdateTimestamp = qr.getIndexLastUpdateTimestamp();
+            }
 
-                                                        List<MessageExt> wrappers =
-                                                                MessageDecoder.decodes(ByteBuffer.wrap(response.getBody()), true);
+            for (MessageExt msgExt : qr.getMessageList()) {
+                if (isUniqKey) {
+                    if (msgExt.getMsgId().equals(key)) {
 
-                                                        QueryResult qr = new QueryResult(responseHeader.getIndexLastUpdateTimestamp(), wrappers);
-                                                        try {
-                                                            lock.writeLock().lock();
-                                                            queryResultList.add(qr);
-                                                        } finally {
-                                                            lock.writeLock().unlock();
-                                                        }
-                                                        break;
-                                                    }
-                                                    default:
-                                                        log.warn("getResponseCommand failed, {} {}", response.getCode(), response.getRemark());
-                                                        break;
-                                                }
-                                            } else {
-                                                log.warn("getResponseCommand return null");
-                                            }
-                                        } finally {
-                                            countDownLatch.countDown();
-                                        }
-                                    }
-                                }, isUniqKey);
-                    } catch (Exception e) {
-                        log.warn("queryMessage exception", e);
-                    }
+                        if (messageList.size() > 0) {
 
-                }
+                            if (messageList.get(0).getStoreTimestamp() > msgExt.getStoreTimestamp()) {
 
-                boolean ok = countDownLatch.await(timeoutMillis * 4, TimeUnit.MILLISECONDS);
-                if (!ok) {
-                    log.warn("queryMessage, maybe some broker failed");
-                }
-
-                long indexLastUpdateTimestamp = 0;
-                List<MessageExt> messageList = new LinkedList<MessageExt>();
-                for (QueryResult qr : queryResultList) {
-                    if (qr.getIndexLastUpdateTimestamp() > indexLastUpdateTimestamp) {
-                        indexLastUpdateTimestamp = qr.getIndexLastUpdateTimestamp();
-                    }
-
-                    for (MessageExt msgExt : qr.getMessageList()) {
-                        if (isUniqKey) {
-                            if (msgExt.getMsgId().equals(key)) {
-
-                                if (messageList.size() > 0) {
-
-                                    if (messageList.get(0).getStoreTimestamp() > msgExt.getStoreTimestamp()) {
-
-                                        messageList.clear();
-                                        messageList.add(msgExt);
-                                    }
-
-                                } else {
-
-                                    messageList.add(msgExt);
-                                }
-                            } else {
-                                log.warn("queryMessage by uniqKey, find message key not matched, maybe hash duplicate {}", msgExt.toString());
+                                messageList.clear();
+                                messageList.add(msgExt);
                             }
-                        } else {
-                            String keys = msgExt.getKeys();
-                            if (keys != null) {
-                                boolean matched = false;
-                                String[] keyArray = keys.split(MessageConst.KEY_SEPARATOR);
-                                if (keyArray != null) {
-                                    for (String k : keyArray) {
-                                        if (key.equals(k)) {
-                                            matched = true;
-                                            break;
-                                        }
-                                    }
-                                }
 
-                                if (matched) {
-                                    messageList.add(msgExt);
-                                } else {
-                                    log.warn("queryMessage, find message key not matched, maybe hash duplicate {}", msgExt.toString());
+                        } else {
+
+                            messageList.add(msgExt);
+                        }
+                    } else {
+                        log.warn("queryMessage by uniqKey, find message key not matched, maybe hash duplicate {}", msgExt.toString());
+                    }
+                } else {
+                    String keys = msgExt.getKeys();
+                    if (keys != null) {
+                        boolean matched = false;
+                        String[] keyArray = keys.split(MessageConst.KEY_SEPARATOR);
+                        if (keyArray != null) {
+                            for (String k : keyArray) {
+                                if (key.equals(k)) {
+                                    matched = true;
+                                    break;
                                 }
                             }
                         }
-                    }
-                }
 
-                //If namespace not null , reset Topic without namespace.
-                for (MessageExt messageExt : messageList) {
-                    if (null != this.mQClientFactory.getClientConfig().getNamespace()) {
-                        messageExt.setTopic(NamespaceUtil.withoutNamespace(messageExt.getTopic(), this.mQClientFactory.getClientConfig().getNamespace()));
+                        if (matched) {
+                            messageList.add(msgExt);
+                        } else {
+                            log.warn("queryMessage, find message key not matched, maybe hash duplicate {}", msgExt.toString());
+                        }
                     }
-                }
-
-                if (!messageList.isEmpty()) {
-                    return new QueryResult(indexLastUpdateTimestamp, messageList);
-                } else {
-                    throw new MQClientException(ResponseCode.NO_MESSAGE, "query message by key finished, but no message.");
                 }
             }
         }
 
-        throw new MQClientException(ResponseCode.TOPIC_NOT_EXIST, "The topic[" + topic + "] not matched route info");
+        //If namespace not null , reset Topic without namespace.
+        for (MessageExt messageExt : messageList) {
+            if (null != this.mQClientFactory.getClientConfig().getNamespace()) {
+                messageExt.setTopic(NamespaceUtil.withoutNamespace(messageExt.getTopic(), this.mQClientFactory.getClientConfig().getNamespace()));
+            }
+        }
+
+        if (!messageList.isEmpty()) {
+            return new QueryResult(indexLastUpdateTimestamp, messageList);
+        } else {
+            throw new MQClientException(ResponseCode.NO_MESSAGE, "query message by key finished, but no message.");
+        }
     }
 }
