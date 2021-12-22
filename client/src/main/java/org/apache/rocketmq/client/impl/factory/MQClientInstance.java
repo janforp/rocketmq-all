@@ -230,6 +230,7 @@ public class MQClientInstance {
     public static TopicPublishInfo topicRouteData2TopicPublishInfo(final String topic, final TopicRouteData route) {
         TopicPublishInfo info = new TopicPublishInfo();
         info.setTopicRouteData(route);
+
         if (route.getOrderTopicConf() != null && route.getOrderTopicConf().length() > 0) {
             String[] brokers = route.getOrderTopicConf().split(";");
             for (String broker : brokers) {
@@ -241,8 +242,12 @@ public class MQClientInstance {
                 }
             }
 
+            // 顺序消息
             info.setOrderTopic(true);
         } else {
+
+            // 非顺序消息
+
             List<QueueData> qds = route.getQueueDatas();
             Collections.sort(qds);
             for (QueueData qd : qds) {
@@ -526,8 +531,8 @@ public class MQClientInstance {
     }
 
     public void checkClientInBroker() throws MQClientException {
-
         for (Entry<String, MQConsumerInner> entry : this.consumerTable.entrySet()) {
+            // 该生产者的订阅信息
             Set<SubscriptionData> subscriptionInner = entry.getValue().subscriptions();
             if (subscriptionInner == null || subscriptionInner.isEmpty()) {
                 return;
@@ -599,14 +604,7 @@ public class MQClientInstance {
     }
 
     public boolean updateTopicRouteInfoFromNameServer(final String topic) {
-
-        return updateTopicRouteInfoFromNameServer(
-
-                topic,  // 主题
-
-                false, // 是否默认：
-
-                null);
+        return updateTopicRouteInfoFromNameServer(topic, false, null);
     }
 
     private boolean isBrokerAddrExistInTopicRouteTable(final String addr) {
@@ -629,6 +627,8 @@ public class MQClientInstance {
     }
 
     private void sendHeartbeatToAllBroker() {
+
+        // 包括所有生产者，消费者信息，以及当前实例id
         final HeartbeatData heartbeatData = this.prepareHeartbeatData();
         final boolean producerEmpty = heartbeatData.getProducerDataSet().isEmpty();
         final boolean consumerEmpty = heartbeatData.getConsumerDataSet().isEmpty();
@@ -637,42 +637,55 @@ public class MQClientInstance {
             return;
         }
 
-        if (!this.brokerAddrTable.isEmpty()) {
-            long times = this.sendHeartbeatTimesTotal.getAndIncrement();
-            Iterator<Entry<String, HashMap<Long, String>>> it = this.brokerAddrTable.entrySet().iterator();
-            while (it.hasNext()) {
-                Entry<String, HashMap<Long, String>> entry = it.next();
-                String brokerName = entry.getKey();
-                HashMap<Long, String> oneTable = entry.getValue();
-                if (oneTable != null) {
-                    for (Map.Entry<Long, String> entry1 : oneTable.entrySet()) {
-                        Long id = entry1.getKey();
-                        String addr = entry1.getValue();
-                        if (addr != null) {
-                            if (consumerEmpty) {
-                                if (id != MixAll.MASTER_ID) {
-                                    continue;
-                                }
-                            }
+        // ConcurrentMap<String/* Broker Name */, HashMap<Long/* brokerId */, String/* address */>> brokerAddrTable
+        if (this.brokerAddrTable.isEmpty()) {
+            return;
+        }
 
-                            try {
-                                int version = this.mQClientAPIImpl.sendHearbeat(addr, heartbeatData, 3000);
-                                if (!this.brokerVersionTable.containsKey(brokerName)) {
-                                    this.brokerVersionTable.put(brokerName, new HashMap<String, Integer>(4));
-                                }
-                                this.brokerVersionTable.get(brokerName).put(addr, version);
-                                if (times % 20 == 0) {
-                                    log.info("send heart beat to broker[{} {} {}] success", brokerName, id, addr);
-                                    log.info(heartbeatData.toString());
-                                }
-                            } catch (Exception e) {
-                                if (this.isBrokerInNameServer(addr)) {
-                                    log.info("send heart beat to broker[{} {} {}] failed", brokerName, id, addr, e);
-                                } else {
-                                    log.info("send heart beat to broker[{} {} {}] exception, because the broker not up, forget it", brokerName, id, addr, e);
-                                }
-                            }
-                        }
+        // 用于打印日志
+        long times = this.sendHeartbeatTimesTotal.getAndIncrement();
+
+        // ConcurrentMap<String/* Broker Name */, HashMap<Long/* brokerId */, String/* address */>> brokerAddrTable
+        for (Entry<String, HashMap<Long, String>> entry : this.brokerAddrTable.entrySet()) {
+            String brokerName = entry.getKey();
+
+            // 该 broker 下面的所有的 节点地址映射 HashMap<Long/* brokerId */, String/* address */>
+            HashMap<Long, String> oneTable = entry.getValue();
+            if (oneTable == null) {
+                continue;
+            }
+            for (Entry<Long, String> brokerIdAddress : oneTable.entrySet()) {
+                // brokerId
+                Long id = brokerIdAddress.getKey();
+                // 地址
+                String addr = brokerIdAddress.getValue();
+                if (addr == null) {
+                    continue;
+                }
+                if (consumerEmpty) {
+                    if (id != MixAll.MASTER_ID) {
+                        // 不是主节点，则跳过
+                        continue;
+                    }
+                }
+
+                try {
+
+                    // 发送心跳，心跳包中包含了很多信息： 包括所有生产者，消费者信息，以及当前实例id
+                    int version = this.mQClientAPIImpl.sendHearbeat(addr, heartbeatData, 3000);
+                    if (!this.brokerVersionTable.containsKey(brokerName)) {
+                        this.brokerVersionTable.put(brokerName, new HashMap<String, Integer>(4));
+                    }
+                    this.brokerVersionTable.get(brokerName).put(addr, version);
+                    if (times % 20 == 0) {
+                        log.info("send heart beat to broker[{} {} {}] success", brokerName, id, addr);
+                        log.info(heartbeatData.toString());
+                    }
+                } catch (Exception e) {
+                    if (this.isBrokerInNameServer(addr)) {
+                        log.info("send heart beat to broker[{} {} {}] failed", brokerName, id, addr, e);
+                    } else {
+                        log.info("send heart beat to broker[{} {} {}] exception, because the broker not up, forget it", brokerName, id, addr, e);
                     }
                 }
             }
@@ -723,6 +736,7 @@ public class MQClientInstance {
                         // 到 namesrv 上拉去最新的主题路由数据
                         topicRouteData = this.mQClientAPIImpl.getTopicRouteInfoFromNameServer(topic, 1000 * 3);
                     }
+
                     if (topicRouteData != null) {
 
                         // 获取当前客户端本地的路由数据
@@ -748,16 +762,12 @@ public class MQClientInstance {
 
                             // Update Pub info
                             {
-
                                 // 将当前topic路由数据转化为主题发布数据
                                 TopicPublishInfo publishInfo = topicRouteData2TopicPublishInfo(topic, topicRouteData);
                                 publishInfo.setHaveTopicRouterInfo(true);
-                                Iterator<Entry<String, MQProducerInner>> it = this.producerTable.entrySet().iterator();
-                                while (it.hasNext()) {
-                                    Entry<String, MQProducerInner> entry = it.next();
+                                for (Entry<String, MQProducerInner> entry : this.producerTable.entrySet()) {
                                     MQProducerInner impl = entry.getValue();
                                     if (impl != null) {
-
                                         // 生产者将主题发布数据保存到它本地。方便发送消息的时候使用
                                         impl.updateTopicPublishInfo(topic, publishInfo);
                                     }
@@ -767,9 +777,7 @@ public class MQClientInstance {
                             // Update sub info
                             {
                                 Set<MessageQueue> subscribeInfo = topicRouteData2TopicSubscribeInfo(topic, topicRouteData);
-                                Iterator<Entry<String, MQConsumerInner>> it = this.consumerTable.entrySet().iterator();
-                                while (it.hasNext()) {
-                                    Entry<String, MQConsumerInner> entry = it.next();
+                                for (Entry<String, MQConsumerInner> entry : this.consumerTable.entrySet()) {
                                     MQConsumerInner impl = entry.getValue();
                                     if (impl != null) {
                                         impl.updateTopicSubscribeInfo(topic, subscribeInfo);
@@ -810,7 +818,9 @@ public class MQClientInstance {
         heartbeatData.setClientID(this.clientId);
 
         // Consumer
-        for (Map.Entry<String, MQConsumerInner> entry : this.consumerTable.entrySet()) {
+        // ConcurrentMap<String/* group */, MQConsumerInner> consumerTable
+        for (Map.Entry<String /* group */, MQConsumerInner> entry : this.consumerTable.entrySet()) {
+            // 消费者
             MQConsumerInner impl = entry.getValue();
             if (impl != null) {
                 ConsumerData consumerData = new ConsumerData();
@@ -821,17 +831,20 @@ public class MQClientInstance {
                 consumerData.getSubscriptionDataSet().addAll(impl.subscriptions());
                 consumerData.setUnitMode(impl.isUnitMode());
 
+                // 把该消费者信息添加到集合
                 heartbeatData.getConsumerDataSet().add(consumerData);
             }
         }
 
         // Producer
+        // ConcurrentMap<String/* group */, MQProducerInner>
         for (Map.Entry<String/* group */, MQProducerInner> entry : this.producerTable.entrySet()) {
             MQProducerInner impl = entry.getValue();
             if (impl != null) {
                 ProducerData producerData = new ProducerData();
                 producerData.setGroupName(entry.getKey());
 
+                // 把该生产者信息添加到集合
                 heartbeatData.getProducerDataSet().add(producerData);
             }
         }

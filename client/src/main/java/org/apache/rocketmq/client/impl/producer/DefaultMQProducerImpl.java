@@ -105,11 +105,6 @@ public class DefaultMQProducerImpl implements MQProducerInner {
     // 该对象最终传递给 NettyRemotingClient,留给用户扩展
     private final RPCHook rpcHook;
 
-    /**
-     * 异步发送消息的时候使用到的队列
-     */
-    private final BlockingQueue<Runnable> asyncSenderThreadPoolQueue;
-
     // 缺省的异步发送消息线程池
     private final ExecutorService defaultAsyncSenderExecutor;
 
@@ -129,13 +124,13 @@ public class DefaultMQProducerImpl implements MQProducerInner {
     private MQClientInstance mQClientFactory;
 
     // 钩子，扩展用，注意和 sendMessageHook 区别，它可以抛异常。控制消息是否可以发送
-    private ArrayList<CheckForbiddenHook> checkForbiddenHookList = new ArrayList<CheckForbiddenHook>();
+    private final ArrayList<CheckForbiddenHook> checkForbiddenHookList = new ArrayList<CheckForbiddenHook>();
 
     // zip 压缩级别，默认5
     private int zipCompressLevel = Integer.parseInt(System.getProperty(MixAll.MESSAGE_COMPRESS_LEVEL, "5"));
 
     // 选择队列容错策略
-    private MQFaultStrategy mqFaultStrategy = new MQFaultStrategy();
+    private final MQFaultStrategy mqFaultStrategy = new MQFaultStrategy();
 
     // 异步发送线程池，如果指定的话，就不再使用默认的线程池，而是使用该线程池
     private ExecutorService asyncSenderExecutor;
@@ -149,7 +144,10 @@ public class DefaultMQProducerImpl implements MQProducerInner {
         this.rpcHook = rpcHook;
 
         // 创建异步消息线程池任务队列
-        this.asyncSenderThreadPoolQueue = new LinkedBlockingQueue<Runnable>(50000);
+        /**
+         * 异步发送消息的时候使用到的队列
+         */
+        BlockingQueue<Runnable> asyncSenderThreadPoolQueue = new LinkedBlockingQueue<Runnable>(50000);
 
         // 创建缺省的异步任务线程池
         this.defaultAsyncSenderExecutor = new ThreadPoolExecutor(
@@ -162,7 +160,7 @@ public class DefaultMQProducerImpl implements MQProducerInner {
 
                 TimeUnit.MILLISECONDS, // 时间单位
 
-                this.asyncSenderThreadPoolQueue, // 异步消息线程池任务队列
+                asyncSenderThreadPoolQueue, // 异步消息线程池任务队列
 
                 new ThreadFactory() { // 线程工厂
 
@@ -334,6 +332,7 @@ public class DefaultMQProducerImpl implements MQProducerInner {
 
     @Override
     public boolean isPublishTopicNeedUpdate(String topic) {
+        // ConcurrentMap<String, TopicPublishInfo> topicPublishInfoTable
         TopicPublishInfo prev = this.topicPublishInfoTable.get(topic);
 
         return null == prev || !prev.ok();

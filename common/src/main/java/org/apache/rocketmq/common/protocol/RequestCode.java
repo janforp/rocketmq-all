@@ -64,6 +64,10 @@ public class RequestCode {
      */
     public static final int VIEW_MESSAGE_BY_ID = 33;
 
+    /**
+     * @see org.apache.rocketmq.client.impl.MQClientAPIImpl#sendHearbeat(java.lang.String, org.apache.rocketmq.common.protocol.heartbeat.HeartbeatData, long)
+     * @see org.apache.rocketmq.broker.processor.ClientManageProcessor#heartBeat(io.netty.channel.ChannelHandlerContext, org.apache.rocketmq.remoting.protocol.RemotingCommand)
+     */
     public static final int HEART_BEAT = 34;
 
     public static final int UNREGISTER_CLIENT = 35;
@@ -93,6 +97,10 @@ public class RequestCode {
 
     public static final int GET_ALL_DELAY_OFFSET = 45;
 
+    /**
+     * @see org.apache.rocketmq.client.impl.MQClientAPIImpl#checkClientInBroker(java.lang.String, java.lang.String, java.lang.String, org.apache.rocketmq.common.protocol.heartbeat.SubscriptionData, long)
+     * @see org.apache.rocketmq.broker.processor.ClientManageProcessor#checkClientConfig(io.netty.channel.ChannelHandlerContext, org.apache.rocketmq.remoting.protocol.RemotingCommand)
+     */
     public static final int CHECK_CLIENT_CONFIG = 46;
 
     public static final int UPDATE_AND_CREATE_ACL_CONFIG = 50;
@@ -115,6 +123,10 @@ public class RequestCode {
 
     public static final int UNREGISTER_BROKER = 104;
 
+    /**
+     * @see org.apache.rocketmq.client.impl.MQClientAPIImpl#getTopicRouteInfoFromNameServer(java.lang.String, long, boolean)
+     * @see org.apache.rocketmq.namesrv.processor.DefaultRequestProcessor#getRouteInfoByTopic(io.netty.channel.ChannelHandlerContext, org.apache.rocketmq.remoting.protocol.RemotingCommand)
+     */
     public static final int GET_ROUTEINTO_BY_TOPIC = 105;
 
     public static final int GET_BROKER_CLUSTER_INFO = 106;

@@ -976,22 +976,14 @@ public class MQClientAPIImpl {
         this.remotingClient.invokeOneway(MixAll.brokerVIPChannel(this.clientConfig.isVipChannelEnabled(), addr), request, timeoutMillis);
     }
 
-    public int sendHearbeat(
-            final String addr,
-            final HeartbeatData heartbeatData,
-            final long timeoutMillis
-    ) throws RemotingException, MQBrokerException, InterruptedException {
+    public int sendHearbeat(final String addr, final HeartbeatData heartbeatData, final long timeoutMillis) throws RemotingException, MQBrokerException, InterruptedException {
         RemotingCommand request = RemotingCommand.createRequestCommand(RequestCode.HEART_BEAT, null);
         request.setLanguage(clientConfig.getLanguage());
         request.setBody(heartbeatData.encode());
         RemotingCommand response = this.remotingClient.invokeSync(addr, request, timeoutMillis);
         assert response != null;
-        switch (response.getCode()) {
-            case ResponseCode.SUCCESS: {
-                return response.getVersion();
-            }
-            default:
-                break;
+        if (response.getCode() == ResponseCode.SUCCESS) {
+            return response.getVersion();
         }
 
         throw new MQBrokerException(response.getCode(), response.getRemark());
@@ -2148,11 +2140,16 @@ public class MQClientAPIImpl {
         throw new MQClientException(response.getCode(), response.getRemark());
     }
 
-    public void checkClientInBroker(final String brokerAddr, final String consumerGroup,
-            final String clientId, final SubscriptionData subscriptionData,
-            final long timeoutMillis)
-            throws InterruptedException, RemotingTimeoutException, RemotingSendRequestException,
-            RemotingConnectException, MQClientException {
+    /**
+     * @param brokerAddr broker
+     * @param consumerGroup 消费者组
+     * @param clientId 客户端实例id
+     * @param subscriptionData 订阅信息
+     * @param timeoutMillis 超时
+     */
+    public void checkClientInBroker(final String brokerAddr, final String consumerGroup, final String clientId, final SubscriptionData subscriptionData, final long timeoutMillis)
+            throws InterruptedException, RemotingTimeoutException, RemotingSendRequestException, RemotingConnectException, MQClientException {
+
         RemotingCommand request = RemotingCommand.createRequestCommand(RequestCode.CHECK_CLIENT_CONFIG, null);
 
         CheckClientRequestBody requestBody = new CheckClientRequestBody();

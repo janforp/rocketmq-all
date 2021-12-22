@@ -14,10 +14,16 @@ public class TopicRouteData extends RemotingSerializable {
     @Getter
     private String orderTopicConf;
 
+    /**
+     * 队列信息
+     */
     @Setter
     @Getter
     private List<QueueData> queueDatas;
 
+    /**
+     * broker 节点信息
+     */
     @Setter
     @Getter
     private List<BrokerData> brokerDatas;

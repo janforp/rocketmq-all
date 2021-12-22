@@ -852,13 +852,18 @@ public class DefaultMQPushConsumerImpl implements MQConsumerInner {
     }
 
     private void updateTopicSubscribeInfoWhenSubscriptionChanged() {
+        // ConcurrentMap<String /* topic */, SubscriptionData> subscriptionInner
+        /*
+         * @see  RebalanceImpl#subscriptionInner
+         */
         Map<String, SubscriptionData> subTable = this.getSubscriptionInner();
-        if (subTable != null) {
-            for (final Map.Entry<String, SubscriptionData> entry : subTable.entrySet()) {
-                final String topic = entry.getKey();
-                // 更新路由数据,并且更新本地路由数据
-                this.mQClientFactory.updateTopicRouteInfoFromNameServer(topic);
-            }
+        if (subTable == null) {
+            return;
+        }
+        for (final Map.Entry<String, SubscriptionData> entry : subTable.entrySet()) {
+            final String topic = entry.getKey();
+            // 更新路由数据,并且更新本地路由数据
+            this.mQClientFactory.updateTopicRouteInfoFromNameServer(topic);
         }
     }
 
