@@ -1099,7 +1099,6 @@ public class MQClientAPIImpl {
     public void unlockBatchMQ(final String addr, final UnlockBatchRequestBody requestBody, final long timeoutMillis, final boolean oneway) throws RemotingException, MQBrokerException, InterruptedException {
 
         RemotingCommand request = RemotingCommand.createRequestCommand(RequestCode.UNLOCK_BATCH_MQ, null);
-
         request.setBody(requestBody.encode());
 
         if (oneway) {

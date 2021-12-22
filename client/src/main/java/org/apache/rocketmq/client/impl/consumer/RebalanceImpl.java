@@ -37,6 +37,9 @@ public abstract class RebalanceImpl {
     @Getter
     protected final ConcurrentMap<String/* topic */, Set<MessageQueue>> topicSubscribeInfoTable = new ConcurrentHashMap<String, Set<MessageQueue>>();
 
+    /**
+     * @see DefaultMQPushConsumerImpl#copySubscription() 赋值
+     */
     @Getter
     protected final ConcurrentMap<String /* topic */, SubscriptionData> subscriptionInner = new ConcurrentHashMap<String, SubscriptionData>();
 

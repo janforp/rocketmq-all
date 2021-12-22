@@ -33,8 +33,12 @@ public class FilterAPI {
         subscriptionData.setSubString(subString);
 
         if (null == subString || subString.equals(SubscriptionData.SUB_ALL) || subString.length() == 0) {
+            // 没有指定过滤表达式
             subscriptionData.setSubString(SubscriptionData.SUB_ALL);
         } else {
+            // 指定了表达式
+
+            // 按空格分开
             String[] tags = subString.split("\\|\\|");
             if (tags.length > 0) {
                 for (String tag : tags) {

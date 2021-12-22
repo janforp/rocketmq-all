@@ -23,11 +23,13 @@ public class SubscriptionData implements Comparable<SubscriptionData> {
     @Setter
     private String topic;
 
+    // 过滤表达式，如 aa bb cc
     @Getter
     @Setter
     private String subString;
 
     /**
+     * 人员： [aa,bb,cc]
      * @see FilterAPI#buildSubscriptionData(java.lang.String, java.lang.String, java.lang.String)
      */
     @Getter
@@ -35,6 +37,7 @@ public class SubscriptionData implements Comparable<SubscriptionData> {
     private Set<String> tagsSet = new HashSet<String>();
 
     /**
+     * 例如：[aa.hashcode,bb.hashcode,cc.hashcode]
      * @see FilterAPI#buildSubscriptionData(java.lang.String, java.lang.String, java.lang.String)
      */
     @Getter

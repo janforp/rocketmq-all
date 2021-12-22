@@ -24,6 +24,7 @@ import org.apache.rocketmq.client.hook.FilterMessageHook;
 import org.apache.rocketmq.client.impl.CommunicationMode;
 import org.apache.rocketmq.client.impl.MQClientManager;
 import org.apache.rocketmq.client.impl.factory.MQClientInstance;
+import org.apache.rocketmq.client.impl.producer.DefaultMQProducerImpl;
 import org.apache.rocketmq.client.log.ClientLogger;
 import org.apache.rocketmq.client.stat.ConsumerStatsManager;
 import org.apache.rocketmq.common.MixAll;
@@ -95,6 +96,8 @@ public class DefaultMQPushConsumerImpl implements MQConsumerInner {
     // 负载均衡
 
     /**
+     * rbl 对象，职责：分配订阅主题的队列给当前消费者，20s一个周期执行 rbl 算法 （客户端实例触发）
+     *
      * @see RebalanceService
      */
     @Getter
@@ -105,38 +108,48 @@ public class DefaultMQPushConsumerImpl implements MQConsumerInner {
      */
     private final ArrayList<FilterMessageHook> filterMessageHookList = new ArrayList<FilterMessageHook>();
 
+    // 消费者启动时间
     private final long consumerStartTimestamp = System.currentTimeMillis();
 
     /**
      * 在消费的时候的钩子
-     */
+     **/
     private final ArrayList<ConsumeMessageHook> consumeMessageHookList = new ArrayList<ConsumeMessageHook>();
 
     private final RPCHook rpcHook;
 
+    /**
+     * 当前消费者服务主题
+     * 启动正常：RUNNING
+     */
     @Getter
     @Setter
     private volatile ServiceState serviceState = ServiceState.CREATE_JUST;
 
-    @Getter
+    /**
+     * 客户端实例，整个进程内只有一个对象
+     */
     @Setter
     private MQClientInstance mQClientFactory;
 
     /**
-     * 拉消息逻辑的封装
+     * 拉消息逻辑的封装（为什么要封装？内部有推荐下次 pull 时 主机的算法，服务器 broker 返回结果中，包装着下次 pull 的时候推荐的 brokerId，根据本次请求数据的冷热来进行推荐）
      * 热数据：在内存中，会建议下次去 master 拉
      * 冷数据：在硬盘中，会建议下次去 slave 拉
      */
     private PullAPIWrapper pullAPIWrapper;
 
+    // 是否暂停
     @Getter
     @Setter
     private volatile boolean pause = false;
 
+    // 是否顺序消费
     @Getter
     @Setter
     private boolean consumeOrderly = false;
 
+    // 消息监听器
     @Getter
     private MessageListener messageListenerInner;
 
@@ -156,8 +169,12 @@ public class DefaultMQPushConsumerImpl implements MQConsumerInner {
     @Setter
     private ConsumeMessageService consumeMessageService;
 
+    /**
+     * 队列流控次数（打印日志用，默认每1000次流控，进行一次日志打印）
+     */
     private long queueFlowControlTimes = 0;
 
+    // 流控，打印日志使用
     private long queueMaxSpanFlowControlTimes = 0;
 
     public DefaultMQPushConsumerImpl(DefaultMQPushConsumer defaultMQPushConsumer, RPCHook rpcHook) {
@@ -238,7 +255,6 @@ public class DefaultMQPushConsumerImpl implements MQConsumerInner {
 
         return resultQueues;
     }
-
 
     public long earliestMsgStoreTime(MessageQueue mq) throws MQClientException {
         return this.mQClientFactory.getMQAdminImpl().earliestMsgStoreTime(mq);
@@ -583,21 +599,31 @@ public class DefaultMQPushConsumerImpl implements MQConsumerInner {
             case CREATE_JUST:
                 // 先设置失败
                 this.serviceState = ServiceState.START_FAILED;
+                // 检查配置
                 this.checkConfig();
+                // 复制订阅信息到 rbl 对象
                 this.copySubscription();
                 if (this.defaultMQPushConsumer.getMessageModel() == MessageModel.CLUSTERING) {
-                    // 集群模式
+                    // 集群模式，修改消费者实例名称为 进程 PID
                     this.defaultMQPushConsumer.changeInstanceNameToPID();
                 }
+
+                // 获取客户端实例，进程内只有一个实例
                 this.mQClientFactory = MQClientManager.getInstance().getOrCreateMQClientInstance(this.defaultMQPushConsumer, this.rpcHook);
 
                 // 初始化负载均衡对象
                 this.rebalanceImpl.setConsumerGroup(this.defaultMQPushConsumer.getConsumerGroup());
                 this.rebalanceImpl.setMessageModel(this.defaultMQPushConsumer.getMessageModel());
+                // 分配策略对象赋值
                 this.rebalanceImpl.setAllocateMessageQueueStrategy(this.defaultMQPushConsumer.getAllocateMessageQueueStrategy());
                 this.rebalanceImpl.setmQClientFactory(this.mQClientFactory);
 
                 // 初始化 pullAPIWrapper 对象
+                /*
+                 * 拉消息逻辑的封装（为什么要封装？内部有推荐下次 pull 时 主机的算法，服务器 broker 返回结果中，包装着下次 pull 的时候推荐的 brokerId，根据本次请求数据的冷热来进行推荐）
+                 * 热数据：在内存中，会建议下次去 master 拉
+                 * 冷数据：在硬盘中，会建议下次去 slave 拉
+                 */
                 this.pullAPIWrapper = new PullAPIWrapper(mQClientFactory, this.defaultMQPushConsumer.getConsumerGroup(), isUnitMode());
                 this.pullAPIWrapper.registerFilterMessageHook(filterMessageHookList);
 
@@ -621,6 +647,8 @@ public class DefaultMQPushConsumerImpl implements MQConsumerInner {
                     // 然后再回写给上层的门面
                     this.defaultMQPushConsumer.setOffsetStore(this.offsetStore);
                 }
+
+                // 集群模式下，
                 this.offsetStore.load();
 
                 // 创建 consumeMessageService 对象
@@ -638,6 +666,8 @@ public class DefaultMQPushConsumerImpl implements MQConsumerInner {
                 // 启动消费服务
                 this.consumeMessageService.start();
 
+                // 将消费者注册到客户端实例
+                // 为何注册：客户端实例给消费者提供了什么服务？
                 boolean registerOK = mQClientFactory.registerConsumer(this.defaultMQPushConsumer.getConsumerGroup(), this);
                 if (!registerOK) {
                     // 不能重复注册消费者
@@ -646,8 +676,11 @@ public class DefaultMQPushConsumerImpl implements MQConsumerInner {
                     throw new MQClientException("The consumer group[" + this.defaultMQPushConsumer.getConsumerGroup() + "] has been created before, specify another name please." + FAQUrl.suggestTodo(FAQUrl.GROUP_NAME_DUPLICATE_URL), null);
                 }
 
+                // 启动客户端实例
                 mQClientFactory.start();
                 log.info("the consumer [{}] start OK.", this.defaultMQPushConsumer.getConsumerGroup());
+
+                // 修改消费者状态为运行中
                 this.serviceState = ServiceState.RUNNING;
                 break;
             case RUNNING:
@@ -659,11 +692,14 @@ public class DefaultMQPushConsumerImpl implements MQConsumerInner {
         }
 
         // 路由更新服务
+        // 从 namesrv 强制加载 主题路由 数据，生产 主题的 Set<MessageQueue> 交给 rbl 中的 table
         this.updateTopicSubscribeInfoWhenSubscriptionChanged();
+
+        // 检查服务器是否支持 "消息过滤模式"（一般都是 tag 过滤）如果不支持，则抛出异常
         this.mQClientFactory.checkClientInBroker();
-        // 发送心态
+        // 向所有已知的 broker 节点 发送心态
         this.mQClientFactory.sendHeartbeatToAllBrokerWithLock();
-        // 唤醒负载均衡线程
+        // 唤醒负载均衡线程，让 rbl 线程立马执行负载均衡的业务
         this.mQClientFactory.rebalanceImmediately();
     }
 
@@ -780,10 +816,13 @@ public class DefaultMQPushConsumerImpl implements MQConsumerInner {
                 for (final Map.Entry<String, String> entry : sub.entrySet()) {
                     final String topic = entry.getKey();
                     final String subString = entry.getValue();
+                    // 组装得到一个订阅信息对象
                     SubscriptionData subscriptionData = FilterAPI.buildSubscriptionData(this.defaultMQPushConsumer.getConsumerGroup(), topic, subString);
 
                     // 拷贝存储到负载均衡这个对象中
-                    this.rebalanceImpl.getSubscriptionInner().put(topic, subscriptionData);
+                    ConcurrentMap<String, SubscriptionData> subscriptionInner = this.rebalanceImpl.getSubscriptionInner();
+                    //  ConcurrentMap<String /* topic */, SubscriptionData> subscriptionInner
+                    subscriptionInner.put(topic, subscriptionData);
                 }
             }
 
@@ -799,7 +838,13 @@ public class DefaultMQPushConsumerImpl implements MQConsumerInner {
                 SubscriptionData subscriptionData = FilterAPI.buildSubscriptionData(this.defaultMQPushConsumer.getConsumerGroup(), retryTopic, SubscriptionData.SUB_ALL);
 
                 // 存储
-                this.rebalanceImpl.getSubscriptionInner().put(retryTopic, subscriptionData);
+                ConcurrentMap<String, SubscriptionData> subscriptionInner = this.rebalanceImpl.getSubscriptionInner();
+                subscriptionInner.put(retryTopic, subscriptionData);
+
+                /*
+                 * 这里为什么要订阅重试主题呢？
+                 * 消息重试时，消息最终会再次加入到该主题，消费者订阅这个主题之后，就会再次拿到该消息，可以再次处理
+                 */
             }
         } catch (Exception e) {
             throw new MQClientException("subscription exception", e);
@@ -811,6 +856,7 @@ public class DefaultMQPushConsumerImpl implements MQConsumerInner {
         if (subTable != null) {
             for (final Map.Entry<String, SubscriptionData> entry : subTable.entrySet()) {
                 final String topic = entry.getKey();
+                // 更新路由数据,并且更新本地路由数据
                 this.mQClientFactory.updateTopicRouteInfoFromNameServer(topic);
             }
         }
@@ -1062,5 +1108,9 @@ public class DefaultMQPushConsumerImpl implements MQConsumerInner {
                 msg.setTopic(NamespaceUtil.withoutNamespace(msg.getTopic(), this.defaultMQPushConsumer.getNamespace()));
             }
         }
+    }
+
+    public MQClientInstance getmQClientFactory() {
+        return mQClientFactory;
     }
 }

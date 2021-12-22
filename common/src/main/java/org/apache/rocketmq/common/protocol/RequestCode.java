@@ -83,6 +83,10 @@ public class RequestCode {
 
     public static final int LOCK_BATCH_MQ = 41;
 
+    /**
+     * @see org.apache.rocketmq.client.impl.MQClientAPIImpl#unlockBatchMQ(java.lang.String, org.apache.rocketmq.common.protocol.body.UnlockBatchRequestBody, long, boolean)
+     * @see org.apache.rocketmq.broker.processor.AdminBrokerProcessor#unlockBatchMQ(io.netty.channel.ChannelHandlerContext, org.apache.rocketmq.remoting.protocol.RemotingCommand)
+     */
     public static final int UNLOCK_BATCH_MQ = 42;
 
     public static final int GET_ALL_CONSUMER_OFFSET = 43;
