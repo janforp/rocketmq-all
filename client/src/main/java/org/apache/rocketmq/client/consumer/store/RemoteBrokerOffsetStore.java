@@ -108,6 +108,7 @@ public class RemoteBrokerOffsetStore implements OffsetStore {
         return -1;
     }
 
+    // 本地的偏移量同步到 broker 上
     @Override
     public void persistAll(Set<MessageQueue> mqs) {
         if (null == mqs || mqs.isEmpty()) {

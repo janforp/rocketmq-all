@@ -53,6 +53,7 @@ public class DefaultMQPushConsumer extends ClientConfig implements MQPushConsume
 
     /**
      * Internal implementation. Most of the functions herein are delegated to it.
+     * 消费者实现对象
      */
     @Getter
     protected final transient DefaultMQPushConsumerImpl defaultMQPushConsumerImpl;
@@ -63,6 +64,7 @@ public class DefaultMQPushConsumer extends ClientConfig implements MQPushConsume
      * </p>
      *
      * See <a href="http://rocketmq.apache.org/docs/core-concept/">here</a> for further discussion.
+     * 消费者组
      */
     @Getter
     @Setter
@@ -79,6 +81,7 @@ public class DefaultMQPushConsumer extends ClientConfig implements MQPushConsume
      * </p>
      *
      * This field defaults to clustering.
+     * 消费模式，默认集群模式，还支持广播模式
      */
     @Getter
     @Setter
@@ -114,6 +117,8 @@ public class DefaultMQPushConsumer extends ClientConfig implements MQPushConsume
      * messages born prior to {@link #consumeTimestamp} will be ignored
      * </li>
      * </ul>
+     *
+     * 从 broker 获取当前组内 该 queue 的 offset 不存在的时候， 该字段才有效
      */
     @Getter
     @Setter
@@ -124,6 +129,8 @@ public class DefaultMQPushConsumer extends ClientConfig implements MQPushConsume
      * 20131223171201<br>
      * Implying Seventeen twelve and 01 seconds on December 23, 2013 year<br>
      * Default backtracking consumption time Half an hour ago.
+     *
+     * @see ConsumeFromWhere#CONSUME_FROM_TIMESTAMP 只有是这个 consumeFromWhere 的是该字段才有效！！！！！！
      */
     @Getter
     @Setter
@@ -146,6 +153,8 @@ public class DefaultMQPushConsumer extends ClientConfig implements MQPushConsume
     /**
      * Subscription relationship
      * 当前消费者订阅的主题以及tag的映射
+     * key:主题
+     * value:过滤表达式，一般都是 tag
      */
     @Getter
     private Map<String /* topic */, String /* sub expression */> subscription = new HashMap<String, String>();
@@ -153,17 +162,21 @@ public class DefaultMQPushConsumer extends ClientConfig implements MQPushConsume
     /**
      * Message listener
      *
+     * 消息处理逻辑，全部由它提供（具体的消费逻辑）
+     *
      * @see MessageListenerConcurrently
      * @see MessageListenerOrderly (局部顺序消费),只能保证某个队列内消息的顺序性，如果想保证全局顺序，则创建一个topic只分配一个队列！！！！！
-     *
-     * TODO 使用场景"数据库的 binLog 的 同步，一般用顺序消费,可以研究下
      */
     @Getter
     @Setter
     private MessageListener messageListener;
 
     /**
+     * 消费者本地消费进度存储！（一般都是 RemoteBrokerOffsetStore）
+     *
      * Offset Storage:消费进度的存储器，也可以用来持久化偏移量
+     *
+     * @see org.apache.rocketmq.client.consumer.store.RemoteBrokerOffsetStore
      */
     private OffsetStore offsetStore;
 
@@ -185,6 +198,7 @@ public class DefaultMQPushConsumer extends ClientConfig implements MQPushConsume
 
     /**
      * Threshold for dynamic adjustment of the number of thread pool
+     * 调整线程数量的阈值，暂时没有用！
      */
     @Getter
     @Setter
@@ -192,6 +206,7 @@ public class DefaultMQPushConsumer extends ClientConfig implements MQPushConsume
 
     /**
      * Concurrently max span offset.it has no effect on sequential consumption
+     * 本地队列快照(processQueue)中，第一条消息 和 最后一条消息 他两直接的 offset 跨度不能超过 2000 （流量控制）
      */
     @Getter
     @Setter
@@ -200,6 +215,8 @@ public class DefaultMQPushConsumer extends ClientConfig implements MQPushConsume
     /**
      * Flow control threshold on queue level, each message queue will cache at most 1000 messages by default,
      * Consider the {@code pullBatchSize}, the instantaneous value may exceed the limit
+     *
+     * 本地队列快照(processQueue)中消息数量限制（流量控制）
      */
     @Getter
     @Setter
@@ -211,6 +228,8 @@ public class DefaultMQPushConsumer extends ClientConfig implements MQPushConsume
      *
      * <p>
      * The size of a message only measured by message body, so it's not accurate
+     *
+     * 本地队列快照(processQueue)中消息总 size 不能超过该值（队列流控）
      */
     @Getter
     @Setter
@@ -224,6 +243,8 @@ public class DefaultMQPushConsumer extends ClientConfig implements MQPushConsume
      * <p>
      * For example, if the value of pullThresholdForTopic is 1000 and 10 message queues are assigned to this consumer,
      * then pullThresholdForQueue will be set to 100
+     *
+     * 主题流控，消费者消费指定主题的所有消息 在本地不能超过该值，-1表示不限制
      */
     @Getter
     @Setter
@@ -237,6 +258,8 @@ public class DefaultMQPushConsumer extends ClientConfig implements MQPushConsume
      * <p>
      * For example, if the value of pullThresholdSizeForTopic is 1000 MiB and 10 message queues are
      * assigned to this consumer, then pullThresholdSizeForQueue will be set to 100 MiB
+     *
+     * 主题流控，消费者消费指定主题的所有消息 在本地不能超过该值，-1表示不限制
      */
     @Getter
     @Setter
@@ -244,6 +267,7 @@ public class DefaultMQPushConsumer extends ClientConfig implements MQPushConsume
 
     /**
      * Message pull Interval
+     * 消费者2次拉去请求的时间间隔
      */
     @Getter
     @Setter
@@ -251,6 +275,7 @@ public class DefaultMQPushConsumer extends ClientConfig implements MQPushConsume
 
     /**
      * Batch consumption size
+     * 消费任务最多可消费的消息数量（默认1，每个消费任务只消费一条消息）
      */
     @Getter
     @Setter
@@ -265,6 +290,7 @@ public class DefaultMQPushConsumer extends ClientConfig implements MQPushConsume
 
     /**
      * Whether update subscription relationship when every pull
+     * 拉请求时，是否提交本地"订阅数据（过滤信息）"，默认不提交，因为心跳的时候，订阅数据已经同步到 broker 了，这里没必要提交
      */
     @Getter
     @Setter
@@ -284,7 +310,7 @@ public class DefaultMQPushConsumer extends ClientConfig implements MQPushConsume
      * If messages are re-consumed more than {@code #maxReconsumeTimes} before success, it's be directed to a deletion
      * queue waiting.
      *
-     * 没多重复消费的次数（失败重试的场景）默认16
+     * 重复消费的次数（失败重试的场景）默认16（-1 means 16 times.）
      */
     @Getter
     @Setter
@@ -292,6 +318,7 @@ public class DefaultMQPushConsumer extends ClientConfig implements MQPushConsume
 
     /**
      * Suspending pulling time for cases requiring slow pulling like flow-control scenario.
+     *
      */
     @Getter
     @Setter
@@ -301,6 +328,8 @@ public class DefaultMQPushConsumer extends ClientConfig implements MQPushConsume
      * Maximum amount of time in minutes a message may block the consuming thread.
      *
      * 消息消费超时的时间
+     *
+     * 消费者本地如果某条信息 15 分支 还没有被消费，就需要回退该消息
      */
     @Getter
     @Setter
