@@ -17,6 +17,9 @@ public abstract class ServiceThread implements Runnable {
      */
     private Thread thread;
 
+    /**
+     * 基于 AQS 实现的，可以重置的 门闩
+     */
     protected final CountDownLatch2 waitPoint = new CountDownLatch2(1);
 
     protected volatile AtomicBoolean hasNotified = new AtomicBoolean(false);
@@ -28,7 +31,7 @@ public abstract class ServiceThread implements Runnable {
     protected volatile boolean stopped = false;
 
     /**
-     * 当前任务是否使用守护线程
+     * 当前任务{@link org.apache.rocketmq.common.ServiceThread#thread}是否使用守护线程
      */
     @Setter
     @Getter
@@ -57,8 +60,11 @@ public abstract class ServiceThread implements Runnable {
             return;
         }
         stopped = false;
-        // 创建线程，并且指定线程名称
-        this.thread = new Thread(this, getServiceName());
+        /*
+         * 创建线程，并且指定线程名称
+         * @see ServiceThread#run()
+         */
+        this.thread = new Thread(this /*线程启动的时候就会执行当前对象的 run 方法，该方法留给子类去实现*/, getServiceName());
         this.thread.setDaemon(isDaemon);
         // 直接启动线程！！！
         this.thread.start();
