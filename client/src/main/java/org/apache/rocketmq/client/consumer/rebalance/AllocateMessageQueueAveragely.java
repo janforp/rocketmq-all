@@ -48,9 +48,17 @@ public class AllocateMessageQueueAveragely implements AllocateMessageQueueStrate
 
         // 当前实例的下标
         int index = cidAll.indexOf(currentCID);
-        // 所有队列取模
+        // 平均分配之后还多出来的队列数量
         int mod = mqAll.size() % cidAll.size();
-        int averageSize = mqAll.size() <= cidAll.size() ? 1 : (mod > 0 && index < mod ? mqAll.size() / cidAll.size() + 1 : mqAll.size() / cidAll.size());
+
+        int averageSize = mqAll.size() <= cidAll.size() ?
+
+                // 如果队列总数量还小于消费者的数量，则平均每个消费者最多能分配到一个队列
+                1 :
+
+                // 如果队列总数量大于消费者的数量
+                (mod > 0 && index < mod ? mqAll.size() / cidAll.size() + 1 : mqAll.size() / cidAll.size());
+
         int startIndex = (mod > 0 && index < mod) ? index * averageSize : index * averageSize + mod;
         int range = Math.min(averageSize, mqAll.size() - startIndex);
         for (int i = 0; i < range; i++) {
