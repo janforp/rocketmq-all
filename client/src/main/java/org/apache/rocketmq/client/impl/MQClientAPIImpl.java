@@ -1,5 +1,6 @@
 package org.apache.rocketmq.client.impl;
 
+import lombok.Getter;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.rocketmq.client.ClientConfig;
 import org.apache.rocketmq.client.consumer.PullCallback;
@@ -153,8 +154,7 @@ public class MQClientAPIImpl {
 
     private final static InternalLogger log = ClientLogger.getLog();
 
-    private static boolean sendSmartMsg =
-            Boolean.parseBoolean(System.getProperty("org.apache.rocketmq.client.sendSmartMsg", "true"));
+    private static final boolean sendSmartMsg = Boolean.parseBoolean(System.getProperty("org.apache.rocketmq.client.sendSmartMsg", "true"));
 
     static {
         System.setProperty(RemotingCommand.REMOTING_VERSION_KEY, Integer.toString(MQVersion.CURRENT_VERSION));
@@ -163,52 +163,45 @@ public class MQClientAPIImpl {
     // 客户端网络层对象，管理客户端于服务器之间连接的 NioSocketChannel 对象
     // 通过它提供的 invoke 系列方法，客户端可以与服务器进行远程调用
     // 服务器也可以
+    @Getter
     private final RemotingClient remotingClient;
 
     private final TopAddressing topAddressing;
 
-    private final ClientRemotingProcessor clientRemotingProcessor;
-
     private String nameSrvAddr = null;
 
-    private ClientConfig clientConfig;
+    private final ClientConfig clientConfig;
 
-    public MQClientAPIImpl(final NettyClientConfig nettyClientConfig,
-            final ClientRemotingProcessor clientRemotingProcessor,
-            RPCHook rpcHook, final ClientConfig clientConfig) {
+    public MQClientAPIImpl(final NettyClientConfig nettyClientConfig, final ClientRemotingProcessor clientRemotingProcessor, RPCHook rpcHook, final ClientConfig clientConfig) {
+
         this.clientConfig = clientConfig;
         topAddressing = new TopAddressing(MixAll.getWSAddr(), clientConfig.getUnitName());
 
         // 创建网络层对象
         this.remotingClient = new NettyRemotingClient(nettyClientConfig, null);
         // 赋值
-        this.clientRemotingProcessor = clientRemotingProcessor;
 
         this.remotingClient.registerRPCHook(rpcHook);
 
         // 同一个处理器，注册到不同的业务上
         // 注册业务处理器
-        this.remotingClient.registerProcessor(RequestCode.CHECK_TRANSACTION_STATE, this.clientRemotingProcessor, null);
+        this.remotingClient.registerProcessor(RequestCode.CHECK_TRANSACTION_STATE, clientRemotingProcessor, null);
 
-        this.remotingClient.registerProcessor(RequestCode.NOTIFY_CONSUMER_IDS_CHANGED, this.clientRemotingProcessor, null);
+        this.remotingClient.registerProcessor(RequestCode.NOTIFY_CONSUMER_IDS_CHANGED, clientRemotingProcessor, null);
 
-        this.remotingClient.registerProcessor(RequestCode.RESET_CONSUMER_CLIENT_OFFSET, this.clientRemotingProcessor, null);
+        this.remotingClient.registerProcessor(RequestCode.RESET_CONSUMER_CLIENT_OFFSET, clientRemotingProcessor, null);
 
-        this.remotingClient.registerProcessor(RequestCode.GET_CONSUMER_STATUS_FROM_CLIENT, this.clientRemotingProcessor, null);
+        this.remotingClient.registerProcessor(RequestCode.GET_CONSUMER_STATUS_FROM_CLIENT, clientRemotingProcessor, null);
 
-        this.remotingClient.registerProcessor(RequestCode.GET_CONSUMER_RUNNING_INFO, this.clientRemotingProcessor, null);
+        this.remotingClient.registerProcessor(RequestCode.GET_CONSUMER_RUNNING_INFO, clientRemotingProcessor, null);
 
-        this.remotingClient.registerProcessor(RequestCode.CONSUME_MESSAGE_DIRECTLY, this.clientRemotingProcessor, null);
+        this.remotingClient.registerProcessor(RequestCode.CONSUME_MESSAGE_DIRECTLY, clientRemotingProcessor, null);
 
-        this.remotingClient.registerProcessor(RequestCode.PUSH_REPLY_MESSAGE_TO_CLIENT, this.clientRemotingProcessor, null);
+        this.remotingClient.registerProcessor(RequestCode.PUSH_REPLY_MESSAGE_TO_CLIENT, clientRemotingProcessor, null);
     }
 
     public List<String> getNameServerAddressList() {
         return this.remotingClient.getNameServerAddressList();
-    }
-
-    public RemotingClient getRemotingClient() {
-        return remotingClient;
     }
 
     public String fetchNameServerAddr() {
@@ -254,12 +247,8 @@ public class MQClientAPIImpl {
         RemotingCommand response = this.remotingClient.invokeSync(MixAll.brokerVIPChannel(this.clientConfig.isVipChannelEnabled(), addr),
                 request, timeoutMillis);
         assert response != null;
-        switch (response.getCode()) {
-            case ResponseCode.SUCCESS: {
-                return;
-            }
-            default:
-                break;
+        if (response.getCode() == ResponseCode.SUCCESS) {
+            return;
         }
 
         throw new MQClientException(response.getCode(), response.getRemark());
@@ -288,9 +277,7 @@ public class MQClientAPIImpl {
         throw new MQClientException(response.getCode(), response.getRemark());
     }
 
-    public void createPlainAccessConfig(final String addr, final PlainAccessConfig plainAccessConfig,
-            final long timeoutMillis)
-            throws RemotingException, MQBrokerException, InterruptedException, MQClientException {
+    public void createPlainAccessConfig(final String addr, final PlainAccessConfig plainAccessConfig, final long timeoutMillis) throws RemotingException, InterruptedException, MQClientException {
         CreateAccessConfigRequestHeader requestHeader = new CreateAccessConfigRequestHeader();
         requestHeader.setAccessKey(plainAccessConfig.getAccessKey());
         requestHeader.setSecretKey(plainAccessConfig.getSecretKey());
@@ -303,109 +290,81 @@ public class MQClientAPIImpl {
 
         RemotingCommand request = RemotingCommand.createRequestCommand(RequestCode.UPDATE_AND_CREATE_ACL_CONFIG, requestHeader);
 
-        RemotingCommand response = this.remotingClient.invokeSync(MixAll.brokerVIPChannel(this.clientConfig.isVipChannelEnabled(), addr),
-                request, timeoutMillis);
+        RemotingCommand response = this.remotingClient.invokeSync(MixAll.brokerVIPChannel(this.clientConfig.isVipChannelEnabled(), addr), request, timeoutMillis);
         assert response != null;
-        switch (response.getCode()) {
-            case ResponseCode.SUCCESS: {
-                return;
-            }
-            default:
-                break;
+        if (response.getCode() == ResponseCode.SUCCESS) {
+            return;
         }
 
         throw new MQClientException(response.getCode(), response.getRemark());
     }
 
-    public void deleteAccessConfig(final String addr, final String accessKey, final long timeoutMillis)
-            throws RemotingException, MQBrokerException, InterruptedException, MQClientException {
+    public void deleteAccessConfig(final String addr, final String accessKey, final long timeoutMillis) throws RemotingException, InterruptedException, MQClientException {
         DeleteAccessConfigRequestHeader requestHeader = new DeleteAccessConfigRequestHeader();
         requestHeader.setAccessKey(accessKey);
 
         RemotingCommand request = RemotingCommand.createRequestCommand(RequestCode.DELETE_ACL_CONFIG, requestHeader);
 
-        RemotingCommand response = this.remotingClient.invokeSync(MixAll.brokerVIPChannel(this.clientConfig.isVipChannelEnabled(), addr),
-                request, timeoutMillis);
+        RemotingCommand response = this.remotingClient.invokeSync(MixAll.brokerVIPChannel(this.clientConfig.isVipChannelEnabled(), addr), request, timeoutMillis);
         assert response != null;
-        switch (response.getCode()) {
-            case ResponseCode.SUCCESS: {
-                return;
-            }
-            default:
-                break;
+        if (response.getCode() == ResponseCode.SUCCESS) {
+            return;
         }
 
         throw new MQClientException(response.getCode(), response.getRemark());
     }
 
-    public void updateGlobalWhiteAddrsConfig(final String addr, final String globalWhiteAddrs, final long timeoutMillis)
-            throws RemotingException, MQBrokerException, InterruptedException, MQClientException {
+    public void updateGlobalWhiteAddrsConfig(final String addr, final String globalWhiteAddrs, final long timeoutMillis) throws RemotingException, InterruptedException, MQClientException {
 
         UpdateGlobalWhiteAddrsConfigRequestHeader requestHeader = new UpdateGlobalWhiteAddrsConfigRequestHeader();
         requestHeader.setGlobalWhiteAddrs(globalWhiteAddrs);
 
         RemotingCommand request = RemotingCommand.createRequestCommand(RequestCode.UPDATE_GLOBAL_WHITE_ADDRS_CONFIG, requestHeader);
 
-        RemotingCommand response = this.remotingClient.invokeSync(MixAll.brokerVIPChannel(this.clientConfig.isVipChannelEnabled(), addr),
-                request, timeoutMillis);
+        RemotingCommand response = this.remotingClient.invokeSync(MixAll.brokerVIPChannel(this.clientConfig.isVipChannelEnabled(), addr), request, timeoutMillis);
         assert response != null;
-        switch (response.getCode()) {
-            case ResponseCode.SUCCESS: {
-                return;
-            }
-            default:
-                break;
+        if (response.getCode() == ResponseCode.SUCCESS) {
+            return;
         }
 
         throw new MQClientException(response.getCode(), response.getRemark());
     }
 
-    public ClusterAclVersionInfo getBrokerClusterAclInfo(final String addr,
-            final long timeoutMillis) throws RemotingCommandException, InterruptedException, RemotingTimeoutException,
-            RemotingSendRequestException, RemotingConnectException, MQBrokerException {
+    public ClusterAclVersionInfo getBrokerClusterAclInfo(final String addr, final long timeoutMillis)
+            throws RemotingCommandException, InterruptedException, RemotingTimeoutException, RemotingSendRequestException, RemotingConnectException, MQBrokerException {
+
         RemotingCommand request = RemotingCommand.createRequestCommand(RequestCode.GET_BROKER_CLUSTER_ACL_INFO, null);
 
         RemotingCommand response = this.remotingClient.invokeSync(MixAll.brokerVIPChannel(this.clientConfig.isVipChannelEnabled(), addr), request, timeoutMillis);
         assert response != null;
-        switch (response.getCode()) {
-            case ResponseCode.SUCCESS: {
-                GetBrokerAclConfigResponseHeader responseHeader =
-                        (GetBrokerAclConfigResponseHeader) response.decodeCommandCustomHeader(GetBrokerAclConfigResponseHeader.class);
+        if (response.getCode() == ResponseCode.SUCCESS) {
+            GetBrokerAclConfigResponseHeader responseHeader = (GetBrokerAclConfigResponseHeader) response.decodeCommandCustomHeader(GetBrokerAclConfigResponseHeader.class);
 
-                ClusterAclVersionInfo clusterAclVersionInfo = new ClusterAclVersionInfo();
-                clusterAclVersionInfo.setClusterName(responseHeader.getClusterName());
-                clusterAclVersionInfo.setBrokerName(responseHeader.getBrokerName());
-                clusterAclVersionInfo.setBrokerAddr(responseHeader.getBrokerAddr());
-                clusterAclVersionInfo.setAclConfigDataVersion(DataVersion.fromJson(responseHeader.getVersion(), DataVersion.class));
-                return clusterAclVersionInfo;
-            }
-            default:
-                break;
+            ClusterAclVersionInfo clusterAclVersionInfo = new ClusterAclVersionInfo();
+            clusterAclVersionInfo.setClusterName(responseHeader.getClusterName());
+            clusterAclVersionInfo.setBrokerName(responseHeader.getBrokerName());
+            clusterAclVersionInfo.setBrokerAddr(responseHeader.getBrokerAddr());
+            clusterAclVersionInfo.setAclConfigDataVersion(DataVersion.fromJson(responseHeader.getVersion(), DataVersion.class));
+            return clusterAclVersionInfo;
         }
 
         throw new MQBrokerException(response.getCode(), response.getRemark());
 
     }
 
-    public AclConfig getBrokerClusterConfig(final String addr, final long timeoutMillis) throws RemotingCommandException, InterruptedException, RemotingTimeoutException,
-            RemotingSendRequestException, RemotingConnectException, MQBrokerException {
+    public AclConfig getBrokerClusterConfig(final String addr, final long timeoutMillis) throws InterruptedException, RemotingTimeoutException, RemotingSendRequestException, RemotingConnectException, MQBrokerException {
         RemotingCommand request = RemotingCommand.createRequestCommand(RequestCode.GET_BROKER_CLUSTER_ACL_CONFIG, null);
 
         RemotingCommand response = this.remotingClient.invokeSync(MixAll.brokerVIPChannel(this.clientConfig.isVipChannelEnabled(), addr), request, timeoutMillis);
         assert response != null;
-        switch (response.getCode()) {
-            case ResponseCode.SUCCESS: {
-                if (response.getBody() != null) {
-                    GetBrokerClusterAclConfigResponseBody body =
-                            GetBrokerClusterAclConfigResponseBody.decode(response.getBody(), GetBrokerClusterAclConfigResponseBody.class);
-                    AclConfig aclConfig = new AclConfig();
-                    aclConfig.setGlobalWhiteAddrs(body.getGlobalWhiteAddrs());
-                    aclConfig.setPlainAccessConfigs(body.getPlainAccessConfigs());
-                    return aclConfig;
-                }
+        if (response.getCode() == ResponseCode.SUCCESS) {
+            if (response.getBody() != null) {
+                GetBrokerClusterAclConfigResponseBody body = GetBrokerClusterAclConfigResponseBody.decode(response.getBody(), GetBrokerClusterAclConfigResponseBody.class);
+                AclConfig aclConfig = new AclConfig();
+                aclConfig.setGlobalWhiteAddrs(body.getGlobalWhiteAddrs());
+                aclConfig.setPlainAccessConfigs(body.getPlainAccessConfigs());
+                return aclConfig;
             }
-            default:
-                break;
         }
         throw new MQBrokerException(response.getCode(), response.getRemark());
 
@@ -533,7 +492,7 @@ public class MQClientAPIImpl {
                             context.setSendResult(sendResult);
                             context.getProducer().executeSendMessageHookAfter(context);
                         }
-                    } catch (Throwable e) {
+                    } catch (Throwable ignore) {
                     }
 
                     producer.updateFaultItem(brokerName, System.currentTimeMillis() - responseFuture.getBeginTimestamp(), false);

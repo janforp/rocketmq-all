@@ -415,9 +415,7 @@ public class MQClientInstance {
 
         // Consumer
         {
-            Iterator<Entry<String, MQConsumerInner>> it = this.consumerTable.entrySet().iterator();
-            while (it.hasNext()) {
-                Entry<String, MQConsumerInner> entry = it.next();
+            for (Entry<String, MQConsumerInner> entry : this.consumerTable.entrySet()) {
                 MQConsumerInner impl = entry.getValue();
                 if (impl != null) {
                     Set<SubscriptionData> subList = impl.subscriptions();
@@ -432,9 +430,7 @@ public class MQClientInstance {
 
         // Producer
         {
-            Iterator<Entry<String, MQProducerInner>> it = this.producerTable.entrySet().iterator();
-            while (it.hasNext()) {
-                Entry<String, MQProducerInner> entry = it.next();
+            for (Entry<String, MQProducerInner> entry : this.producerTable.entrySet()) {
                 MQProducerInner impl = entry.getValue();
                 if (impl != null) {
                     Set<String> lst = impl.getPublishTopicList();
@@ -449,11 +445,6 @@ public class MQClientInstance {
         }
     }
 
-    /**
-     * @param offsetTable
-     * @param namespace
-     * @return newOffsetTable
-     */
     public Map<MessageQueue, Long> parseOffsetTableFromBroker(Map<MessageQueue, Long> offsetTable, String namespace) {
         HashMap<MessageQueue, Long> newOffsetTable = new HashMap<MessageQueue, Long>();
         if (StringUtils.isNotEmpty(namespace)) {
@@ -490,8 +481,7 @@ public class MQClientInstance {
                         // 该 broker 下的所有节点，brokerId - addr
                         HashMap<Long, String> oneTable = entry.getValue();
 
-                        HashMap<Long, String> cloneAddrTable = new HashMap<Long, String>();
-                        cloneAddrTable.putAll(oneTable);
+                        HashMap<Long, String> cloneAddrTable = new HashMap<Long, String>(oneTable);
 
                         Iterator<Entry<Long, String>> it = cloneAddrTable.entrySet().iterator();
                         while (it.hasNext()) {
@@ -578,18 +568,14 @@ public class MQClientInstance {
     }
 
     private void persistAllConsumerOffset() {
-        Iterator<Entry<String, MQConsumerInner>> it = this.consumerTable.entrySet().iterator();
-        while (it.hasNext()) {
-            Entry<String, MQConsumerInner> entry = it.next();
+        for (Entry<String, MQConsumerInner> entry : this.consumerTable.entrySet()) {
             MQConsumerInner impl = entry.getValue();
             impl.persistConsumerOffset();
         }
     }
 
     public void adjustThreadPool() {
-        Iterator<Entry<String, MQConsumerInner>> it = this.consumerTable.entrySet().iterator();
-        while (it.hasNext()) {
-            Entry<String, MQConsumerInner> entry = it.next();
+        for (Entry<String, MQConsumerInner> entry : this.consumerTable.entrySet()) {
             MQConsumerInner impl = entry.getValue();
             if (impl != null) {
                 try {
@@ -597,7 +583,7 @@ public class MQClientInstance {
                         DefaultMQPushConsumerImpl dmq = (DefaultMQPushConsumerImpl) impl;
                         dmq.adjustThreadPool();
                     }
-                } catch (Exception e) {
+                } catch (Exception ignore) {
                 }
             }
         }
@@ -608,9 +594,7 @@ public class MQClientInstance {
     }
 
     private boolean isBrokerAddrExistInTopicRouteTable(final String addr) {
-        Iterator<Entry<String, TopicRouteData>> it = this.topicRouteTable.entrySet().iterator();
-        while (it.hasNext()) {
-            Entry<String, TopicRouteData> entry = it.next();
+        for (Entry<String, TopicRouteData> entry : this.topicRouteTable.entrySet()) {
             TopicRouteData topicRouteData = entry.getValue();
             List<BrokerData> bds = topicRouteData.getBrokerDatas();
             for (BrokerData bd : bds) {
@@ -693,9 +677,7 @@ public class MQClientInstance {
     }
 
     private void uploadFilterClassSource() {
-        Iterator<Entry<String, MQConsumerInner>> it = this.consumerTable.entrySet().iterator();
-        while (it.hasNext()) {
-            Entry<String, MQConsumerInner> next = it.next();
+        for (Entry<String, MQConsumerInner> next : this.consumerTable.entrySet()) {
             MQConsumerInner consumer = next.getValue();
             if (ConsumeType.CONSUME_PASSIVELY == consumer.consumeType()) {
                 Set<SubscriptionData> subscriptions = consumer.subscriptions();
@@ -853,9 +835,7 @@ public class MQClientInstance {
     }
 
     private boolean isBrokerInNameServer(final String brokerAddr) {
-        Iterator<Entry<String, TopicRouteData>> it = this.topicRouteTable.entrySet().iterator();
-        while (it.hasNext()) {
-            Entry<String, TopicRouteData> itNext = it.next();
+        for (Entry<String, TopicRouteData> itNext : this.topicRouteTable.entrySet()) {
             List<BrokerData> brokerDatas = itNext.getValue().getBrokerDatas();
             for (BrokerData bd : brokerDatas) {
                 boolean contain = bd.getBrokerAddrs().containsValue(brokerAddr);
@@ -885,9 +865,7 @@ public class MQClientInstance {
 
         TopicRouteData topicRouteData = this.topicRouteTable.get(topic);
         if (topicRouteData != null && topicRouteData.getFilterServerTable() != null && !topicRouteData.getFilterServerTable().isEmpty()) {
-            Iterator<Entry<String, List<String>>> it = topicRouteData.getFilterServerTable().entrySet().iterator();
-            while (it.hasNext()) {
-                Entry<String, List<String>> next = it.next();
+            for (Entry<String, List<String>> next : topicRouteData.getFilterServerTable().entrySet()) {
                 List<String> value = next.getValue();
                 for (final String fsAddr : value) {
                     try {
@@ -1028,14 +1006,12 @@ public class MQClientInstance {
     }
 
     private void unregisterClient(final String producerGroup, final String consumerGroup) {
-        Iterator<Entry<String, HashMap<Long, String>>> it = this.brokerAddrTable.entrySet().iterator();
-        while (it.hasNext()) {
-            Entry<String, HashMap<Long, String>> entry = it.next();
+        for (Entry<String, HashMap<Long, String>> entry : this.brokerAddrTable.entrySet()) {
             String brokerName = entry.getKey();
             HashMap<Long, String> oneTable = entry.getValue();
 
             if (oneTable != null) {
-                for (Map.Entry<Long, String> entry1 : oneTable.entrySet()) {
+                for (Entry<Long, String> entry1 : oneTable.entrySet()) {
                     String addr = entry1.getValue();
                     if (addr != null) {
                         try {
@@ -1247,7 +1223,7 @@ public class MQClientInstance {
 
             try {
                 TimeUnit.SECONDS.sleep(10);
-            } catch (InterruptedException e) {
+            } catch (InterruptedException ignore) {
             }
 
             Iterator<MessageQueue> iterator = processQueueTable.keySet().iterator();
