@@ -18,6 +18,10 @@ import java.util.TreeMap;
  * If any consumer is alive in a machine room, the message queue of the broker which is deployed in the same machine
  * should only be allocated to those. Otherwise, those message queues can be shared along all consumers since there are
  * no alive consumer to monopolize them.
+ *
+ * 使用该策略的前提：
+ * 1.broker 命名规则：机房名称@brokerName
+ * 2.ClientId 命名规则：机房名称@ClientId
  */
 public class AllocateMachineRoomNearby implements AllocateMessageQueueStrategy {
 
@@ -42,8 +46,7 @@ public class AllocateMachineRoomNearby implements AllocateMessageQueueStrategy {
     }
 
     @Override
-    public List<MessageQueue> allocate(String consumerGroup, String currentCID, List<MessageQueue> mqAll,
-            List<String> cidAll) {
+    public List<MessageQueue> allocate(String consumerGroup, String currentCID, List<MessageQueue> mqAll, List<String> cidAll) {
         if (currentCID == null || currentCID.length() < 1) {
             throw new IllegalArgumentException("currentCID is empty");
         }

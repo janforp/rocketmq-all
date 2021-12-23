@@ -11,6 +11,8 @@ import java.util.Set;
 
 /**
  * Computer room Hashing queue algorithm, such as Alipay logic room
+ *
+ * 使用该策略的前提：broker 命名规则：机房名称@brokerName
  */
 public class AllocateMessageQueueByMachineRoom implements AllocateMessageQueueStrategy {
 
@@ -19,8 +21,7 @@ public class AllocateMessageQueueByMachineRoom implements AllocateMessageQueueSt
     private Set<String> consumeridcs;
 
     @Override
-    public List<MessageQueue> allocate(String consumerGroup, String currentCID, List<MessageQueue> mqAll,
-            List<String> cidAll) {
+    public List<MessageQueue> allocate(String consumerGroup, String currentCID, List<MessageQueue> mqAll, List<String> cidAll) {
         List<MessageQueue> result = new ArrayList<MessageQueue>();
         int currentIndex = cidAll.indexOf(currentCID);
         if (currentIndex < 0) {
@@ -28,6 +29,7 @@ public class AllocateMessageQueueByMachineRoom implements AllocateMessageQueueSt
         }
         List<MessageQueue> premqAll = new ArrayList<MessageQueue>();
         for (MessageQueue mq : mqAll) {
+            // 机房名称@brokerName
             String[] temp = mq.getBrokerName().split("@");
             if (temp.length == 2 && consumeridcs.contains(temp[0])) {
                 premqAll.add(mq);
