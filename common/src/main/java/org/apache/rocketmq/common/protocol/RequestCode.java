@@ -119,6 +119,10 @@ public class RequestCode {
 
     public static final int DELETE_KV_CONFIG = 102;
 
+    /**
+     * @see org.apache.rocketmq.broker.out.BrokerOuterAPI#registerBroker(java.lang.String, boolean, int, org.apache.rocketmq.common.protocol.header.namesrv.RegisterBrokerRequestHeader, byte[])
+     * @see org.apache.rocketmq.namesrv.processor.DefaultRequestProcessor#registerBroker(io.netty.channel.ChannelHandlerContext, org.apache.rocketmq.remoting.protocol.RemotingCommand)
+     */
     public static final int REGISTER_BROKER = 103;
 
     public static final int UNREGISTER_BROKER = 104;

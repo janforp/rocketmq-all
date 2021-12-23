@@ -1,45 +1,66 @@
 package org.apache.rocketmq.common;
 
-import org.apache.rocketmq.common.constant.LoggerName;
-import org.apache.rocketmq.logging.InternalLogger;
-import org.apache.rocketmq.logging.InternalLoggerFactory;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
+import lombok.Setter;
 
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
+@NoArgsConstructor
 public abstract class ServiceThread implements Runnable {
-
-    private static final InternalLogger log = InternalLoggerFactory.getLogger(LoggerName.COMMON_LOGGER_NAME);
 
     private static final long JOIN_TIME = 90 * 1000;
 
+    /**
+     * 真正执行任务的线程
+     */
     private Thread thread;
 
     protected final CountDownLatch2 waitPoint = new CountDownLatch2(1);
 
     protected volatile AtomicBoolean hasNotified = new AtomicBoolean(false);
 
+    /**
+     * 当前任务是否停止
+     */
+    @Getter
     protected volatile boolean stopped = false;
 
+    /**
+     * 当前任务是否使用守护线程
+     */
+    @Setter
+    @Getter
     protected boolean isDaemon = false;
 
-    //Make it able to restart the thread
+    /**
+     * Make it able to restart the thread
+     */
     private final AtomicBoolean started = new AtomicBoolean(false);
 
-    public ServiceThread() {
-
-    }
-
+    /**
+     * 服务名称
+     *
+     * @return 服务名称
+     */
     public abstract String getServiceName();
 
+    /**
+     * 执行任务的方法
+     */
+    @Override
+    public abstract void run();
+
     public void start() {
-        log.info("Try to start service thread:{} started:{} lastThread:{}", getServiceName(), started.get(), thread);
         if (!started.compareAndSet(false, true)) {
             return;
         }
         stopped = false;
+        // 创建线程，并且指定线程名称
         this.thread = new Thread(this, getServiceName());
         this.thread.setDaemon(isDaemon);
+        // 直接启动线程！！！
         this.thread.start();
     }
 
@@ -48,31 +69,31 @@ public abstract class ServiceThread implements Runnable {
     }
 
     public void shutdown(final boolean interrupt) {
-        log.info("Try to shutdown service thread:{} started:{} lastThread:{}", getServiceName(), started.get(), thread);
         if (!started.compareAndSet(true, false)) {
+            // 如果已经停止，则不做其他操作了
             return;
         }
+
+        // 标记停止
         this.stopped = true;
-        log.info("shutdown thread " + this.getServiceName() + " interrupt " + interrupt);
 
         if (hasNotified.compareAndSet(false, true)) {
+            // 还没通知，则通知下
             waitPoint.countDown(); // notify
         }
 
         try {
             if (interrupt) {
+                // 发出中断信号
                 this.thread.interrupt();
             }
 
-            long beginTime = System.currentTimeMillis();
             if (!this.thread.isDaemon()) {
+                //  非守护线程，则 join 一段时间
                 this.thread.join(this.getJointime());
             }
-            long elapsedTime = System.currentTimeMillis() - beginTime;
-            log.info("join thread " + this.getServiceName() + " elapsed time(ms) " + elapsedTime + " "
-                    + this.getJointime());
         } catch (InterruptedException e) {
-            log.error("Interrupted", e);
+            // ignore
         }
     }
 
@@ -91,7 +112,6 @@ public abstract class ServiceThread implements Runnable {
             return;
         }
         this.stopped = true;
-        log.info("stop thread " + this.getServiceName() + " interrupt " + interrupt);
 
         if (hasNotified.compareAndSet(false, true)) {
             waitPoint.countDown(); // notify
@@ -107,7 +127,6 @@ public abstract class ServiceThread implements Runnable {
             return;
         }
         this.stopped = true;
-        log.info("makestop thread " + this.getServiceName());
     }
 
     public void wakeup() {
@@ -128,7 +147,7 @@ public abstract class ServiceThread implements Runnable {
         try {
             waitPoint.await(interval, TimeUnit.MILLISECONDS);
         } catch (InterruptedException e) {
-            log.error("Interrupted", e);
+            // ignore
         } finally {
             hasNotified.set(false);
             this.onWaitEnd();
@@ -136,17 +155,5 @@ public abstract class ServiceThread implements Runnable {
     }
 
     protected void onWaitEnd() {
-    }
-
-    public boolean isStopped() {
-        return stopped;
-    }
-
-    public boolean isDaemon() {
-        return isDaemon;
-    }
-
-    public void setDaemon(boolean daemon) {
-        isDaemon = daemon;
     }
 }

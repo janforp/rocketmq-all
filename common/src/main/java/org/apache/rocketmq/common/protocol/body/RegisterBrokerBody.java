@@ -37,7 +37,6 @@ public class RegisterBrokerBody extends RemotingSerializable {
     private List<String> filterServerList = new ArrayList<String>();
 
     public byte[] encode(boolean compress) {
-
         if (!compress) {
             return super.encode();
         }
@@ -46,8 +45,8 @@ public class RegisterBrokerBody extends RemotingSerializable {
         DeflaterOutputStream outputStream = new DeflaterOutputStream(byteArrayOutputStream, new Deflater(Deflater.BEST_COMPRESSION));
         DataVersion dataVersion = topicConfigSerializeWrapper.getDataVersion();
         ConcurrentMap<String, TopicConfig> topicConfigTable = cloneTopicConfigTable(topicConfigSerializeWrapper.getTopicConfigTable());
-        assert topicConfigTable != null;
         try {
+            // 序列化
             byte[] buffer = dataVersion.encode();
 
             // write data version
@@ -159,13 +158,10 @@ public class RegisterBrokerBody extends RemotingSerializable {
         return byteBuffer.getInt();
     }
 
-    public static ConcurrentMap<String, TopicConfig> cloneTopicConfigTable(
-            ConcurrentMap<String, TopicConfig> topicConfigConcurrentMap) {
+    public static ConcurrentMap<String, TopicConfig> cloneTopicConfigTable(ConcurrentMap<String, TopicConfig> topicConfigConcurrentMap) {
         ConcurrentHashMap<String, TopicConfig> result = new ConcurrentHashMap<String, TopicConfig>();
         if (topicConfigConcurrentMap != null) {
-            for (Map.Entry<String, TopicConfig> entry : topicConfigConcurrentMap.entrySet()) {
-                result.put(entry.getKey(), entry.getValue());
-            }
+            result.putAll(topicConfigConcurrentMap);
         }
         return result;
 

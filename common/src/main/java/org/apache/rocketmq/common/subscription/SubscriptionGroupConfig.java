@@ -2,14 +2,21 @@ package org.apache.rocketmq.common.subscription;
 
 import lombok.Getter;
 import lombok.Setter;
+import lombok.ToString;
 import org.apache.rocketmq.common.MixAll;
 
 @Getter
 @Setter
+@ToString
 public class SubscriptionGroupConfig {
 
     private String groupName;
 
+    /**
+     * 该消费者是否被打开
+     *
+     * @see org.apache.rocketmq.broker.subscription.SubscriptionGroupManager#disableConsume(java.lang.String)
+     */
     private boolean consumeEnable = true;
 
     private boolean consumeFromMinEnable = true;
@@ -87,15 +94,5 @@ public class SubscriptionGroupConfig {
             return false;
         }
         return true;
-    }
-
-    @Override
-    public String toString() {
-        return "SubscriptionGroupConfig [groupName=" + groupName + ", consumeEnable=" + consumeEnable
-                + ", consumeFromMinEnable=" + consumeFromMinEnable + ", consumeBroadcastEnable="
-                + consumeBroadcastEnable + ", retryQueueNums=" + retryQueueNums + ", retryMaxTimes="
-                + retryMaxTimes + ", brokerId=" + brokerId + ", whichBrokerWhenConsumeSlowly="
-                + whichBrokerWhenConsumeSlowly + ", notifyConsumerIdsChangedEnable="
-                + notifyConsumerIdsChangedEnable + "]";
     }
 }

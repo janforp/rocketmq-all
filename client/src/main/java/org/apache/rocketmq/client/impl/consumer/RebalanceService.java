@@ -1,32 +1,27 @@
 package org.apache.rocketmq.client.impl.consumer;
 
+import lombok.AllArgsConstructor;
 import org.apache.rocketmq.client.impl.factory.MQClientInstance;
-import org.apache.rocketmq.client.log.ClientLogger;
 import org.apache.rocketmq.common.ServiceThread;
-import org.apache.rocketmq.logging.InternalLogger;
 
+@AllArgsConstructor
 public class RebalanceService extends ServiceThread {
 
     private static final long waitInterval = Long.parseLong(System.getProperty("rocketmq.client.rebalance.waitInterval", "20000"));
 
-    private final InternalLogger log = ClientLogger.getLog();
-
     private final MQClientInstance mqClientFactory;
-
-    public RebalanceService(MQClientInstance mqClientFactory) {
-        this.mqClientFactory = mqClientFactory;
-    }
 
     @Override
     public void run() {
-        log.info(this.getServiceName() + " service started");
-
         while (!this.isStopped()) {
+            // 只要服务没有停下来，就会一直循环
+
+            // 等待一会
             this.waitForRunning(waitInterval);
+
+            // 执行任务
             this.mqClientFactory.doRebalance();
         }
-
-        log.info(this.getServiceName() + " service end");
     }
 
     @Override

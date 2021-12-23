@@ -3,6 +3,7 @@ package org.apache.rocketmq.broker.processor;
 import io.netty.channel.ChannelHandlerContext;
 import org.apache.rocketmq.broker.BrokerController;
 import org.apache.rocketmq.broker.client.ClientChannelInfo;
+import org.apache.rocketmq.broker.subscription.SubscriptionGroupManager;
 import org.apache.rocketmq.common.MixAll;
 import org.apache.rocketmq.common.constant.LoggerName;
 import org.apache.rocketmq.common.constant.PermName;
@@ -27,6 +28,8 @@ import org.apache.rocketmq.remoting.exception.RemotingCommandException;
 import org.apache.rocketmq.remoting.netty.NettyRequestProcessor;
 import org.apache.rocketmq.remoting.netty.AsyncNettyRequestProcessor;
 import org.apache.rocketmq.remoting.protocol.RemotingCommand;
+
+import java.util.Set;
 
 public class ClientManageProcessor extends AsyncNettyRequestProcessor implements NettyRequestProcessor {
 
@@ -66,10 +69,12 @@ public class ClientManageProcessor extends AsyncNettyRequestProcessor implements
         HeartbeatData heartbeatData = HeartbeatData.decode(request.getBody(), HeartbeatData.class);
         ClientChannelInfo clientChannelInfo = new ClientChannelInfo(ctx.channel(), heartbeatData.getClientID(), request.getLanguage(), request.getVersion());
 
-        for (ConsumerData data : heartbeatData.getConsumerDataSet()) {
-            SubscriptionGroupConfig subscriptionGroupConfig =
-                    this.brokerController.getSubscriptionGroupManager().findSubscriptionGroupConfig(
-                            data.getGroupName());
+        // 消费者列表
+        Set<ConsumerData> consumerDataSet = heartbeatData.getConsumerDataSet();
+        for (ConsumerData data : consumerDataSet) {
+            SubscriptionGroupManager subscriptionGroupManager = this.brokerController.getSubscriptionGroupManager();
+            // 找到该 group 的订阅组配置
+            SubscriptionGroupConfig subscriptionGroupConfig = subscriptionGroupManager.findSubscriptionGroupConfig(data.getGroupName());
             boolean isNotifyConsumerIdsChangedEnable = true;
             if (null != subscriptionGroupConfig) {
                 isNotifyConsumerIdsChangedEnable = subscriptionGroupConfig.isNotifyConsumerIdsChangedEnable();
@@ -77,11 +82,9 @@ public class ClientManageProcessor extends AsyncNettyRequestProcessor implements
                 if (data.isUnitMode()) {
                     topicSysFlag = TopicSysFlag.buildSysFlag(false, true);
                 }
+                // %RETRY% + consumerGroup
                 String newTopic = MixAll.getRetryTopic(data.getGroupName());
-                this.brokerController.getTopicConfigManager().createTopicInSendMessageBackMethod(
-                        newTopic,
-                        subscriptionGroupConfig.getRetryQueueNums(),
-                        PermName.PERM_WRITE | PermName.PERM_READ, topicSysFlag);
+                this.brokerController.getTopicConfigManager().createTopicInSendMessageBackMethod(newTopic, subscriptionGroupConfig.getRetryQueueNums(), PermName.PERM_WRITE | PermName.PERM_READ, topicSysFlag);
             }
 
             boolean changed = this.brokerController.getConsumerManager().registerConsumer(
@@ -95,16 +98,15 @@ public class ClientManageProcessor extends AsyncNettyRequestProcessor implements
             );
 
             if (changed) {
-                log.info("registerConsumer info changed {} {}",
-                        data.toString(),
-                        RemotingHelper.parseChannelRemoteAddr(ctx.channel())
+                log.info("registerConsumer info changed {} {}", data.toString(), RemotingHelper.parseChannelRemoteAddr(ctx.channel())
                 );
             }
         }
 
-        for (ProducerData data : heartbeatData.getProducerDataSet()) {
-            this.brokerController.getProducerManager().registerProducer(data.getGroupName(),
-                    clientChannelInfo);
+        // 生产者列表
+        Set<ProducerData> producerDataSet = heartbeatData.getProducerDataSet();
+        for (ProducerData data : producerDataSet) {
+            this.brokerController.getProducerManager().registerProducer(data.getGroupName(), clientChannelInfo);
         }
         response.setCode(ResponseCode.SUCCESS);
         response.setRemark(null);

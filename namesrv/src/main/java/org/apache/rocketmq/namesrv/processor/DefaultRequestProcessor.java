@@ -233,15 +233,14 @@ public class DefaultRequestProcessor extends AsyncNettyRequestProcessor implemen
     }
 
     public RemotingCommand registerBroker(ChannelHandlerContext ctx, RemotingCommand request) throws RemotingCommandException {
-
         // response 中包含了 RegisterBrokerResponseHeader 对象
         final RemotingCommand response = RemotingCommand.createResponseCommand(RegisterBrokerResponseHeader.class);
-
         // 拿到刚刚反射创建的用户自定义header对象
         final RegisterBrokerResponseHeader responseHeader = (RegisterBrokerResponseHeader) response.readCustomHeader();
 
         // 解码出来请求的 header
         // 反射创建对象，并且将request内的extFields中的数据写入到这个对象中
+        // 从请求对象中拿到请求参数
         final RegisterBrokerRequestHeader requestHeader = (RegisterBrokerRequestHeader) request.decodeCommandCustomHeader(RegisterBrokerRequestHeader.class);
 
         if (!checksum(ctx, request, requestHeader)) {
@@ -265,8 +264,8 @@ public class DefaultRequestProcessor extends AsyncNettyRequestProcessor implemen
             topicConfigWrapper.getDataVersion().setTimestamp(0);
         }
 
-        RegisterBrokerResult result = this.namesrvController.getRouteInfoManager().registerBroker(
-
+        RouteInfoManager routeInfoManager = this.namesrvController.getRouteInfoManager();
+        RegisterBrokerResult result = routeInfoManager.registerBroker(
                 requestHeader.getClusterName(),//集群名称
                 requestHeader.getBrokerAddr(),// 节点ip地址
                 requestHeader.getBrokerName(),// 节点名称

@@ -2,10 +2,12 @@ package org.apache.rocketmq.common;
 
 import lombok.Getter;
 import lombok.Setter;
+import lombok.ToString;
 import org.apache.rocketmq.remoting.protocol.RemotingSerializable;
 
 import java.util.concurrent.atomic.AtomicLong;
 
+@ToString
 public class DataVersion extends RemotingSerializable {
 
     @Getter
@@ -56,14 +58,5 @@ public class DataVersion extends RemotingSerializable {
             result = 31 * result + (int) (l ^ (l >>> 32));
         }
         return result;
-    }
-
-    @Override
-    public String toString() {
-        final StringBuilder sb = new StringBuilder("DataVersion[");
-        sb.append("timestamp=").append(timestamp);
-        sb.append(", counter=").append(counter);
-        sb.append(']');
-        return sb.toString();
     }
 }

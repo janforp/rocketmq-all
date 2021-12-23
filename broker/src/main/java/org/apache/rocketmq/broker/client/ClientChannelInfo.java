@@ -1,10 +1,13 @@
 package org.apache.rocketmq.broker.client;
 
 import io.netty.channel.Channel;
+import lombok.Getter;
+import lombok.Setter;
 import lombok.ToString;
 import org.apache.rocketmq.remoting.protocol.LanguageCode;
 
 @ToString
+@Getter
 public class ClientChannelInfo {
 
     private final Channel channel;
@@ -15,6 +18,7 @@ public class ClientChannelInfo {
 
     private final int version;
 
+    @Setter
     private volatile long lastUpdateTimestamp = System.currentTimeMillis();
 
     public ClientChannelInfo(Channel channel) {
@@ -26,30 +30,6 @@ public class ClientChannelInfo {
         this.clientId = clientId;
         this.language = language;
         this.version = version;
-    }
-
-    public Channel getChannel() {
-        return channel;
-    }
-
-    public String getClientId() {
-        return clientId;
-    }
-
-    public LanguageCode getLanguage() {
-        return language;
-    }
-
-    public int getVersion() {
-        return version;
-    }
-
-    public long getLastUpdateTimestamp() {
-        return lastUpdateTimestamp;
-    }
-
-    public void setLastUpdateTimestamp(long lastUpdateTimestamp) {
-        this.lastUpdateTimestamp = lastUpdateTimestamp;
     }
 
     @Override
