@@ -166,9 +166,7 @@ public abstract class RebalanceImpl {
     public void lockAll() {
         HashMap<String, Set<MessageQueue>> brokerMqs = this.buildProcessQueueTableByBrokerName();
 
-        Iterator<Entry<String, Set<MessageQueue>>> it = brokerMqs.entrySet().iterator();
-        while (it.hasNext()) {
-            Entry<String, Set<MessageQueue>> entry = it.next();
+        for (Entry<String, Set<MessageQueue>> entry : brokerMqs.entrySet()) {
             final String brokerName = entry.getKey();
             final Set<MessageQueue> mqs = entry.getValue();
 
@@ -218,9 +216,12 @@ public abstract class RebalanceImpl {
         // ConcurrentMap<String /* topic */, SubscriptionData> subscriptionInner
         Map<String /* topic */, SubscriptionData> subTable = this.getSubscriptionInner();
         if (subTable != null) {
+
+            // 遍历消费者订阅的每一个主题
             for (final Map.Entry<String /* topic */, SubscriptionData> entry : subTable.entrySet()) {
                 final String topic = entry.getKey();
                 try {
+                    // 按照主题进行负载均衡
                     this.rebalanceByTopic(topic, isOrder);
                 } catch (Throwable e) {
                     if (!topic.startsWith(MixAll.RETRY_GROUP_TOPIC_PREFIX)) {
@@ -233,6 +234,12 @@ public abstract class RebalanceImpl {
         this.truncateMessageQueueNotMyTopic();
     }
 
+    /**
+     * 按照主题进行负载均衡
+     *
+     * @param topic 主题
+     * @param isOrder 是否顺序
+     */
     private void rebalanceByTopic(final String topic, final boolean isOrder) {
         switch (messageModel) {
             case BROADCASTING: {
@@ -249,8 +256,10 @@ public abstract class RebalanceImpl {
             }
             case CLUSTERING: {
                 // ConcurrentMap<String/* topic */, Set<MessageQueue>> topicSubscribeInfoTable
+                // 获取当前主题的全部 MessageQueue
                 Set<MessageQueue> mqSet = this.topicSubscribeInfoTable.get(topic);
-                // 拿到该消费组下的所有消费实例id集合
+
+                // 获取当前'消费者组'下的全部消费者ID
                 List<String> cidAll = this.mQClientFactory.findConsumerIdList(topic, consumerGroup);
                 if (null == mqSet) {
                     if (!topic.startsWith(MixAll.RETRY_GROUP_TOPIC_PREFIX)) {
@@ -265,13 +274,14 @@ public abstract class RebalanceImpl {
                 if (mqSet != null && cidAll != null) {
                     List<MessageQueue> mqAll = new ArrayList<MessageQueue>(mqSet);
 
+                    // 主题的 mq集合，消费者ID集合，都进行排序，目的是：每个消费者视图一致性
                     Collections.sort(mqAll);
                     Collections.sort(cidAll);
 
                     AllocateMessageQueueStrategy strategy = this.allocateMessageQueueStrategy;
-
                     List<MessageQueue> allocateResult;
                     try {
+                        // 调用队列分配策略的分配方法
                         allocateResult = strategy.allocate(this.consumerGroup, this.mQClientFactory.getClientId(), mqAll, cidAll);
                     } catch (Throwable e) {
                         // log.error("AllocateMessageQueueStrategy.allocate Exception. allocateMessageQueueStrategyName={}", strategy.getName(), e);
@@ -280,9 +290,12 @@ public abstract class RebalanceImpl {
 
                     Set<MessageQueue> allocateResultSet = new HashSet<MessageQueue>();
                     if (allocateResult != null) {
+
+                        // 得到本次分配到的 MessageQueue 集合
                         allocateResultSet.addAll(allocateResult);
                     }
 
+                    // 更新当前消费者实例的队列消息
                     boolean changed = this.updateProcessQueueTableInRebalance(topic, allocateResultSet, isOrder);
                     if (changed) {
                         this.messageQueueChanged(topic, mqSet, allocateResultSet);
@@ -310,10 +323,29 @@ public abstract class RebalanceImpl {
         }
     }
 
-    private boolean updateProcessQueueTableInRebalance(final String topic, final Set<MessageQueue> mqSet,
-            final boolean isOrder) {
+    /**
+     * 计数出负载均衡后，当前消费者，当前主题被转移走的队列
+     * 对于这些被转移到其他消费者的队列，当前消费者需要：
+     * 1.将 mq > pd 状态设置为 删除 状态
+     * 2.持久化消息进度 + 删除本地该 mq 的消费进度
+     * 3.processQueueTable 中删除该条 k-v
+     *
+     * 计数出本次负载均衡后，新分配到当前消费者该主题的队列
+     * 对于这些新分配到当前消费者的该主题的队列，需要做：
+     * 1.创建 ProcessQueue 为每个新分配队列
+     * 2.获取新分配队列的消费进度（offset）,获取方式：到队列归属 broker 上拉取
+     * 3.processQueueTable 添加 k-v ，key: messageQueue,value: processQueue
+     * 4.为新分配队列，创建 PullRequest 对象（封装：消费者组，mq,pd,消费进度）
+     * 5.上一步创建的 PullRequest 对象转交给 PullMessageService （拉取消息服务）
+     *
+     * @param topic 主题
+     * @param mqSet 分配给消费者的当前主题的队列集合
+     * @param isOrder 是否顺序消费
+     */
+    private boolean updateProcessQueueTableInRebalance(final String topic, final Set<MessageQueue> mqSet, final boolean isOrder) {
         boolean changed = false;
 
+        // ConcurrentMap<MessageQueue, ProcessQueue> processQueueTable
         Iterator<Entry<MessageQueue, ProcessQueue>> it = this.processQueueTable.entrySet().iterator();
         while (it.hasNext()) {
             Entry<MessageQueue, ProcessQueue> next = it.next();
@@ -321,6 +353,8 @@ public abstract class RebalanceImpl {
             ProcessQueue pq = next.getValue();
 
             if (mq.getTopic().equals(topic)) {
+                // 找到传入主题对应的 MessageQueue
+
                 if (!mqSet.contains(mq)) {
                     pq.setDropped(true);
                     if (this.removeUnnecessaryMessageQueue(mq, pq)) {
@@ -337,8 +371,7 @@ public abstract class RebalanceImpl {
                             if (this.removeUnnecessaryMessageQueue(mq, pq)) {
                                 it.remove();
                                 changed = true;
-                                log.error("[BUG]doRebalance, {}, remove unnecessary mq, {}, because pull is pause, so try to fixed it",
-                                        consumerGroup, mq);
+                                log.error("[BUG]doRebalance, {}, remove unnecessary mq, {}, because pull is pause, so try to fixed it", consumerGroup, mq);
                             }
                             break;
                         default:
@@ -384,8 +417,7 @@ public abstract class RebalanceImpl {
         return changed;
     }
 
-    public abstract void messageQueueChanged(final String topic, final Set<MessageQueue> mqAll,
-            final Set<MessageQueue> mqDivided);
+    public abstract void messageQueueChanged(final String topic, final Set<MessageQueue> mqAll, final Set<MessageQueue> mqDivided);
 
     public abstract boolean removeUnnecessaryMessageQueue(final MessageQueue mq, final ProcessQueue pq);
 
@@ -416,9 +448,7 @@ public abstract class RebalanceImpl {
     }
 
     public void destroy() {
-        Iterator<Entry<MessageQueue, ProcessQueue>> it = this.processQueueTable.entrySet().iterator();
-        while (it.hasNext()) {
-            Entry<MessageQueue, ProcessQueue> next = it.next();
+        for (Entry<MessageQueue, ProcessQueue> next : this.processQueueTable.entrySet()) {
             next.getValue().setDropped(true);
         }
 

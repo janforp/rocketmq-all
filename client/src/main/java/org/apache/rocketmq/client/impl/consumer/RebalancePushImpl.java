@@ -27,16 +27,14 @@ public class RebalancePushImpl extends RebalanceImpl {
         this(null, null, null, null, defaultMQPushConsumerImpl);
     }
 
-    public RebalancePushImpl(String consumerGroup, MessageModel messageModel,
-            AllocateMessageQueueStrategy allocateMessageQueueStrategy,
-            MQClientInstance mQClientFactory, DefaultMQPushConsumerImpl defaultMQPushConsumerImpl) {
+    public RebalancePushImpl(String consumerGroup, MessageModel messageModel, AllocateMessageQueueStrategy allocateMessageQueueStrategy, MQClientInstance mQClientFactory, DefaultMQPushConsumerImpl defaultMQPushConsumerImpl) {
         super(consumerGroup, messageModel, allocateMessageQueueStrategy, mQClientFactory);
         this.defaultMQPushConsumerImpl = defaultMQPushConsumerImpl;
     }
 
     @Override
     public void messageQueueChanged(String topic, Set<MessageQueue> mqAll, Set<MessageQueue> mqDivided) {
-        /**
+        /*
          * When rebalance result changed, should update subscription's version to notify broker.
          * Fix: inconsistency subscription may lead to consumer miss messages.
          */
@@ -50,16 +48,14 @@ public class RebalancePushImpl extends RebalanceImpl {
             int pullThresholdForTopic = this.defaultMQPushConsumerImpl.getDefaultMQPushConsumer().getPullThresholdForTopic();
             if (pullThresholdForTopic != -1) {
                 int newVal = Math.max(1, pullThresholdForTopic / currentQueueCount);
-                log.info("The pullThresholdForQueue is changed from {} to {}",
-                        this.defaultMQPushConsumerImpl.getDefaultMQPushConsumer().getPullThresholdForQueue(), newVal);
+                log.info("The pullThresholdForQueue is changed from {} to {}", this.defaultMQPushConsumerImpl.getDefaultMQPushConsumer().getPullThresholdForQueue(), newVal);
                 this.defaultMQPushConsumerImpl.getDefaultMQPushConsumer().setPullThresholdForQueue(newVal);
             }
 
             int pullThresholdSizeForTopic = this.defaultMQPushConsumerImpl.getDefaultMQPushConsumer().getPullThresholdSizeForTopic();
             if (pullThresholdSizeForTopic != -1) {
                 int newVal = Math.max(1, pullThresholdSizeForTopic / currentQueueCount);
-                log.info("The pullThresholdSizeForQueue is changed from {} to {}",
-                        this.defaultMQPushConsumerImpl.getDefaultMQPushConsumer().getPullThresholdSizeForQueue(), newVal);
+                log.info("The pullThresholdSizeForQueue is changed from {} to {}", this.defaultMQPushConsumerImpl.getDefaultMQPushConsumer().getPullThresholdSizeForQueue(), newVal);
                 this.defaultMQPushConsumerImpl.getDefaultMQPushConsumer().setPullThresholdSizeForQueue(newVal);
             }
         }
@@ -72,8 +68,7 @@ public class RebalancePushImpl extends RebalanceImpl {
     public boolean removeUnnecessaryMessageQueue(MessageQueue mq, ProcessQueue pq) {
         this.defaultMQPushConsumerImpl.getOffsetStore().persist(mq);
         this.defaultMQPushConsumerImpl.getOffsetStore().removeOffset(mq);
-        if (this.defaultMQPushConsumerImpl.isConsumeOrderly()
-                && MessageModel.CLUSTERING.equals(this.defaultMQPushConsumerImpl.messageModel())) {
+        if (this.defaultMQPushConsumerImpl.isConsumeOrderly() && MessageModel.CLUSTERING.equals(this.defaultMQPushConsumerImpl.messageModel())) {
             try {
                 if (pq.getLockConsume().tryLock(1000, TimeUnit.MILLISECONDS)) {
                     try {
@@ -82,10 +77,7 @@ public class RebalancePushImpl extends RebalanceImpl {
                         pq.getLockConsume().unlock();
                     }
                 } else {
-                    log.warn("[WRONG]mq is consuming, so can not unlock it, {}. maybe hanged for a while, {}",
-                            mq,
-                            pq.getTryUnlockTimes());
-
+                    log.warn("[WRONG]mq is consuming, so can not unlock it, {}. maybe hanged for a while, {}", mq, pq.getTryUnlockTimes());
                     pq.incTryUnlockTimes();
                 }
             } catch (Exception e) {
@@ -101,13 +93,22 @@ public class RebalancePushImpl extends RebalanceImpl {
 
         if (pq.hasTempMessage()) {
             log.info("[{}]unlockDelay, begin {} ", mq.hashCode(), mq);
-            this.defaultMQPushConsumerImpl.getmQClientFactory().getScheduledExecutorService().schedule(new Runnable() {
-                @Override
-                public void run() {
-                    log.info("[{}]unlockDelay, execute at once {}", mq.hashCode(), mq);
-                    RebalancePushImpl.this.unlock(mq, true);
-                }
-            }, UNLOCK_DELAY_TIME_MILLS, TimeUnit.MILLISECONDS);
+            this.defaultMQPushConsumerImpl.getmQClientFactory().getScheduledExecutorService().schedule(
+
+                    // 定时任务的具体任务
+                    new Runnable() {
+                        @Override
+                        public void run() {
+                            log.info("[{}]unlockDelay, execute at once {}", mq.hashCode(), mq);
+                            RebalancePushImpl.this.unlock(mq, true);
+                        }
+                    },
+
+                    // 延迟时间
+                    UNLOCK_DELAY_TIME_MILLS,
+
+                    // 时间单位
+                    TimeUnit.MILLISECONDS);
         } else {
             this.unlock(mq, true);
         }

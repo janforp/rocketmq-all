@@ -16,7 +16,7 @@ public class RebalanceService extends ServiceThread {
         while (!this.isStopped()) {
             // 只要服务没有停下来，就会一直循环
 
-            // 等待一会
+            // 等待一会,避免线程将 cpu 资源占死
             this.waitForRunning(waitInterval);
 
             // 执行任务

@@ -156,6 +156,12 @@ public abstract class ServiceThread implements Runnable {
         }
     }
 
+    /**
+     * 1.有其他线程通知，则直接返回，不再休眠，并且设置 hasNotified 为 false
+     * 2.线程调用
+     * 3.
+     * @param interval
+     */
     protected void waitForRunning(long interval) {
         if (hasNotified.compareAndSet(true, false)) {
             this.onWaitEnd();
