@@ -19,6 +19,8 @@ public abstract class ServiceThread implements Runnable {
 
     /**
      * 基于 AQS 实现的，可以重置的 门闩
+     *
+     * @see java.util.concurrent.CountDownLatch
      */
     protected final CountDownLatch2 waitPoint = new CountDownLatch2(1);
 
@@ -39,6 +41,7 @@ public abstract class ServiceThread implements Runnable {
 
     /**
      * Make it able to restart the thread
+     * 当前对象的任务是否开始，可以通过该字段，重复开始该对象中的任务，不同的是每次调用 {@link  ServiceThread#start() } 方法都会新建一个线程去执行任务
      */
     private final AtomicBoolean started = new AtomicBoolean(false);
 
@@ -55,7 +58,15 @@ public abstract class ServiceThread implements Runnable {
     @Override
     public abstract void run();
 
+    /**
+     * 创建线程，并且启动线程，开始执行 run 方法
+     *
+     * 当前对象可以通过控制 {@link ServiceThread#started} 的开工，重复调用 start 方法，每次都会重新创建一个线程，达到复用当前对象的目的
+     */
     public void start() {
+
+        // AtomicBoolean started = new AtomicBoolean(false);
+        // 设置标志为已经开始
         if (!started.compareAndSet(false, true)) {
             return;
         }
@@ -115,11 +126,15 @@ public abstract class ServiceThread implements Runnable {
     @Deprecated
     public void stop(final boolean interrupt) {
         if (!started.get()) {
+            // 如果还没开启，则啥也不走
             return;
         }
+
+        // 标记停止
         this.stopped = true;
 
         if (hasNotified.compareAndSet(false, true)) {
+            // 如果没通知过就通知一下
             waitPoint.countDown(); // notify
         }
 

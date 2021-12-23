@@ -180,7 +180,7 @@ public class MQClientInstance {
     //
     private DatagramSocket datagramSocket;
 
-    private Random random = new Random();
+    private final Random random = new Random();
 
     public MQClientInstance(ClientConfig clientConfig, int instanceIndex, String clientId) {
         this(clientConfig, instanceIndex, clientId, null);
@@ -194,7 +194,7 @@ public class MQClientInstance {
         this.nettyClientConfig.setUseTLS(clientConfig.isUseTLS());
 
         // 创建客户端协议处理器
-        /**
+        /*
          * 客户端协议处理器，用于处理IO事件
          */
         ClientRemotingProcessor clientRemotingProcessor = new ClientRemotingProcessor(this);

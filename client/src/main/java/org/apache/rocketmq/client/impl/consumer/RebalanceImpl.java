@@ -215,9 +215,10 @@ public abstract class RebalanceImpl {
     }
 
     public void doRebalance(final boolean isOrder) {
-        Map<String, SubscriptionData> subTable = this.getSubscriptionInner();
+        // ConcurrentMap<String /* topic */, SubscriptionData> subscriptionInner
+        Map<String /* topic */, SubscriptionData> subTable = this.getSubscriptionInner();
         if (subTable != null) {
-            for (final Map.Entry<String, SubscriptionData> entry : subTable.entrySet()) {
+            for (final Map.Entry<String /* topic */, SubscriptionData> entry : subTable.entrySet()) {
                 final String topic = entry.getKey();
                 try {
                     this.rebalanceByTopic(topic, isOrder);
@@ -247,7 +248,9 @@ public abstract class RebalanceImpl {
                 break;
             }
             case CLUSTERING: {
+                // ConcurrentMap<String/* topic */, Set<MessageQueue>> topicSubscribeInfoTable
                 Set<MessageQueue> mqSet = this.topicSubscribeInfoTable.get(topic);
+                // 拿到该消费组下的所有消费实例id集合
                 List<String> cidAll = this.mQClientFactory.findConsumerIdList(topic, consumerGroup);
                 if (null == mqSet) {
                     if (!topic.startsWith(MixAll.RETRY_GROUP_TOPIC_PREFIX)) {

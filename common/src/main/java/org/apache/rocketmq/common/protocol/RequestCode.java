@@ -79,6 +79,10 @@ public class RequestCode {
 
     public static final int END_TRANSACTION = 37;
 
+    /**
+     * @see org.apache.rocketmq.client.impl.MQClientAPIImpl#getConsumerIdListByGroup(java.lang.String, java.lang.String, long)
+     * @see org.apache.rocketmq.broker.processor.ConsumerManageProcessor#getConsumerListByGroup(io.netty.channel.ChannelHandlerContext, org.apache.rocketmq.remoting.protocol.RemotingCommand)
+     */
     public static final int GET_CONSUMER_LIST_BY_GROUP = 38;
 
     public static final int CHECK_TRANSACTION_STATE = 39;
