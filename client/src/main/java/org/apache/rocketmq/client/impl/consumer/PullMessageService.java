@@ -42,6 +42,7 @@ public class PullMessageService extends ServiceThread {
         this.mQClientFactory = mQClientFactory;
     }
 
+    // 延迟一段时间之后再拉消息
     public void executePullRequestLater(final PullRequest pullRequest, final long timeDelay) {
         if (isStopped()) {
             // 如果已经停止，则日志
@@ -99,6 +100,7 @@ public class PullMessageService extends ServiceThread {
             log.warn("No matched consumer for the PullRequest {}, drop it", pullRequest);
             return;
         }
+        // 调用消费者的拉消息方法
         DefaultMQPushConsumerImpl impl = (DefaultMQPushConsumerImpl) consumer;
         impl.pullMessage(pullRequest);
     }

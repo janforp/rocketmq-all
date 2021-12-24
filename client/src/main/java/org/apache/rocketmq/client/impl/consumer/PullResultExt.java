@@ -10,6 +10,9 @@ import java.util.List;
 
 public class PullResultExt extends PullResult {
 
+    /**
+     * 建议下次去哪个 broker 上拉消息的 brokerId
+     */
     @Getter
     private final long suggestWhichBrokerId;
 

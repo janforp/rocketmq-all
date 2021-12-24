@@ -46,6 +46,9 @@ public class PullAPIWrapper {
 
     private final boolean unitMode;
 
+    /**
+     * 保存下次拉取消息的 brokerId
+     */
     private final ConcurrentMap<MessageQueue, AtomicLong/* brokerId */> pullFromWhichNodeTable = new ConcurrentHashMap<MessageQueue, AtomicLong>(32);
 
     @Setter
@@ -66,19 +69,33 @@ public class PullAPIWrapper {
         this.unitMode = unitMode;
     }
 
+    /**
+     * 主要是反序列化消息以及根基消息tag过滤
+     *
+     * @param mq 队列
+     * @param pullResult 队列拉取到的消息对象
+     * @param subscriptionData 主题的订阅消息
+     * @return 拉取消息处理之后的结果
+     */
     public PullResult processPullResult(final MessageQueue mq, final PullResult pullResult, final SubscriptionData subscriptionData) {
         PullResultExt pullResultExt = (PullResultExt) pullResult;
+
         this.updatePullFromWhichNode(mq, pullResultExt.getSuggestWhichBrokerId());
         if (PullStatus.FOUND == pullResult.getPullStatus()) {
+            // 消息的二进制数组
             ByteBuffer byteBuffer = ByteBuffer.wrap(pullResultExt.getMessageBinary());
+
+            // 反序列化成消息
             List<MessageExt> msgList = MessageDecoder.decodes(byteBuffer);
 
+            // 根据 tag 过滤之后的消息列表
             List<MessageExt> msgListFilterAgain = msgList;
             if (!subscriptionData.getTagsSet().isEmpty() && !subscriptionData.isClassFilterMode()) {
                 msgListFilterAgain = new ArrayList<MessageExt>(msgList.size());
                 for (MessageExt msg : msgList) {
                     if (msg.getTags() != null) {
                         if (subscriptionData.getTagsSet().contains(msg.getTags())) {
+                            // 根据 tag 过滤消息
                             msgListFilterAgain.add(msg);
                         }
                     }
@@ -93,8 +110,10 @@ public class PullAPIWrapper {
             }
 
             for (MessageExt msg : msgListFilterAgain) {
+                // TRAN_MSG
                 String traFlag = msg.getProperty(MessageConst.PROPERTY_TRANSACTION_PREPARED);
                 if (Boolean.parseBoolean(traFlag)) {
+                    // 如果是事务消息，则设置事务id 为 UNIQ_KEY
                     msg.setTransactionId(msg.getProperty(MessageConst.PROPERTY_UNIQ_CLIENT_MESSAGE_ID_KEYIDX));
                 }
                 MessageAccessor.putProperty(msg, MessageConst.PROPERTY_MIN_OFFSET, Long.toString(pullResult.getMinOffset()));
@@ -105,6 +124,7 @@ public class PullAPIWrapper {
             pullResultExt.setMsgFoundList(msgListFilterAgain);
         }
 
+        // 移除二进制，因为上面已经把二进制反序列化成消息对象拉
         pullResultExt.setMessageBinary(null);
 
         return pullResult;
