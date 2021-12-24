@@ -413,16 +413,13 @@ public class DefaultMQPushConsumerImpl implements MQConsumerInner {
                             break;
                         case NO_NEW_MSG:
                             pullRequest.setNextOffset(pullResult.getNextBeginOffset());
-
                             DefaultMQPushConsumerImpl.this.correctTagsOffset(pullRequest);
-
                             DefaultMQPushConsumerImpl.this.executePullRequestImmediately(pullRequest);
                             break;
                         case NO_MATCHED_MSG:
                             pullRequest.setNextOffset(pullResult.getNextBeginOffset());
-
                             DefaultMQPushConsumerImpl.this.correctTagsOffset(pullRequest);
-
+                            System.out.println(1);
                             DefaultMQPushConsumerImpl.this.executePullRequestImmediately(pullRequest);
                             break;
                         case OFFSET_ILLEGAL:
@@ -431,14 +428,11 @@ public class DefaultMQPushConsumerImpl implements MQConsumerInner {
 
                             pullRequest.getProcessQueue().setDropped(true);
                             DefaultMQPushConsumerImpl.this.executeTaskLater(new Runnable() {
-
                                 @Override
                                 public void run() {
                                     try {
                                         DefaultMQPushConsumerImpl.this.offsetStore.updateOffset(pullRequest.getMessageQueue(), pullRequest.getNextOffset(), false);
-
                                         DefaultMQPushConsumerImpl.this.offsetStore.persist(pullRequest.getMessageQueue());
-
                                         DefaultMQPushConsumerImpl.this.rebalanceImpl.removeProcessQueue(pullRequest.getMessageQueue());
 
                                         log.warn("fix the pull request offset, {}", pullRequest);
@@ -459,7 +453,6 @@ public class DefaultMQPushConsumerImpl implements MQConsumerInner {
                 if (!pullRequest.getMessageQueue().getTopic().startsWith(MixAll.RETRY_GROUP_TOPIC_PREFIX)) {
                     log.warn("execute the pull request exception", e);
                 }
-
                 DefaultMQPushConsumerImpl.this.executePullRequestLater(pullRequest, pullTimeDelayMillsWhenException);
             }
         };
@@ -486,26 +479,22 @@ public class DefaultMQPushConsumerImpl implements MQConsumerInner {
             classFilter = sd.isClassFilterMode();
         }
 
-        int sysFlag = PullSysFlag.buildSysFlag(
-                commitOffsetEnable, // commitOffset
-                true, // suspend
-                subExpression != null, // subscription
-                classFilter // class filter
-        );
+        // 如果全都是 true，则 flag 为：0    0   0   0   1   1   1   1
+        int sysFlag = PullSysFlag.buildSysFlag(commitOffsetEnable, true, subExpression != null, classFilter);
         try {
             this.pullAPIWrapper.pullKernelImpl(
-                    pullRequest.getMessageQueue(),
-                    subExpression,
-                    subscriptionData.getExpressionType(),
-                    subscriptionData.getSubVersion(),
-                    pullRequest.getNextOffset(),
-                    this.defaultMQPushConsumer.getPullBatchSize(),
-                    sysFlag,
-                    commitOffsetValue,
-                    BROKER_SUSPEND_MAX_TIME_MILLIS,
-                    CONSUMER_TIMEOUT_MILLIS_WHEN_SUSPEND,
-                    CommunicationMode.ASYNC,
-                    pullCallback
+                    pullRequest.getMessageQueue(), // 队列
+                    subExpression, // 订阅信息
+                    subscriptionData.getExpressionType(), // 一般是 TAG
+                    subscriptionData.getSubVersion(), // 版本
+                    pullRequest.getNextOffset(), // 下次拉取消息的偏移量
+                    this.defaultMQPushConsumer.getPullBatchSize(), // 批量大小
+                    sysFlag, // 如果全都是 true，则 flag 为：0    0   0   0   1   1   1   1
+                    commitOffsetValue, // 是否提交偏移量
+                    BROKER_SUSPEND_MAX_TIME_MILLIS, // 时间
+                    CONSUMER_TIMEOUT_MILLIS_WHEN_SUSPEND, // 时间
+                    CommunicationMode.ASYNC, // 异步
+                    pullCallback // 消息拉回来之后的回调
             );
         } catch (Exception e) {
             log.error("pullKernelImpl exception", e);

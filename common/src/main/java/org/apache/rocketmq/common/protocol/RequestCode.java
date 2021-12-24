@@ -8,6 +8,9 @@ public class RequestCode {
 
     public static final int SEND_MESSAGE = 10;
 
+    /**
+     * @see org.apache.rocketmq.client.impl.MQClientAPIImpl#pullMessage(java.lang.String, org.apache.rocketmq.common.protocol.header.PullMessageRequestHeader, long, org.apache.rocketmq.client.impl.CommunicationMode, org.apache.rocketmq.client.consumer.PullCallback)
+     */
     public static final int PULL_MESSAGE = 11;
 
     /**
