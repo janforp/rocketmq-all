@@ -66,7 +66,9 @@ public class RebalancePushImpl extends RebalanceImpl {
 
     @Override
     public boolean removeUnnecessaryMessageQueue(MessageQueue mq, ProcessQueue pq) {
+        // 持久化指定 mq 的消费进度，到mq归属的 broker 节点，broker 端会根据 group 维护每个 queue 的 offset
         this.defaultMQPushConsumerImpl.getOffsetStore().persist(mq);
+        // 移除当前 mq 的 本地 offset
         this.defaultMQPushConsumerImpl.getOffsetStore().removeOffset(mq);
         if (this.defaultMQPushConsumerImpl.isConsumeOrderly() && MessageModel.CLUSTERING.equals(this.defaultMQPushConsumerImpl.messageModel())) {
             try {

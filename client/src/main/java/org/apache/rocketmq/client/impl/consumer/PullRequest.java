@@ -9,18 +9,22 @@ import org.apache.rocketmq.common.message.MessageQueue;
  */
 public class PullRequest {
 
+    // 消费者组
     @Setter
     @Getter
     private String consumerGroup;
 
+    // 队列元数据
     @Setter
     @Getter
     private MessageQueue messageQueue;
 
+    // 本地快照
     @Setter
     @Getter
     private ProcessQueue processQueue;
 
+    // 拉消息请求的时候使用的 offset 值，很重要
     @Setter
     @Getter
     private long nextOffset;

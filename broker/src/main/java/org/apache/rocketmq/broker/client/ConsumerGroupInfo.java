@@ -67,6 +67,7 @@ public class ConsumerGroupInfo {
 
     public List<String> getAllClientId() {
         List<String> result = new ArrayList<>();
+        // ConcurrentMap<Channel, ClientChannelInfo> channelInfoTable = new ConcurrentHashMap<Channel, ClientChannelInfo>(16);
         for (Entry<Channel, ClientChannelInfo> entry : this.channelInfoTable.entrySet()) {
             ClientChannelInfo clientChannelInfo = entry.getValue();
             result.add(clientChannelInfo.getClientId());

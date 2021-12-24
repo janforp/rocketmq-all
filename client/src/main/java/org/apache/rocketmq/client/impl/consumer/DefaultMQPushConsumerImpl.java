@@ -981,6 +981,9 @@ public class DefaultMQPushConsumerImpl implements MQConsumerInner {
         return new HashSet<SubscriptionData>(this.rebalanceImpl.getSubscriptionInner().values());
     }
 
+    /**
+     * @see RebalanceService 服务每隔20s调用一次
+     */
     @Override
     public void doRebalance() {
         if (!this.pause) {
