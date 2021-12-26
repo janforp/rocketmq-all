@@ -109,7 +109,7 @@ public class PullRequestHoldService extends ServiceThread {
         if (requestList == null) {
             return;
         }
-        List<PullRequest> replayList = new ArrayList<PullRequest>();
+        List<PullRequest> replayList = new ArrayList<>();
 
         for (PullRequest request : requestList) {
             long newestOffset = maxOffset;
@@ -135,6 +135,7 @@ public class PullRequestHoldService extends ServiceThread {
             }
 
             if (System.currentTimeMillis() >= (request.getSuspendTimestamp() + request.getTimeoutMillis())) {
+                // 超时的
                 try {
                     this.brokerController.getPullMessageProcessor().executeRequestWhenWakeup(request.getClientChannel(), request.getRequestCommand());
                 } catch (Throwable e) {
@@ -143,10 +144,12 @@ public class PullRequestHoldService extends ServiceThread {
                 continue;
             }
 
+            // 其他的继续添加到list，下次继续
             replayList.add(request);
         }
 
         if (!replayList.isEmpty()) {
+            // 把剩下的再放入list
             mpr.addPullRequest(replayList);
         }
     }

@@ -190,9 +190,9 @@ public class BrokerController {
 
     private InetSocketAddress storeHost;
 
-    private BrokerFastFailure brokerFastFailure;
+    private final BrokerFastFailure brokerFastFailure;
 
-    private Configuration configuration;
+    private final Configuration configuration;
 
     private FileWatchService fileWatchService;
 
@@ -204,7 +204,7 @@ public class BrokerController {
 
     private Future<?> slaveSyncFuture;
 
-    private Map<Class, AccessValidator> accessValidatorMap = new HashMap<Class, AccessValidator>();
+    private final Map<Class<?>, AccessValidator> accessValidatorMap = new HashMap<>();
 
     public BrokerController(
             final BrokerConfig brokerConfig,
@@ -1153,7 +1153,7 @@ public class BrokerController {
 
     }
 
-    public Map<Class, AccessValidator> getAccessValidatorMap() {
+    public Map<Class<?>, AccessValidator> getAccessValidatorMap() {
         return accessValidatorMap;
     }
 
