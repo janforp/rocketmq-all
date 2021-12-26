@@ -47,7 +47,7 @@ public class PullAPIWrapper {
     private final boolean unitMode;
 
     /**
-     * 保存下次拉取消息的 brokerId
+     * 保存下次拉取消息的 推荐 brokerId
      */
     private final ConcurrentMap<MessageQueue, AtomicLong/* brokerId */> pullFromWhichNodeTable = new ConcurrentHashMap<MessageQueue, AtomicLong>(32);
 
@@ -80,7 +80,10 @@ public class PullAPIWrapper {
     public PullResult processPullResult(final MessageQueue mq, final PullResult pullResult, final SubscriptionData subscriptionData) {
         PullResultExt pullResultExt = (PullResultExt) pullResult;
 
+        // 关更新下次拉数据的服务器 brokerId
         this.updatePullFromWhichNode(mq, pullResultExt.getSuggestWhichBrokerId());
+
+        // 下面是将二进制消息解码为x
         if (PullStatus.FOUND == pullResult.getPullStatus()) {
             // 消息的二进制数组
             ByteBuffer byteBuffer = ByteBuffer.wrap(pullResultExt.getMessageBinary());

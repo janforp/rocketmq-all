@@ -749,7 +749,11 @@ public class MQClientAPIImpl {
      */
     private PullResult processPullResponse(final RemotingCommand response) throws MQBrokerException, RemotingCommandException {
         PullStatus pullStatus;
-        switch (response.getCode()) {
+
+        // 服务端返回的状态码
+        int responseCode = response.getCode();
+
+        switch (responseCode) {
             case ResponseCode.SUCCESS:
                 pullStatus = PullStatus.FOUND;
                 break;
@@ -764,7 +768,7 @@ public class MQClientAPIImpl {
                 break;
 
             default:
-                throw new MQBrokerException(response.getCode(), response.getRemark());
+                throw new MQBrokerException(responseCode, response.getRemark());
         }
 
         // 解析成对象

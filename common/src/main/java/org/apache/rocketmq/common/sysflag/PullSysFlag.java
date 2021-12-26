@@ -47,6 +47,7 @@ public class PullSysFlag {
     public static int buildSysFlag(final boolean commitOffset, final boolean suspend, final boolean subscription, final boolean classFilter) {
         int flag = 0;
 
+        // 是否提交本地的offset
         if (commitOffset) {
             /*
              * 0    0   0   0   0   0   0   0
@@ -60,6 +61,7 @@ public class PullSysFlag {
             flag |= FLAG_COMMIT_OFFSET;
         }
 
+        // 是否服务器长轮询？一般允许
         if (suspend) {
             /*
              * 0    0   0   0   0   0   0   1
@@ -72,6 +74,7 @@ public class PullSysFlag {
             flag |= FLAG_SUSPEND;
         }
 
+        // 拉消息的时候，是否把消费者本地的该主题的订阅信息带过去？一般不需要
         if (subscription) {
             /*
              * 0    0   0   0   0   0   1   1
@@ -84,6 +87,7 @@ public class PullSysFlag {
             flag |= FLAG_SUBSCRIPTION;
         }
 
+        // 是否为类过滤，一般为 TAG
         if (classFilter) {
             /*
              * 0    0   0   0   0   1   1   1
