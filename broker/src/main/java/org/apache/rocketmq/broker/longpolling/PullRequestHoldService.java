@@ -24,7 +24,7 @@ public class PullRequestHoldService extends ServiceThread {
 
     private final SystemClock systemClock = new SystemClock();
 
-    private final ConcurrentMap<String/* topic@queueId */, ManyPullRequest> pullRequestTable = new ConcurrentHashMap<String, ManyPullRequest>(1024);
+    private final ConcurrentMap<String/* topic@queueId */, ManyPullRequest> pullRequestTable = new ConcurrentHashMap<>(1024);
 
     public PullRequestHoldService(final BrokerController brokerController) {
         this.brokerController = brokerController;
