@@ -2,11 +2,13 @@ package org.apache.rocketmq.client.impl.consumer;
 
 import lombok.Getter;
 import lombok.Setter;
+import lombok.ToString;
 import org.apache.rocketmq.common.message.MessageQueue;
 
 /**
  * 封装拉拉消息请求的具体数据
  */
+@ToString
 public class PullRequest {
 
     // 消费者组
@@ -24,7 +26,7 @@ public class PullRequest {
     @Getter
     private ProcessQueue processQueue;
 
-    // 拉消息请求的时候使用的 offset 值，很重要
+    // 本次 拉消息请求的时候使用的 offset 值，很重要，服务器端需要根据该字段定位消息
     @Setter
     @Getter
     private long nextOffset;
@@ -69,11 +71,5 @@ public class PullRequest {
             return false;
         }
         return true;
-    }
-
-    @Override
-    public String toString() {
-        return "PullRequest [consumerGroup=" + consumerGroup + ", messageQueue=" + messageQueue
-                + ", nextOffset=" + nextOffset + "]";
     }
 }
