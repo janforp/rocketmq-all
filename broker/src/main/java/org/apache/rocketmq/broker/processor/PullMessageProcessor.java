@@ -15,6 +15,7 @@ import org.apache.rocketmq.broker.filter.ConsumerFilterManager;
 import org.apache.rocketmq.broker.filter.ExpressionForRetryMessageFilter;
 import org.apache.rocketmq.broker.filter.ExpressionMessageFilter;
 import org.apache.rocketmq.broker.longpolling.PullRequest;
+import org.apache.rocketmq.broker.longpolling.PullRequestHoldService;
 import org.apache.rocketmq.broker.mqtrace.ConsumeMessageContext;
 import org.apache.rocketmq.broker.mqtrace.ConsumeMessageHook;
 import org.apache.rocketmq.broker.offset.ConsumerOffsetManager;
@@ -347,14 +348,13 @@ public class PullMessageProcessor /*extends AsyncNettyRequestProcessor */ implem
 
             switch (response.getCode()) {
                 case ResponseCode.SUCCESS:
-
                     this.brokerController.getBrokerStatsManager().incGroupGetNums(requestHeader.getConsumerGroup(), requestHeader.getTopic(), getMessageResult.getMessageCount());
-
                     this.brokerController.getBrokerStatsManager().incGroupGetSize(requestHeader.getConsumerGroup(), requestHeader.getTopic(), getMessageResult.getBufferTotalSize());
-
                     this.brokerController.getBrokerStatsManager().incBrokerGetNums(getMessageResult.getMessageCount());
                     if (this.brokerController.getBrokerConfig().isTransferMsgByHeap()) {
                         final long beginTimeMills = this.brokerController.getMessageStore().now();
+
+                        // 拿到消息的字节
                         final byte[] r = this.readGetMessageResult(getMessageResult, requestHeader.getConsumerGroup(), requestHeader.getTopic(), requestHeader.getQueueId());
                         this.brokerController.getBrokerStatsManager()
                                 .incGroupGetLatency(requestHeader.getConsumerGroup(), requestHeader.getTopic(), requestHeader.getQueueId(), (int) (this.brokerController.getMessageStore().now() - beginTimeMills));
@@ -373,6 +373,7 @@ public class PullMessageProcessor /*extends AsyncNettyRequestProcessor */ implem
                             getMessageResult.release();
                         }
 
+                        // TODO 将 response 设置为 null ?
                         response = null;
                     }
                     break;
@@ -387,8 +388,11 @@ public class PullMessageProcessor /*extends AsyncNettyRequestProcessor */ implem
                         String topic = requestHeader.getTopic();
                         long offset = requestHeader.getQueueOffset();
                         int queueId = requestHeader.getQueueId();
+                        // 长轮询请求对象
                         PullRequest pullRequest = new PullRequest(request, channel, pollingTimeMills, this.brokerController.getMessageStore().now(), offset, subscriptionData, messageFilter);
-                        this.brokerController.getPullRequestHoldService().suspendPullRequest(topic, queueId, pullRequest);
+                        PullRequestHoldService pullRequestHoldService = this.brokerController.getPullRequestHoldService();
+                        // 发起轮询
+                        pullRequestHoldService.suspendPullRequest(topic, queueId, pullRequest);
                         response = null;
                         break;
                     }

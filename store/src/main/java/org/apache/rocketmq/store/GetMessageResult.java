@@ -12,14 +12,17 @@ import org.apache.rocketmq.store.stats.BrokerStatsManager;
 @ToString
 public class GetMessageResult {
 
-    private final List<SelectMappedBufferResult> messageMapedList = new ArrayList<SelectMappedBufferResult>(100);
+    // mappedFile.getXXX(long pos)
+    private final List<SelectMappedBufferResult> messageMapedList = new ArrayList<>(100);
 
-    private final List<ByteBuffer> messageBufferList = new ArrayList<ByteBuffer>(100);
+    // 每条消息
+    private final List<ByteBuffer> messageBufferList = new ArrayList<>(100);
 
     @Setter
     @Getter
     private GetMessageStatus status;
 
+    // 下一次再拉消息的时候的开始 offset
     @Setter
     @Getter
     private long nextBeginOffset;
@@ -36,6 +39,7 @@ public class GetMessageResult {
     @Getter
     private int bufferTotalSize = 0;
 
+    // 服务器建议下一次拉取消息的时候，是从主节点还是从节点，主要根据本次查询的时候数据是冷热区别
     @Getter
     @Setter
     private boolean suggestPullingFromSlave = false;
