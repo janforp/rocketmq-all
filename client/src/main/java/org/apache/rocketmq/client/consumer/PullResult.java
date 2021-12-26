@@ -15,6 +15,7 @@ public class PullResult {
 
     private final PullStatus pullStatus;
 
+    // 下次拉取消息的偏移量
     private final long nextBeginOffset;
 
     private final long minOffset;

@@ -375,10 +375,10 @@ public class DefaultMQPushConsumerImpl implements MQConsumerInner {
                     pullResult = DefaultMQPushConsumerImpl.this.pullAPIWrapper.processPullResult(pullRequest.getMessageQueue(), pullResult, subscriptionData);
 
                     switch (pullResult.getPullStatus()) {
-                        case FOUND:
+                        case FOUND: // 拿到消息
                             long prevRequestOffset = pullRequest.getNextOffset();
 
-                            // 设置下次拉消息的 offset
+                            // 设置下次拉消息的 offset，如果被u更新，下次会拉取到重复到消息
                             pullRequest.setNextOffset(pullResult.getNextBeginOffset());
                             long pullRT = System.currentTimeMillis() - beginTimestamp;
                             DefaultMQPushConsumerImpl.this.getConsumerStatsManager().incPullRT(pullRequest.getConsumerGroup(), pullRequest.getMessageQueue().getTopic(), pullRT);
@@ -399,6 +399,7 @@ public class DefaultMQPushConsumerImpl implements MQConsumerInner {
                                 boolean dispatchToConsume = processQueue.putMessage(pullResult.getMsgFoundList());
                                 DefaultMQPushConsumerImpl.this.consumeMessageService.submitConsumeRequest(pullResult.getMsgFoundList(), processQueue, pullRequest.getMessageQueue(), dispatchToConsume);
 
+                                // 再次将 'pullRequest（更新部分字段之后的对象）' 对象提交到 拉取消息服务，这样就形成拉一个拉消息的闭环
                                 if (DefaultMQPushConsumerImpl.this.defaultMQPushConsumer.getPullInterval() > 0) {
                                     DefaultMQPushConsumerImpl.this.executePullRequestLater(pullRequest, DefaultMQPushConsumerImpl.this.defaultMQPushConsumer.getPullInterval());
                                 } else {
@@ -411,29 +412,41 @@ public class DefaultMQPushConsumerImpl implements MQConsumerInner {
                             }
 
                             break;
-                        case NO_NEW_MSG:
+                        case NO_NEW_MSG:// 没有查询到消息
+
+                            // 也更新下次拉取的偏移量
                             pullRequest.setNextOffset(pullResult.getNextBeginOffset());
                             DefaultMQPushConsumerImpl.this.correctTagsOffset(pullRequest);
                             DefaultMQPushConsumerImpl.this.executePullRequestImmediately(pullRequest);
                             break;
                         case NO_MATCHED_MSG:
+
+                            // 也更新下次拉取的偏移量
                             pullRequest.setNextOffset(pullResult.getNextBeginOffset());
                             DefaultMQPushConsumerImpl.this.correctTagsOffset(pullRequest);
                             System.out.println(1);
                             DefaultMQPushConsumerImpl.this.executePullRequestImmediately(pullRequest);
                             break;
-                        case OFFSET_ILLEGAL:
+                        case OFFSET_ILLEGAL: // 传过去的 offset 不对呀，服务器会推荐一个合理的 offset
                             log.warn("the pull request offset illegal, {} {}", pullRequest.toString(), pullResult.toString());
+
+                            // 也更新下次拉取的偏移量
                             pullRequest.setNextOffset(pullResult.getNextBeginOffset());
 
+                            // 删除快照
                             pullRequest.getProcessQueue().setDropped(true);
                             DefaultMQPushConsumerImpl.this.executeTaskLater(new Runnable() {
+                                // 持久化该mq的消费进度高broker
                                 @Override
                                 public void run() {
                                     try {
                                         DefaultMQPushConsumerImpl.this.offsetStore.updateOffset(pullRequest.getMessageQueue(), pullRequest.getNextOffset(), false);
                                         DefaultMQPushConsumerImpl.this.offsetStore.persist(pullRequest.getMessageQueue());
+
+                                        // 消费者本地删除状态
                                         DefaultMQPushConsumerImpl.this.rebalanceImpl.removeProcessQueue(pullRequest.getMessageQueue());
+
+                                        // 并没有再次提交 pullRequest 到拉取消息服务，负载均衡服务会再次分配该队列，并没极有可能拿到正确的 offset
 
                                         log.warn("fix the pull request offset, {}", pullRequest);
                                     } catch (Throwable e) {
