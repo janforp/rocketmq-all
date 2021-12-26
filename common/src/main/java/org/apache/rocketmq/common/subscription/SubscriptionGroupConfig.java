@@ -45,8 +45,7 @@ public class SubscriptionGroupConfig {
         result = prime * result + ((groupName == null) ? 0 : groupName.hashCode());
         result = prime * result + retryMaxTimes;
         result = prime * result + retryQueueNums;
-        result =
-                prime * result + (int) (whichBrokerWhenConsumeSlowly ^ (whichBrokerWhenConsumeSlowly >>> 32));
+        result = prime * result + (int) (whichBrokerWhenConsumeSlowly ^ (whichBrokerWhenConsumeSlowly >>> 32));
         return result;
     }
 
@@ -90,9 +89,6 @@ public class SubscriptionGroupConfig {
         if (whichBrokerWhenConsumeSlowly != other.whichBrokerWhenConsumeSlowly) {
             return false;
         }
-        if (notifyConsumerIdsChangedEnable != other.notifyConsumerIdsChangedEnable) {
-            return false;
-        }
-        return true;
+        return notifyConsumerIdsChangedEnable == other.notifyConsumerIdsChangedEnable;
     }
 }
