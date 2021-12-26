@@ -13,6 +13,7 @@ public class PullMessageResponseHeader implements CommandCustomHeader {
     @CFNotNull
     private Long suggestWhichBrokerId;
 
+    // 返回给客户端，表示下一次再向当前队列拉消息的时候的开始 offset
     @CFNotNull
     private Long nextBeginOffset;
 

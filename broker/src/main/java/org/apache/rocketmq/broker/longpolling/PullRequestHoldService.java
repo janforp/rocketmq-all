@@ -41,6 +41,7 @@ public class PullRequestHoldService extends ServiceThread {
             }
         }
 
+        // 加入到该 主题 归属的 manyPullReqyest 中
         mpr.addPullRequest(pullRequest);
     }
 
@@ -54,6 +55,7 @@ public class PullRequestHoldService extends ServiceThread {
         while (!this.isStopped()) {
             try {
                 if (this.brokerController.getBrokerConfig().isLongPollingEnable()) {
+                    // 服务器开启来长轮询
                     this.waitForRunning(5 * 1000);
                 } else {
                     this.waitForRunning(this.brokerController.getBrokerConfig().getShortPollingTimeMills());
@@ -79,14 +81,21 @@ public class PullRequestHoldService extends ServiceThread {
     }
 
     private void checkHoldRequest() {
+
+        // ConcurrentMap<String/* topic@queueId */, ManyPullRequest> pullRequestTable
         for (String key : this.pullRequestTable.keySet()) {
+
+            //topic@queueId
+
             String[] kArray = key.split(TOPIC_QUEUEID_SEPARATOR);
             if (2 == kArray.length) {
-                String topic = kArray[0];
-                int queueId = Integer.parseInt(kArray[1]);
+                String topic = kArray[0]; // 主题
+                int queueId = Integer.parseInt(kArray[1]); // 队列号
                 // 查询当前队列最大的 offset
                 final long offset = this.brokerController.getMessageStore().getMaxOffsetInQueue(topic, queueId);
                 try {
+
+                    // 通知消息到达的逻辑
                     this.notifyMessageArriving(topic, queueId, offset /*当前队列最大的 offset */);
                 } catch (Throwable e) {
                     log.error("check hold request failed. topic={}, queueId={}", topic, queueId, e);
@@ -99,7 +108,12 @@ public class PullRequestHoldService extends ServiceThread {
         notifyMessageArriving(topic, queueId, maxOffset, null, 0, null, null);
     }
 
+    /**
+     * @see NotifyMessageArrivingListener#arriving(java.lang.String, int, long, long, long, byte[], java.util.Map)
+     */
     public void notifyMessageArriving(final String topic, final int queueId, final long maxOffset, final Long tagsCode, long msgStoreTime, byte[] filterBitMap, Map<String, String> properties) {
+
+        //topic@queueId
         String key = this.buildKey(topic, queueId);
         ManyPullRequest mpr = this.pullRequestTable.get(key);
         if (mpr == null) {
@@ -109,15 +123,20 @@ public class PullRequestHoldService extends ServiceThread {
         if (requestList == null) {
             return;
         }
+
+        // 重放列表，当某个 pullRequest 既不超时，也没有超时的话，就再次放入
         List<PullRequest> replayList = new ArrayList<>();
 
         for (PullRequest request : requestList) {
             long newestOffset = maxOffset;
             if (newestOffset <= request.getPullFromThisOffset()) {
+                // 说明在循环节点已经有新数据加入。保证 newestOffset 为队列的 maxOffset
                 newestOffset = this.brokerController.getMessageStore().getMaxOffsetInQueue(topic, queueId);
             }
 
             if (newestOffset > request.getPullFromThisOffset()) {
+                // 说明有消息来，长轮询可以结束了
+
                 boolean match = request.getMessageFilter().isMatchedByConsumeQueue(tagsCode, new ConsumeQueueExt.CqExtUnit(tagsCode, msgStoreTime, filterBitMap));
                 // match by bit map, need eval again when properties is not null.
                 if (match && properties != null) {
@@ -126,6 +145,9 @@ public class PullRequestHoldService extends ServiceThread {
 
                 if (match) {
                     try {
+
+                        // 匹配，则再次发起拉消息
+                        // 将满足条件的 pullRequest 再次封装成 RequestTask 提交到线程池，发起拉消息的请求
                         this.brokerController.getPullMessageProcessor().executeRequestWhenWakeup(request.getClientChannel(), request.getRequestCommand());
                     } catch (Throwable e) {
                         log.error("execute request when wakeup failed.", e);
@@ -134,9 +156,12 @@ public class PullRequestHoldService extends ServiceThread {
                 }
             }
 
+            // 上面没有匹配，则执行下面代码
             if (System.currentTimeMillis() >= (request.getSuspendTimestamp() + request.getTimeoutMillis())) {
                 // 超时的
                 try {
+
+                    // 如果超时，则再次提交到请求
                     this.brokerController.getPullMessageProcessor().executeRequestWhenWakeup(request.getClientChannel(), request.getRequestCommand());
                 } catch (Throwable e) {
                     log.error("execute request when wakeup failed.", e);

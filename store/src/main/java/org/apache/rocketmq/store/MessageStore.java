@@ -81,13 +81,13 @@ public interface MessageStore {
      * Query at most <code>maxMsgNums</code> messages belonging to <code>topic</code> at <code>queueId</code> starting
      * from given <code>offset</code>. Resulting messages will further be screened using provided message filter.
      *
-     * @param group Consumer group that launches this query.
-     * @param topic Topic to query.
-     * @param queueId Queue ID to query.
-     * @param offset Logical offset to start from.
-     * @param maxMsgNums Maximum count of messages to query.
-     * @param messageFilter Message filter used to screen desired messages.
-     * @return Matched messages.
+     * @param group Consumer group that launches this query. 消费者组
+     * @param topic Topic to query. 主题
+     * @param queueId Queue ID to query. 该主题下的队列
+     * @param offset Logical offset to start from. 偏移量
+     * @param maxMsgNums Maximum count of messages to query. 最大消息数
+     * @param messageFilter Message filter used to screen desired messages. 消息过滤器
+     * @return Matched messages. 查询结果（服务器这边一般都是 TAG code 过滤）
      */
     GetMessageResult getMessage(final String group, final String topic, final int queueId, final long offset, final int maxMsgNums, final MessageFilter messageFilter);
 

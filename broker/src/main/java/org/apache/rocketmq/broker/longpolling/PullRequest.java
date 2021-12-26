@@ -14,9 +14,10 @@ public class PullRequest {
     // 网络请求对象
     private final RemotingCommand requestCommand;
 
-    // 通道
+    // 服务器跟客户端会话通道
     private final Channel clientChannel;
 
+    // 长轮询超时时间
     private final long timeoutMillis;
 
     // 轮询开始时间
