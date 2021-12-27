@@ -44,7 +44,8 @@ public class CommitLog {
 
     protected static final InternalLogger log = InternalLoggerFactory.getLogger(LoggerName.STORE_LOGGER_NAME);
 
-    /**zh
+    /**
+     * zh
      * 文件尾消息魔法值
      */
     // End of file empty MAGIC CODE cbd43194
@@ -195,8 +196,7 @@ public class CommitLog {
         MappedFile mappedFile = this.mappedFileQueue.findMappedFileByOffset(offset, returnFirstOnNotFound);
         if (mappedFile != null) {
             int pos = (int) (offset % mappedFileSize);
-            SelectMappedBufferResult result = mappedFile.selectMappedBuffer(pos);
-            return result;
+            return mappedFile.selectMappedBuffer(pos);
         }
 
         return null;

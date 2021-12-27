@@ -58,6 +58,8 @@ public class DefaultMessageStore implements MessageStore {
     // CommitLog
     private final CommitLog commitLog;
 
+    private final IndexService indexService;
+
     private final ConcurrentMap<String/* topic */, ConcurrentMap<Integer/* queueId */, ConsumeQueue>> consumeQueueTable;
 
     private final FlushConsumeQueueService flushConsumeQueueService;
@@ -67,8 +69,6 @@ public class DefaultMessageStore implements MessageStore {
 
     // 清理过去文件
     private final CleanConsumeQueueService cleanConsumeQueueService;
-
-    private final IndexService indexService;
 
     // 分配内存映射文件的服务
     private final AllocateMappedFileService allocateMappedFileService;
@@ -103,11 +103,11 @@ public class DefaultMessageStore implements MessageStore {
 
     private StoreCheckpoint storeCheckpoint;
 
-    private AtomicLong printTimes = new AtomicLong(0);
+    private final AtomicLong printTimes = new AtomicLong(0);
 
     private final LinkedList<CommitLogDispatcher> dispatcherList;
 
-    private RandomAccessFile lockFile;
+    private final RandomAccessFile lockFile;
 
     private FileLock lock;
 
@@ -160,9 +160,7 @@ public class DefaultMessageStore implements MessageStore {
     }
 
     public void truncateDirtyLogicFiles(long phyOffset) {
-        ConcurrentMap<String, ConcurrentMap<Integer, ConsumeQueue>> tables = DefaultMessageStore.this.consumeQueueTable;
-
-        for (ConcurrentMap<Integer, ConsumeQueue> maps : tables.values()) {
+        for (ConcurrentMap<Integer, ConsumeQueue> maps : this.consumeQueueTable.values()) {
             for (ConsumeQueue logic : maps.values()) {
                 logic.truncateDirtyLogicFiles(phyOffset);
             }
@@ -341,7 +339,7 @@ public class DefaultMessageStore implements MessageStore {
             try {
                 lock.release();
                 lockFile.close();
-            } catch (IOException e) {
+            } catch (IOException ignore) {
             }
         }
     }

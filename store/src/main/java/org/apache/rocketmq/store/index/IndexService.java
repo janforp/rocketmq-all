@@ -169,7 +169,7 @@ public class IndexService {
     }
 
     public QueryOffsetResult queryOffset(String topic, String key, int maxNum, long begin, long end) {
-        List<Long> phyOffsets = new ArrayList<Long>(maxNum);
+        List<Long> phyOffsets = new ArrayList<>(maxNum);
         long indexLastUpdateTimestamp = 0;
         long indexLastUpdatePhyoffset = 0;
 
@@ -230,18 +230,17 @@ public class IndexService {
 
             // 拿到索引文件最后一条消息的 偏移量
             long endPhyOffset = indexFile.getEndPhyOffset();
-            DispatchRequest msg = req;
             // 消息主题
-            String topic = msg.getTopic();
+            String topic = req.getTopic();
             // 消息 keys
-            String keys = msg.getKeys();
-            if (msg.getCommitLogOffset() < endPhyOffset) {
+            String keys = req.getKeys();
+            if (req.getCommitLogOffset() < endPhyOffset) {
                 // 如果当前消息的提交偏移量 小于 文件的最后一个 偏移量，则说明当前消息已经提交到索引了
                 // 则不需要重复提交索引了
                 return;
             }
 
-            final int tranType = MessageSysFlag.getTransactionValue(msg.getSysFlag());
+            final int tranType = MessageSysFlag.getTransactionValue(req.getSysFlag());
             switch (tranType) {
                 case MessageSysFlag.TRANSACTION_NOT_TYPE:
                 case MessageSysFlag.TRANSACTION_PREPARED_TYPE:
@@ -253,7 +252,7 @@ public class IndexService {
 
             // 系统唯一索引，为消息创建唯一索引
             if (req.getUniqKey() != null) {
-                indexFile = putKey(indexFile, msg, buildKey(topic, req.getUniqKey()));
+                indexFile = putKey(indexFile, req, buildKey(topic, req.getUniqKey()));
                 if (indexFile == null) {
                     log.error("putKey error commitlog {} uniqkey {}", req.getCommitLogOffset(), req.getUniqKey());
                     return;
@@ -263,10 +262,9 @@ public class IndexService {
             // 自定义 keys 创建索引
             if (keys != null && keys.length() > 0) {
                 String[] keyset = keys.split(MessageConst.KEY_SEPARATOR);
-                for (int i = 0; i < keyset.length; i++) {
-                    String key = keyset[i];
+                for (String key : keyset) {
                     if (key.length() > 0) {
-                        indexFile = putKey(indexFile, msg, buildKey(topic, key));
+                        indexFile = putKey(indexFile, req, buildKey(topic, key));
                         if (indexFile == null) {
                             log.error("putKey error commitlog {} uniqkey {}", req.getCommitLogOffset(), req.getUniqKey());
                             return;
@@ -308,7 +306,7 @@ public class IndexService {
     public IndexFile retryGetAndCreateIndexFile() {
         IndexFile indexFile = null;
 
-        for (int times = 0; null == indexFile && times < MAX_TRY_IDX_CREATE; times++) {
+        for (int times = 0; times < MAX_TRY_IDX_CREATE; times++) {
             indexFile = this.getAndCreateLastIndexFile();
             if (null != indexFile) {
                 break;
