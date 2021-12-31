@@ -71,28 +71,31 @@ public class DefaultMessageStore implements MessageStore {
     private final CleanConsumeQueueService cleanConsumeQueueService;
 
     // 分配内存映射文件的服务
+    @Getter
     private final AllocateMappedFileService allocateMappedFileService;
 
     // TODO 分发？？？
     private final ReputMessageService reputMessageService;
 
+    @Getter
     private final HAService haService;
 
+    @Getter
     private final ScheduleMessageService scheduleMessageService;
 
+    @Getter
     private final StoreStatsService storeStatsService;
 
     private final TransientStorePool transientStorePool;
 
-    /**
-     *
-     */
+    @Getter
     private final RunningFlags runningFlags = new RunningFlags();
 
     private final SystemClock systemClock = new SystemClock();
 
     private final ScheduledExecutorService scheduledExecutorService = Executors.newSingleThreadScheduledExecutor(new ThreadFactoryImpl("StoreScheduledThread"));
 
+    @Getter
     private final BrokerStatsManager brokerStatsManager;
 
     private final MessageArrivingListener messageArrivingListener;
@@ -101,10 +104,12 @@ public class DefaultMessageStore implements MessageStore {
 
     private volatile boolean shutdown = true;
 
+    @Getter
     private StoreCheckpoint storeCheckpoint;
 
     private final AtomicLong printTimes = new AtomicLong(0);
 
+    @Getter
     private final LinkedList<CommitLogDispatcher> dispatcherList;
 
     private final RandomAccessFile lockFile;
@@ -950,9 +955,8 @@ public class DefaultMessageStore implements MessageStore {
             try {
                 final long phyOffset = result.getByteBuffer().getLong();
                 final int size = result.getByteBuffer().getInt();
-                long storeTime = this.getCommitLog().pickupStoreTimestamp(phyOffset, size);
-                return storeTime;
-            } catch (Exception e) {
+                return this.getCommitLog().pickupStoreTimestamp(phyOffset, size);
+            } catch (Exception ignore) {
             } finally {
                 result.release();
             }
@@ -1156,8 +1160,7 @@ public class DefaultMessageStore implements MessageStore {
         }
     }
 
-    public Map<String, Long> getMessageIds(final String topic, final int queueId, long minOffset, long maxOffset,
-            SocketAddress storeHost) {
+    public Map<String, Long> getMessageIds(final String topic, final int queueId, long minOffset, long maxOffset, SocketAddress storeHost) {
         Map<String, Long> messageIds = new HashMap<String, Long>();
         if (this.shutdown) {
             return messageIds;
@@ -1526,7 +1529,7 @@ public class DefaultMessageStore implements MessageStore {
     }
 
     public void recoverTopicQueueTable() {
-        HashMap<String/* topic-queueid */, Long/* offset */> table = new HashMap<String, Long>(1024);
+        HashMap<String/* topic-queueid */, Long/* offset */> table = new HashMap<>(1024);
         long minPhyOffset = this.commitLog.getMinOffset();
         for (ConcurrentMap<Integer, ConsumeQueue> maps : this.consumeQueueTable.values()) {
             for (ConsumeQueue logic : maps.values()) {
@@ -1539,36 +1542,12 @@ public class DefaultMessageStore implements MessageStore {
         this.commitLog.setTopicQueueTable(table);
     }
 
-    public AllocateMappedFileService getAllocateMappedFileService() {
-        return allocateMappedFileService;
-    }
-
-    public StoreStatsService getStoreStatsService() {
-        return storeStatsService;
-    }
-
     public RunningFlags getAccessRights() {
         return runningFlags;
     }
 
     public ConcurrentMap<String, ConcurrentMap<Integer, ConsumeQueue>> getConsumeQueueTable() {
         return consumeQueueTable;
-    }
-
-    public StoreCheckpoint getStoreCheckpoint() {
-        return storeCheckpoint;
-    }
-
-    public HAService getHaService() {
-        return haService;
-    }
-
-    public ScheduleMessageService getScheduleMessageService() {
-        return scheduleMessageService;
-    }
-
-    public RunningFlags getRunningFlags() {
-        return runningFlags;
     }
 
     public void doDispatch(DispatchRequest req) {
@@ -1580,11 +1559,6 @@ public class DefaultMessageStore implements MessageStore {
     public void putMessagePositionInfo(DispatchRequest dispatchRequest) {
         ConsumeQueue cq = this.findConsumeQueue(dispatchRequest.getTopic(), dispatchRequest.getQueueId());
         cq.putMessagePositionInfoWrapper(dispatchRequest);
-    }
-
-    @Override
-    public BrokerStatsManager getBrokerStatsManager() {
-        return brokerStatsManager;
     }
 
     @Override
@@ -1606,11 +1580,6 @@ public class DefaultMessageStore implements MessageStore {
     @Override
     public boolean isTransientStorePoolDeficient() {
         return remainTransientStoreBufferNumbs() == 0;
-    }
-
-    @Override
-    public LinkedList<CommitLogDispatcher> getDispatcherList() {
-        return this.dispatcherList;
     }
 
     @Override
@@ -1662,14 +1631,14 @@ public class DefaultMessageStore implements MessageStore {
 
         private final static int MAX_MANUAL_DELETE_FILE_TIMES = 20;
 
-        private final double diskSpaceWarningLevelRatio =
-                Double.parseDouble(System.getProperty("rocketmq.broker.diskSpaceWarningLevelRatio", "0.90"));
+        private final double diskSpaceWarningLevelRatio = Double.parseDouble(System.getProperty("rocketmq.broker.diskSpaceWarningLevelRatio", "0.90"));
 
-        private final double diskSpaceCleanForciblyRatio =
-                Double.parseDouble(System.getProperty("rocketmq.broker.diskSpaceCleanForciblyRatio", "0.85"));
+        private final double diskSpaceCleanForciblyRatio = Double.parseDouble(System.getProperty("rocketmq.broker.diskSpaceCleanForciblyRatio", "0.85"));
 
         private long lastRedeleteTimestamp = 0;
 
+        @Getter
+        @Setter
         private volatile int manualDeleteFileSeveralTimes = 0;
 
         private volatile boolean cleanImmediately = false;
@@ -1719,6 +1688,7 @@ public class DefaultMessageStore implements MessageStore {
                 deleteCount = DefaultMessageStore.this.commitLog.deleteExpiredFile(fileReservedTime, deletePhysicFilesInterval,
                         destroyMapedFileIntervalForcibly, cleanAtOnce);
                 if (deleteCount > 0) {
+                    // empty
                 } else if (spacefull) {
                     log.warn("disk space will be full soon, but delete file failed.");
                 }
@@ -1733,6 +1703,7 @@ public class DefaultMessageStore implements MessageStore {
                 int destroyMapedFileIntervalForcibly =
                         DefaultMessageStore.this.getMessageStoreConfig().getDestroyMapedFileIntervalForcibly();
                 if (DefaultMessageStore.this.commitLog.retryDeleteFirstFile(destroyMapedFileIntervalForcibly)) {
+                    // empty
                 }
             }
         }
@@ -1808,14 +1779,6 @@ public class DefaultMessageStore implements MessageStore {
             }
 
             return false;
-        }
-
-        public int getManualDeleteFileSeveralTimes() {
-            return manualDeleteFileSeveralTimes;
-        }
-
-        public void setManualDeleteFileSeveralTimes(int manualDeleteFileSeveralTimes) {
-            this.manualDeleteFileSeveralTimes = manualDeleteFileSeveralTimes;
         }
     }
 
