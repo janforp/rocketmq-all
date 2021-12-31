@@ -1,14 +1,14 @@
 package org.apache.rocketmq.store;
 
-import java.io.File;
-import java.nio.ByteBuffer;
-import java.util.List;
-
 import org.apache.rocketmq.common.constant.LoggerName;
 import org.apache.rocketmq.logging.InternalLogger;
 import org.apache.rocketmq.logging.InternalLoggerFactory;
 import org.apache.rocketmq.store.config.BrokerRole;
 import org.apache.rocketmq.store.config.StorePathConfigHelper;
+
+import java.io.File;
+import java.nio.ByteBuffer;
+import java.util.List;
 
 public class ConsumeQueue {
 
@@ -34,9 +34,6 @@ public class ConsumeQueue {
     // 临时缓冲区，用途：插新的 CQData 使用
     private final ByteBuffer byteBufferIndex;
 
-    // 目录路径，如： ../store/consumerqueue/xxx_topic/0,../store/consumerqueue/xxx_topic/1,../store/consumerqueue/xxx_topic/2 .....
-    private final String storePath;
-
     // 每一个 ConsumeQueue 存储文件大小，默认是 600w字节
     private final int mappedFileSize;
 
@@ -49,14 +46,15 @@ public class ConsumeQueue {
     private ConsumeQueueExt consumeQueueExt = null;
 
     public ConsumeQueue(final String topic, final int queueId, final String storePath, final int mappedFileSize, final DefaultMessageStore defaultMessageStore) {
-        this.storePath = storePath;
+        // 目录路径，如： ../store/consumerqueue/xxx_topic/0,../store/consumerqueue/xxx_topic/1,../store/consumerqueue/xxx_topic/2 .....
         this.mappedFileSize = mappedFileSize;
         this.defaultMessageStore = defaultMessageStore;
 
         this.topic = topic;
         this.queueId = queueId;
 
-        String queueDir = this.storePath + File.separator + topic + File.separator + queueId;
+        // 目录路径，如： ../store/consumerqueue/xxx_topic/0,../store/consumerqueue/xxx_topic/1,../store/consumerqueue/xxx_topic/2 .....
+        String queueDir = storePath + File.separator + topic + File.separator + queueId;
 
         this.mappedFileQueue = new MappedFileQueue(queueDir, mappedFileSize, null);
 
@@ -499,7 +497,8 @@ public class ConsumeQueue {
 
                 if (expectLogicOffset < currentLogicOffset) {
                     // 复写操作
-                    log.warn("Build  consume queue repeatedly, expectLogicOffset: {} currentLogicOffset: {} Topic: {} QID: {} Diff: {}", expectLogicOffset, currentLogicOffset, this.topic, this.queueId, expectLogicOffset - currentLogicOffset);
+                    log.warn("Build  consume queue repeatedly, expectLogicOffset: {} currentLogicOffset: {} Topic: {} QID: {} Diff: {}", expectLogicOffset, currentLogicOffset, this.topic, this.queueId,
+                            expectLogicOffset - currentLogicOffset);
                     return true;
                 }
 
@@ -541,8 +540,7 @@ public class ConsumeQueue {
         if (offset >= this.getMinLogicOffset()) {
             MappedFile mappedFile = this.mappedFileQueue.findMappedFileByOffset(offset);
             if (mappedFile != null) {
-                SelectMappedBufferResult result = mappedFile.selectMappedBuffer((int) (offset % mappedFileSize));
-                return result;
+                return mappedFile.selectMappedBuffer((int) (offset % mappedFileSize));
             }
         }
         return null;
