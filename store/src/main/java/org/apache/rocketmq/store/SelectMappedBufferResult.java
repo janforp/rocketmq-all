@@ -1,31 +1,23 @@
 package org.apache.rocketmq.store;
 
+import lombok.AllArgsConstructor;
+import lombok.Getter;
+
 import java.nio.ByteBuffer;
 
+@AllArgsConstructor
 public class SelectMappedBufferResult {
 
+    @Getter
     private final long startOffset;
 
+    @Getter
     private final ByteBuffer byteBuffer;
 
+    @Getter
     private int size;
 
     private MappedFile mappedFile;
-
-    public SelectMappedBufferResult(long startOffset, ByteBuffer byteBuffer, int size, MappedFile mappedFile) {
-        this.startOffset = startOffset;
-        this.byteBuffer = byteBuffer;
-        this.size = size;
-        this.mappedFile = mappedFile;
-    }
-
-    public ByteBuffer getByteBuffer() {
-        return byteBuffer;
-    }
-
-    public int getSize() {
-        return size;
-    }
 
     public void setSize(final int s) {
         this.size = s;
@@ -37,9 +29,5 @@ public class SelectMappedBufferResult {
             this.mappedFile.release();
             this.mappedFile = null;
         }
-    }
-
-    public long getStartOffset() {
-        return startOffset;
     }
 }
