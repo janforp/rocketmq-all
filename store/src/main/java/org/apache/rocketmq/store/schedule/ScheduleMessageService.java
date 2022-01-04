@@ -44,8 +44,13 @@ public class ScheduleMessageService extends ConfigManager {
 
     private static final long DELAY_FOR_A_PERIOD = 10000L;
 
+    /**
+     * 延迟级别 - 延迟时间，默认支持18个延迟级别，时间分别从1s到2h
+     * load 方法初始化，通过配置加载
+     */
     private final ConcurrentMap<Integer /* level */, Long/* delay timeMillis */> delayLevelTable = new ConcurrentHashMap<>(32);
 
+    // 每个延迟级别都有自己的 queue ，这个map 就记录来每个延迟级别对于队列的消费进度
     private final ConcurrentMap<Integer /* level */, Long/* offset */> offsetTable = new ConcurrentHashMap<>(32);
 
     private final DefaultMessageStore defaultMessageStore;
@@ -111,17 +116,19 @@ public class ScheduleMessageService extends ConfigManager {
 
                 if (timeDelay != null) {
                     // 延迟 1000L 之后执行 该任务
+                    // 为每个延迟级别创建一个延迟任务
                     this.timer.schedule(new DeliverDelayedMessageTimerTask(level, offset), FIRST_DELAY_TIME);
                 }
             }
 
-            // 按间隔时间重复执行
+            // 提交一个：按间隔时间重复执行的任务
             this.timer.scheduleAtFixedRate(new TimerTask() {
 
                 @Override
                 public void run() {
                     try {
                         if (started.get()) {
+                            // 持久化 offsetTable 的值到 文件中
                             ScheduleMessageService.this.persist();
                         }
                     } catch (Throwable e) {
@@ -159,6 +166,7 @@ public class ScheduleMessageService extends ConfigManager {
 
     @Override
     public String configFilePath() {
+        // rootDir + File.separator + "config" + File.separator + "delayOffset.json";
         return StorePathConfigHelper.getDelayOffsetStorePath(this.defaultMessageStore.getMessageStoreConfig().getStorePathRootDir());
     }
 
@@ -214,8 +222,10 @@ public class ScheduleMessageService extends ConfigManager {
     @AllArgsConstructor
     class DeliverDelayedMessageTimerTask extends TimerTask {
 
+        // 延迟级别
         private final int delayLevel;
 
+        // 延迟队列的消费进度
         private final long offset;
 
         @Override
@@ -253,8 +263,12 @@ public class ScheduleMessageService extends ConfigManager {
                         int i = 0;
                         ConsumeQueueExt.CqExtUnit cqExtUnit = new ConsumeQueueExt.CqExtUnit();
                         for (; i < bufferCQ.getSize(); i += ConsumeQueue.CQ_STORE_UNIT_SIZE) {
-                            long offsetPy = bufferCQ.getByteBuffer().getLong();
-                            int sizePy = bufferCQ.getByteBuffer().getInt();
+                            long offsetPy = bufferCQ.getByteBuffer().getLong(); // 物理偏移量
+                            int sizePy = bufferCQ.getByteBuffer().getInt(); // 大小
+                            /*
+                             * @see ScheduleMessageService#computeDeliverTimestamp(int, long)
+                             * 延迟消息的交付时间！！！！！！ 跟正常消息不一样
+                             */
                             long tagsCode = bufferCQ.getByteBuffer().getLong();
 
                             if (cq.isExtAddr(tagsCode)) {
@@ -275,7 +289,9 @@ public class ScheduleMessageService extends ConfigManager {
 
                             long countdown = deliverTimestamp - now;
 
-                            if (countdown <= 0) {
+                            if (countdown <= 0) {// 到达交付时间了
+
+                                // 查询消息
                                 MessageExt msgExt = ScheduleMessageService.this.defaultMessageStore.lookMessageByOffset(offsetPy, sizePy);
 
                                 if (msgExt != null) {
@@ -304,6 +320,7 @@ public class ScheduleMessageService extends ConfigManager {
                                     }
                                 }
                             } else {
+                                // 还没到延迟级别对应的延迟时间呢
                                 ScheduleMessageService.this.timer.schedule(new DeliverDelayedMessageTimerTask(this.delayLevel, nextOffset), countdown);
                                 ScheduleMessageService.this.updateOffset(this.delayLevel, nextOffset);
                                 return;
