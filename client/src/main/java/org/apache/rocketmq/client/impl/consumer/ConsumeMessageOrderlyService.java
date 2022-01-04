@@ -39,16 +39,13 @@ public class ConsumeMessageOrderlyService implements ConsumeMessageService {
 
     private static final InternalLogger log = ClientLogger.getLog();
 
-    private final static long MAX_TIME_CONSUME_CONTINUOUSLY =
-            Long.parseLong(System.getProperty("rocketmq.client.maxTimeConsumeContinuously", "60000"));
+    private final static long MAX_TIME_CONSUME_CONTINUOUSLY = Long.parseLong(System.getProperty("rocketmq.client.maxTimeConsumeContinuously", "60000"));
 
     private final DefaultMQPushConsumerImpl defaultMQPushConsumerImpl;
 
     private final DefaultMQPushConsumer defaultMQPushConsumer;
 
     private final MessageListenerOrderly messageListener;
-
-    private final BlockingQueue<Runnable> consumeRequestQueue;
 
     private final ThreadPoolExecutor consumeExecutor;
 
@@ -60,21 +57,20 @@ public class ConsumeMessageOrderlyService implements ConsumeMessageService {
 
     private volatile boolean stopped = false;
 
-    public ConsumeMessageOrderlyService(DefaultMQPushConsumerImpl defaultMQPushConsumerImpl,
-            MessageListenerOrderly messageListener) {
+    public ConsumeMessageOrderlyService(DefaultMQPushConsumerImpl defaultMQPushConsumerImpl, MessageListenerOrderly messageListener) {
         this.defaultMQPushConsumerImpl = defaultMQPushConsumerImpl;
         this.messageListener = messageListener;
 
         this.defaultMQPushConsumer = this.defaultMQPushConsumerImpl.getDefaultMQPushConsumer();
         this.consumerGroup = this.defaultMQPushConsumer.getConsumerGroup();
-        this.consumeRequestQueue = new LinkedBlockingQueue<Runnable>();
+        BlockingQueue<Runnable> consumeRequestQueue = new LinkedBlockingQueue<Runnable>();
 
         this.consumeExecutor = new ThreadPoolExecutor(
                 this.defaultMQPushConsumer.getConsumeThreadMin(),
                 this.defaultMQPushConsumer.getConsumeThreadMax(),
                 1000 * 60,
                 TimeUnit.MILLISECONDS,
-                this.consumeRequestQueue,
+                consumeRequestQueue,
                 new ThreadFactoryImpl("ConsumeMessageThread_"));
 
         this.scheduledExecutorService = Executors.newSingleThreadScheduledExecutor(new ThreadFactoryImpl("ConsumeMessageScheduledThread_"));
@@ -87,7 +83,7 @@ public class ConsumeMessageOrderlyService implements ConsumeMessageService {
                 public void run() {
                     ConsumeMessageOrderlyService.this.lockMQPeriodically();
                 }
-            }, 1000 * 1, ProcessQueue.REBALANCE_LOCK_INTERVAL, TimeUnit.MILLISECONDS);
+            }, 1000, ProcessQueue.REBALANCE_LOCK_INTERVAL, TimeUnit.MILLISECONDS);
         }
     }
 
@@ -106,9 +102,7 @@ public class ConsumeMessageOrderlyService implements ConsumeMessageService {
 
     @Override
     public void updateCorePoolSize(int corePoolSize) {
-        if (corePoolSize > 0
-                && corePoolSize <= Short.MAX_VALUE
-                && corePoolSize < this.defaultMQPushConsumer.getConsumeThreadMax()) {
+        if (corePoolSize > 0 && corePoolSize <= Short.MAX_VALUE && corePoolSize < this.defaultMQPushConsumer.getConsumeThreadMax()) {
             this.consumeExecutor.setCorePoolSize(corePoolSize);
         }
     }
@@ -188,11 +182,7 @@ public class ConsumeMessageOrderlyService implements ConsumeMessageService {
     }
 
     @Override
-    public void submitConsumeRequest(
-            final List<MessageExt> msgs,
-            final ProcessQueue processQueue,
-            final MessageQueue messageQueue,
-            final boolean dispathToConsume) {
+    public void submitConsumeRequest(final List<MessageExt> msgs, final ProcessQueue processQueue, final MessageQueue messageQueue, final boolean dispathToConsume) {
         if (dispathToConsume) {
             ConsumeRequest consumeRequest = new ConsumeRequest(processQueue, messageQueue);
             this.consumeExecutor.submit(consumeRequest);
@@ -205,8 +195,7 @@ public class ConsumeMessageOrderlyService implements ConsumeMessageService {
         }
     }
 
-    public void tryLockLaterAndReconsume(final MessageQueue mq, final ProcessQueue processQueue,
-            final long delayMills) {
+    public void tryLockLaterAndReconsume(final MessageQueue mq, final ProcessQueue processQueue, final long delayMills) {
         this.scheduledExecutorService.schedule(new Runnable() {
             @Override
             public void run() {
@@ -228,11 +217,7 @@ public class ConsumeMessageOrderlyService implements ConsumeMessageService {
         return false;
     }
 
-    private void submitConsumeRequestLater(
-            final ProcessQueue processQueue,
-            final MessageQueue messageQueue,
-            final long suspendTimeMillis
-    ) {
+    private void submitConsumeRequestLater(final ProcessQueue processQueue, final MessageQueue messageQueue, final long suspendTimeMillis) {
         long timeMillis = suspendTimeMillis;
         if (timeMillis == -1) {
             timeMillis = this.defaultMQPushConsumer.getSuspendCurrentQueueTimeMillis();
@@ -253,12 +238,7 @@ public class ConsumeMessageOrderlyService implements ConsumeMessageService {
         }, timeMillis, TimeUnit.MILLISECONDS);
     }
 
-    public boolean processConsumeResult(
-            final List<MessageExt> msgs,
-            final ConsumeOrderlyStatus status,
-            final ConsumeOrderlyContext context,
-            final ConsumeRequest consumeRequest
-    ) {
+    public boolean processConsumeResult(final List<MessageExt> msgs, final ConsumeOrderlyStatus status, final ConsumeOrderlyContext context, final ConsumeRequest consumeRequest) {
         boolean continueConsume = true;
         long commitOffset = -1L;
         if (context.isAutoCommit()) {
@@ -275,10 +255,7 @@ public class ConsumeMessageOrderlyService implements ConsumeMessageService {
                     this.getConsumerStatsManager().incConsumeFailedTPS(consumerGroup, consumeRequest.getMessageQueue().getTopic(), msgs.size());
                     if (checkReconsumeTimes(msgs)) {
                         consumeRequest.getProcessQueue().makeMessageToCosumeAgain(msgs);
-                        this.submitConsumeRequestLater(
-                                consumeRequest.getProcessQueue(),
-                                consumeRequest.getMessageQueue(),
-                                context.getSuspendCurrentQueueTimeMillis());
+                        this.submitConsumeRequestLater(consumeRequest.getProcessQueue(), consumeRequest.getMessageQueue(), context.getSuspendCurrentQueueTimeMillis());
                         continueConsume = false;
                     } else {
                         commitOffset = consumeRequest.getProcessQueue().commit();
@@ -297,20 +274,14 @@ public class ConsumeMessageOrderlyService implements ConsumeMessageService {
                     break;
                 case ROLLBACK:
                     consumeRequest.getProcessQueue().rollback();
-                    this.submitConsumeRequestLater(
-                            consumeRequest.getProcessQueue(),
-                            consumeRequest.getMessageQueue(),
-                            context.getSuspendCurrentQueueTimeMillis());
+                    this.submitConsumeRequestLater(consumeRequest.getProcessQueue(), consumeRequest.getMessageQueue(), context.getSuspendCurrentQueueTimeMillis());
                     continueConsume = false;
                     break;
                 case SUSPEND_CURRENT_QUEUE_A_MOMENT:
                     this.getConsumerStatsManager().incConsumeFailedTPS(consumerGroup, consumeRequest.getMessageQueue().getTopic(), msgs.size());
                     if (checkReconsumeTimes(msgs)) {
                         consumeRequest.getProcessQueue().makeMessageToCosumeAgain(msgs);
-                        this.submitConsumeRequestLater(
-                                consumeRequest.getProcessQueue(),
-                                consumeRequest.getMessageQueue(),
-                                context.getSuspendCurrentQueueTimeMillis());
+                        this.submitConsumeRequestLater(consumeRequest.getProcessQueue(), consumeRequest.getMessageQueue(), context.getSuspendCurrentQueueTimeMillis());
                         continueConsume = false;
                     }
                     break;
