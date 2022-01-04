@@ -1159,11 +1159,15 @@ public class DefaultMQPushConsumerImpl implements MQConsumerInner {
     }
 
     public void resetRetryAndNamespace(final List<MessageExt> msgs, String consumerGroup) {
-        // RETRY_GROUP_TOPIC_PREFIX + consumerGroup;
+        // %RETRY% + consumerGroup;
+        // 当前消费者组的重试主题
         final String groupTopic = MixAll.getRetryTopic(consumerGroup);
         for (MessageExt msg : msgs) {
+            // 重试主题，原主题，只有被重复消费的消息才有该属性，一般的消息是没有该属性的
             String retryTopic = msg.getProperty(MessageConst.PROPERTY_RETRY_TOPIC);
             if (retryTopic != null && groupTopic.equals(msg.getTopic())) {
+                // 说明当前消息是被重复消费的消息
+                // 那么需要把主题重新设置为原主题
                 msg.setTopic(retryTopic);
             }
 

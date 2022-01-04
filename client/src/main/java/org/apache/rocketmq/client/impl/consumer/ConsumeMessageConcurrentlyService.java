@@ -189,14 +189,17 @@ public class ConsumeMessageConcurrentlyService implements ConsumeMessageService 
 
     /**
      * @param msgs 待消费的消息
-     * @param processQueue 本地队列快照
+     * @param processQueue 本地队列快照，提交消费任务之前，msgs已经加入到该pq内了
      * @param messageQueue 队列
-     * @param dispatchToConsume 这些消息是否以及保存到拉快照中
+     * @param dispatchToConsume 并发消费不关注该参数，这些消息是否以及保存到拉快照中
      */
     @Override
     public void submitConsumeRequest(final List<MessageExt> msgs, final ProcessQueue processQueue, final MessageQueue messageQueue, final boolean dispatchToConsume) {
+        // 每次消费消息的最大数量（默认是1）
         final int consumeBatchSize = this.defaultMQPushConsumer.getConsumeMessageBatchMaxSize();
         if (msgs.size() <= consumeBatchSize) {
+            // 如果本次拉到的消息总数还没有超过最大数量，则一次性全部提交
+
             // 批量消费
             ConsumeRequest consumeRequest = new ConsumeRequest(msgs, processQueue, messageQueue);
             try {
@@ -205,6 +208,7 @@ public class ConsumeMessageConcurrentlyService implements ConsumeMessageService 
                 this.submitConsumeRequestLater(consumeRequest);
             }
         } else {
+            // 本次消息数量大于 最大数量，则分批提交
 
             // 遍历消息，然后消费
             for (int total = 0; total < msgs.size(); ) {
@@ -223,6 +227,7 @@ public class ConsumeMessageConcurrentlyService implements ConsumeMessageService 
                 try {
                     this.consumeExecutor.submit(consumeRequest);
                 } catch (RejectedExecutionException e) {
+                    // 线程池拒绝了新提交的任务，则延迟 一会再次提交消费 任务
                     for (; total < msgs.size(); total++) {
                         msgThis.add(msgs.get(total));
                     }
@@ -247,11 +252,11 @@ public class ConsumeMessageConcurrentlyService implements ConsumeMessageService 
 
     /**
      * 消费完之后，处理消费结果
-     * 如果消费成功更新pd（删除消费成功的消息，或者 在消费失败的是进行消息回退）
+     * 如果消费成功更新pd（删除消费成功的消息，或者 在消费失败的是进行消息回退，并且将回退失败的消息再次提交到消费任务中，最后也会将msgs从pd移除，最后更新消费进度）
      *
      * @param status 消费结果状态
      * @param context 上下文
-     * @param consumeRequest 消费任务东西本身
+     * @param consumeRequest 消费任务本身
      */
     public void processConsumeResult(final ConsumeConcurrentlyStatus status, final ConsumeConcurrentlyContext context, final ConsumeRequest consumeRequest) {
         //
@@ -262,18 +267,22 @@ public class ConsumeMessageConcurrentlyService implements ConsumeMessageService 
         }
 
         switch (status) {
-            case CONSUME_SUCCESS:
+            case CONSUME_SUCCESS: // 消费成功
                 if (ackIndex >= consumeRequest.getMsgs().size()) {
                     // 消息数量- 1 ，如：32 -1 = 31
                     ackIndex = consumeRequest.getMsgs().size() - 1;
                 }
+
+                // 监控统计相关
                 int ok = ackIndex + 1;
                 int failed = consumeRequest.getMsgs().size() - ok;
                 this.getConsumerStatsManager().incConsumeOKTPS(consumerGroup, consumeRequest.getMessageQueue().getTopic(), ok);
                 this.getConsumerStatsManager().incConsumeFailedTPS(consumerGroup, consumeRequest.getMessageQueue().getTopic(), failed);
+                // 监控统计相关
+
                 break;
-            case RECONSUME_LATER:
-                // 改成-1
+            case RECONSUME_LATER: // 消费失败
+                // 改成-1，回退所有消息
                 ackIndex = -1;
                 this.getConsumerStatsManager().incConsumeFailedTPS(consumerGroup, consumeRequest.getMessageQueue().getTopic(), consumeRequest.getMsgs().size());
                 break;
@@ -295,13 +304,18 @@ public class ConsumeMessageConcurrentlyService implements ConsumeMessageService 
                     // 回退消息
                     boolean result = this.sendMessageBack(msg, context);
                     if (!result) {
+
+                        // 将消息重试属性 + 1
                         msg.setReconsumeTimes(msg.getReconsumeTimes() + 1);
+                        // 加入到回退失败集合
                         msgBackFailed.add(msg);
                     }
                 }
 
                 if (!msgBackFailed.isEmpty()) {
+                    // 将回退失败的消息从当前消费任务中移除
                     consumeRequest.getMsgs().removeAll(msgBackFailed);
+                    // 回退失败的消息延迟 5 s 之后再次提交到消费任务中
                     this.submitConsumeRequestLater(msgBackFailed, consumeRequest.getProcessQueue(), consumeRequest.getMessageQueue());
                 }
                 break;
@@ -309,8 +323,10 @@ public class ConsumeMessageConcurrentlyService implements ConsumeMessageService 
                 break;
         }
 
+        // 从pd 中删除消费成功的消息，返回 -1说明pd没数据，queueOffsetMax + 1：说明删除这一批之后没消息了，msgTreeMap.firstKey()：删除完这一批之后还有消息
         long offset = consumeRequest.getProcessQueue().removeMessage(consumeRequest.getMsgs());
         if (offset >= 0 && !consumeRequest.getProcessQueue().isDropped()) {
+            // 更新消费进度
             this.defaultMQPushConsumerImpl.getOffsetStore().updateOffset(consumeRequest.getMessageQueue(), offset, true);
         }
     }
@@ -364,7 +380,7 @@ public class ConsumeMessageConcurrentlyService implements ConsumeMessageService 
     @AllArgsConstructor
     class ConsumeRequest implements Runnable {
 
-        @Getter
+        @Getter        // 消息
         private final List<MessageExt> msgs;
 
         @Getter
@@ -376,6 +392,7 @@ public class ConsumeMessageConcurrentlyService implements ConsumeMessageService 
         @Override
         public void run() {
             if (this.processQueue.isDropped()) {
+                // 该队列可能被负载均衡到其他节点了，该消费者实例不需要消费该消息；
                 log.info("the message queue not be able to consume, because it's dropped. group={} {}", ConsumeMessageConcurrentlyService.this.consumerGroup, this.messageQueue);
                 return;
             }
@@ -387,6 +404,7 @@ public class ConsumeMessageConcurrentlyService implements ConsumeMessageService 
             ConsumeConcurrentlyStatus status = null;
 
             // 对 msgs 中的每条消息的 topic 属性进行一些操作
+            // 主要是把重复消费的消息的主题设置为原主题
             defaultMQPushConsumerImpl.resetRetryAndNamespace(msgs, defaultMQPushConsumer.getConsumerGroup());
 
             ConsumeMessageContext consumeMessageContext = null;
@@ -404,19 +422,22 @@ public class ConsumeMessageConcurrentlyService implements ConsumeMessageService 
             }
 
             long beginTimestamp = System.currentTimeMillis();
+
+            // 用户实现的监听器是否抛出异常
             boolean hasException = false;
             ConsumeReturnType returnType = ConsumeReturnType.SUCCESS;
             try {
                 if (!msgs.isEmpty()) {
                     for (MessageExt msg : msgs) {
-
-                        // 设置开始消费的时间到消息属性
+                        // 设置开始消费的时间到消息属性，为什么要设置呢？因为清理过期消息的任务会检查这个属性，根据该值来判断是否过期
                         MessageAccessor.setConsumeStartTimeStamp(msg, String.valueOf(System.currentTimeMillis()));
                     }
                 }
 
+                @SuppressWarnings("all")
+                MessageListenerConcurrently listener = ConsumeMessageConcurrentlyService.this.messageListener;
                 // 使用消息监听器消费消息，这个监听器一般是用户自己的业务逻辑
-                status = ConsumeMessageConcurrentlyService.this.messageListener.consumeMessage(Collections.unmodifiableList(msgs), context);
+                status = listener.consumeMessage(Collections.unmodifiableList(msgs) /* 不可写的list */, context /* 主要是在消息消息失败的时候，控制延迟级别 */);
             } catch (Throwable e) {
                 log.warn("consumeMessage exception: {} Group: {} Msgs: {} MQ: {}", RemotingHelper.exceptionSimpleDesc(e), ConsumeMessageConcurrentlyService.this.consumerGroup, msgs, messageQueue);
 
@@ -459,8 +480,10 @@ public class ConsumeMessageConcurrentlyService implements ConsumeMessageService 
 
             if (!processQueue.isDropped()) {
                 // 消费完之后，处理消费结果
-                ConsumeMessageConcurrentlyService.this.processConsumeResult(status, context, this);
+                ConsumeMessageConcurrentlyService.this.processConsumeResult(status, context, this /* 包含了消息以及队列 */);
             } else {
+
+                // 执行到这里，说明 listener 执行的时候，该 mq 被分配到其他 消费者 或者 消费者退出了
                 log.warn("processQueue is dropped without process consume result. messageQueue={}, msgs={}", messageQueue, msgs);
             }
         }

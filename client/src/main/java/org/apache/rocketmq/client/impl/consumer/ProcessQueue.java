@@ -267,7 +267,7 @@ public class ProcessQueue {
      * 移除已经消费的消息，本方法为并发消费服务使用
      *
      * @param messageExtList 已经消费过的消息
-     * @return 偏移量（msgTreeMap.firstKey 或者 queueMaxOffset + 1）
+     * @return 偏移量（msgTreeMap.firstKey 或者 queueMaxOffset + 1）:-1说明pd没数据，queueOffsetMax + 1：说明删除这一批之后没消息了，msgTreeMap.firstKey()：删除完这一批之后还有消息
      */
     public long removeMessage(final List<MessageExt> messageExtList) {
         long result = -1;
