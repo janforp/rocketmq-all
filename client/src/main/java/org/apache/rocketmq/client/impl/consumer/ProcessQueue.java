@@ -129,19 +129,24 @@ public class ProcessQueue {
     @SuppressWarnings("all")
     public void cleanExpiredMsg(DefaultMQPushConsumer pushConsumer) {
         if (pushConsumer.getDefaultMQPushConsumerImpl().isConsumeOrderly()) {
+            // 顺序消费不做清理逻辑
             return;
         }
+
+        // 做多循环16次
         int loop = Math.min(msgTreeMap.size(), 16);
         for (int i = 0; i < loop; i++) {
             MessageExt msg = null;
             try {
                 this.lockTreeMap.readLock().lockInterruptibly();
                 try {
-                    if (!msgTreeMap.isEmpty() && System.currentTimeMillis() - Long.parseLong(MessageAccessor.getConsumeStartTimeStamp(msgTreeMap.firstEntry().getValue())) > pushConsumer.getConsumeTimeout() * 60 * 1000) {
+                    if (!msgTreeMap.isEmpty() && System.currentTimeMillis() - Long.parseLong(MessageAccessor.getConsumeStartTimeStamp(msgTreeMap.firstEntry()/*第一条消息*/.getValue())) > pushConsumer.getConsumeTimeout() * 60 * 1000) {
+                        // 消息不为空并且第一条消息已经过期（消费开始时间与系统时间的差超过15分钟了），则进入这里
                         msg = msgTreeMap.firstEntry().getValue();
                     } else {
 
                         // 第一条消息没有过期，则后面的就不看了
+                        // 为什么可以跳出去呢？第一条不过期，则后面的肯定都没有过期
                         break;
                     }
                 } finally {
@@ -152,14 +157,15 @@ public class ProcessQueue {
             }
 
             try {
-                // msg:过期消息
-                pushConsumer.sendMessageBack(msg, 3);
+                // 消息回退到服务器，该消息的延迟级别为 3
+                pushConsumer.sendMessageBack(msg /* 过期消息 */, 3 /*  延迟级别 */);
                 log.info("send expire msg back. topic={}, msgId={}, storeHost={}, queueId={}, queueOffset={}", msg.getTopic(), msg.getMsgId(), msg.getStoreHost(), msg.getQueueId(), msg.getQueueOffset());
                 try {
                     this.lockTreeMap.writeLock().lockInterruptibly();
                     try {
-                        if (!msgTreeMap.isEmpty() && msg.getQueueOffset() == msgTreeMap.firstKey()) {
+                        if (!msgTreeMap.isEmpty() && msg.getQueueOffset() == msgTreeMap.firstKey() /* 成立：该目标消息并没有被消费任务成功消费 ，如果不成立：则该消息被成功消费了，消费成功后执行的 processConsumeResult 会将目标消息从 msgTreeMap 中移除，导致该条件不成立*/) {
                             try {
+                                // 回退成功，从 treeMsgMap 中删除该消息
                                 removeMessage(Collections.singletonList(msg));
                             } catch (Exception e) {
                                 log.error("send expired msg exception", e);

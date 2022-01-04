@@ -918,35 +918,22 @@ public class MQClientAPIImpl {
         throw new MQBrokerException(response.getCode(), response.getRemark());
     }
 
-    public void updateConsumerOffset(
-            final String addr,
-            final UpdateConsumerOffsetRequestHeader requestHeader,
-            final long timeoutMillis
-    ) throws RemotingException, MQBrokerException, InterruptedException {
+    public void updateConsumerOffset(final String addr, final UpdateConsumerOffsetRequestHeader requestHeader, final long timeoutMillis) throws RemotingException, MQBrokerException, InterruptedException {
         RemotingCommand request = RemotingCommand.createRequestCommand(RequestCode.UPDATE_CONSUMER_OFFSET, requestHeader);
 
-        RemotingCommand response = this.remotingClient.invokeSync(MixAll.brokerVIPChannel(this.clientConfig.isVipChannelEnabled(), addr),
-                request, timeoutMillis);
+        RemotingCommand response = this.remotingClient.invokeSync(MixAll.brokerVIPChannel(this.clientConfig.isVipChannelEnabled(), addr), request, timeoutMillis);
         assert response != null;
-        switch (response.getCode()) {
-            case ResponseCode.SUCCESS: {
-                return;
-            }
-            default:
-                break;
+        if (response.getCode() == ResponseCode.SUCCESS) {
+            return;
         }
 
         throw new MQBrokerException(response.getCode(), response.getRemark());
     }
 
-    public void updateConsumerOffsetOneway(
-            final String addr,
-            final UpdateConsumerOffsetRequestHeader requestHeader,
-            final long timeoutMillis
-    ) throws RemotingConnectException, RemotingTooMuchRequestException, RemotingTimeoutException, RemotingSendRequestException,
-            InterruptedException {
-        RemotingCommand request = RemotingCommand.createRequestCommand(RequestCode.UPDATE_CONSUMER_OFFSET, requestHeader);
+    public void updateConsumerOffsetOneway(final String addr, final UpdateConsumerOffsetRequestHeader requestHeader, final long timeoutMillis)
+            throws RemotingConnectException, RemotingTooMuchRequestException, RemotingTimeoutException, RemotingSendRequestException, InterruptedException {
 
+        RemotingCommand request = RemotingCommand.createRequestCommand(RequestCode.UPDATE_CONSUMER_OFFSET, requestHeader);
         this.remotingClient.invokeOneway(MixAll.brokerVIPChannel(this.clientConfig.isVipChannelEnabled(), addr), request, timeoutMillis);
     }
 
@@ -963,12 +950,7 @@ public class MQClientAPIImpl {
         throw new MQBrokerException(response.getCode(), response.getRemark());
     }
 
-    public void unregisterClient(
-            final String addr,
-            final String clientID,
-            final String producerGroup,
-            final String consumerGroup,
-            final long timeoutMillis
+    public void unregisterClient(final String addr, final String clientID, final String producerGroup, final String consumerGroup, final long timeoutMillis
     ) throws RemotingException, MQBrokerException, InterruptedException {
         final UnregisterClientRequestHeader requestHeader = new UnregisterClientRequestHeader();
         requestHeader.setClientID(clientID);
@@ -978,23 +960,14 @@ public class MQClientAPIImpl {
 
         RemotingCommand response = this.remotingClient.invokeSync(addr, request, timeoutMillis);
         assert response != null;
-        switch (response.getCode()) {
-            case ResponseCode.SUCCESS: {
-                return;
-            }
-            default:
-                break;
+        if (response.getCode() == ResponseCode.SUCCESS) {
+            return;
         }
 
         throw new MQBrokerException(response.getCode(), response.getRemark());
     }
 
-    public void endTransactionOneway(
-            final String addr,
-            final EndTransactionRequestHeader requestHeader,
-            final String remark,
-            final long timeoutMillis
-    ) throws RemotingException, MQBrokerException, InterruptedException {
+    public void endTransactionOneway(final String addr, final EndTransactionRequestHeader requestHeader, final String remark, final long timeoutMillis) throws RemotingException, MQBrokerException, InterruptedException {
         RemotingCommand request = RemotingCommand.createRequestCommand(RequestCode.END_TRANSACTION, requestHeader);
 
         request.setRemark(remark);
@@ -1040,23 +1013,14 @@ public class MQClientAPIImpl {
         throw new MQBrokerException(response.getCode(), response.getRemark());
     }
 
-    public Set<MessageQueue> lockBatchMQ(
-            final String addr,
-            final LockBatchRequestBody requestBody,
-            final long timeoutMillis) throws RemotingException, MQBrokerException, InterruptedException {
+    public Set<MessageQueue> lockBatchMQ(final String addr, final LockBatchRequestBody requestBody, final long timeoutMillis) throws RemotingException, MQBrokerException, InterruptedException {
         RemotingCommand request = RemotingCommand.createRequestCommand(RequestCode.LOCK_BATCH_MQ, null);
 
         request.setBody(requestBody.encode());
-        RemotingCommand response = this.remotingClient.invokeSync(MixAll.brokerVIPChannel(this.clientConfig.isVipChannelEnabled(), addr),
-                request, timeoutMillis);
-        switch (response.getCode()) {
-            case ResponseCode.SUCCESS: {
-                LockBatchResponseBody responseBody = LockBatchResponseBody.decode(response.getBody(), LockBatchResponseBody.class);
-                Set<MessageQueue> messageQueues = responseBody.getLockOKMQSet();
-                return messageQueues;
-            }
-            default:
-                break;
+        RemotingCommand response = this.remotingClient.invokeSync(MixAll.brokerVIPChannel(this.clientConfig.isVipChannelEnabled(), addr), request, timeoutMillis);
+        if (response.getCode() == ResponseCode.SUCCESS) {
+            LockBatchResponseBody responseBody = LockBatchResponseBody.decode(response.getBody(), LockBatchResponseBody.class);
+            return responseBody.getLockOKMQSet();
         }
 
         throw new MQBrokerException(response.getCode(), response.getRemark());

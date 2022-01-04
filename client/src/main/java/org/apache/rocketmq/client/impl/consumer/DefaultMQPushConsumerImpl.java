@@ -24,7 +24,6 @@ import org.apache.rocketmq.client.hook.FilterMessageHook;
 import org.apache.rocketmq.client.impl.CommunicationMode;
 import org.apache.rocketmq.client.impl.MQClientManager;
 import org.apache.rocketmq.client.impl.factory.MQClientInstance;
-import org.apache.rocketmq.client.impl.producer.DefaultMQProducerImpl;
 import org.apache.rocketmq.client.log.ClientLogger;
 import org.apache.rocketmq.client.stat.ConsumerStatsManager;
 import org.apache.rocketmq.common.MixAll;
@@ -1160,6 +1159,7 @@ public class DefaultMQPushConsumerImpl implements MQConsumerInner {
     }
 
     public void resetRetryAndNamespace(final List<MessageExt> msgs, String consumerGroup) {
+        // RETRY_GROUP_TOPIC_PREFIX + consumerGroup;
         final String groupTopic = MixAll.getRetryTopic(consumerGroup);
         for (MessageExt msg : msgs) {
             String retryTopic = msg.getProperty(MessageConst.PROPERTY_RETRY_TOPIC);
