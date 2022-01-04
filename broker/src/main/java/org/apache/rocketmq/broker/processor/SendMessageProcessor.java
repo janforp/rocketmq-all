@@ -58,7 +58,7 @@ public class SendMessageProcessor extends AbstractSendMessageProcessor implement
         try {
             response = asyncProcessRequest(ctx, request).get();
         } catch (InterruptedException | ExecutionException e) {
-            log.error("process SendMessage error, request : " + request.toString(), e);
+            log.error("process SendMessage error, request : " + request, e);
         }
         return response;
     }
@@ -95,7 +95,7 @@ public class SendMessageProcessor extends AbstractSendMessageProcessor implement
     }
 
     @SuppressWarnings("all")
-    private CompletableFuture<RemotingCommand> asyncConsumerSendMsgBack(ChannelHandlerContext ctx, RemotingCommand request) throws RemotingCommandException {
+    private CompletableFuture<RemotingCommand> asyncConsumerSendMsgBack(ChannelHandlerContext ctx /* netty channel 上下文，没有用到 */, RemotingCommand request /*客户端请求对象*/) throws RemotingCommandException {
         final RemotingCommand response = RemotingCommand.createResponseCommand(null /* 没有其他返回数据 */);
         /*
          * 解析出来请求头对象
