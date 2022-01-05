@@ -290,6 +290,7 @@ public class BrokerController {
     }
 
     public boolean initialize() throws CloneNotSupportedException {
+
         boolean result = this.topicConfigManager.load();
 
         result = result && this.consumerOffsetManager.load();
@@ -353,9 +354,7 @@ public class BrokerController {
                     this.queryThreadPoolQueue,
                     new ThreadFactoryImpl("QueryMessageThread_"));
 
-            this.adminBrokerExecutor =
-                    Executors.newFixedThreadPool(this.brokerConfig.getAdminBrokerThreadPoolNums(), new ThreadFactoryImpl(
-                            "AdminBrokerThread_"));
+            this.adminBrokerExecutor = Executors.newFixedThreadPool(this.brokerConfig.getAdminBrokerThreadPoolNums(), new ThreadFactoryImpl("AdminBrokerThread_"));
 
             this.clientManageExecutor = new ThreadPoolExecutor(
                     this.brokerConfig.getClientManageThreadPoolNums(),
