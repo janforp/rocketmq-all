@@ -71,6 +71,8 @@ public class RebalancePushImpl extends RebalanceImpl {
         // 移除当前 mq 的 本地 offset
         this.defaultMQPushConsumerImpl.getOffsetStore().removeOffset(mq);
         if (this.defaultMQPushConsumerImpl.isConsumeOrderly() && MessageModel.CLUSTERING.equals(this.defaultMQPushConsumerImpl.messageModel())) {
+            // 集群模式下的顺序消费
+
             try {
                 if (pq.getLockConsume().tryLock(1000, TimeUnit.MILLISECONDS)) {
                     try {
@@ -91,9 +93,12 @@ public class RebalancePushImpl extends RebalanceImpl {
         return true;
     }
 
+    // 释放 broker 端的分布式锁
     private boolean unlockDelay(final MessageQueue mq, final ProcessQueue pq) {
 
         if (pq.hasTempMessage()) {
+            // 当还有数据的时候，延迟一定时间再释放锁，可能是为了确保全局范围只有一个消费任务执行顺序消费
+
             log.info("[{}]unlockDelay, begin {} ", mq.hashCode(), mq);
             this.defaultMQPushConsumerImpl.getmQClientFactory().getScheduledExecutorService().schedule(
 
@@ -112,6 +117,8 @@ public class RebalancePushImpl extends RebalanceImpl {
                     // 时间单位
                     TimeUnit.MILLISECONDS);
         } else {
+
+            // 没有数据可以直接释放锁
             this.unlock(mq, true);
         }
         return true;

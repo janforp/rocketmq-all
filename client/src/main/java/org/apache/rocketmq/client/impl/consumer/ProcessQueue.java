@@ -394,7 +394,7 @@ public class ProcessQueue {
                         if (entry != null) {
                             // 放入结果表
                             result.add(entry.getValue());
-                            // 放入这里
+                            // 顺序消息先放入这里
                             consumingMsgOrderlyTreeMap.put(entry.getKey(), entry.getValue());
                         } else {
                             // 队列空了，则跳出循环

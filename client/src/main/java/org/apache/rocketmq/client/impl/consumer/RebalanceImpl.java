@@ -189,8 +189,10 @@ public abstract class RebalanceImpl {
                 continue;
             }
 
+            // 查询broker主节点信息
             FindBrokerResult findBrokerResult = this.mQClientFactory.findBrokerAddressInSubscribe(brokerName, MixAll.MASTER_ID, true);
             if (findBrokerResult != null) {
+
                 LockBatchRequestBody requestBody = new LockBatchRequestBody();
                 requestBody.setConsumerGroup(this.consumerGroup);
                 requestBody.setClientId(this.mQClientFactory.getClientId());
@@ -211,6 +213,7 @@ public abstract class RebalanceImpl {
 
                             // 更新续约成功的 pd 属性
                             processQueue.setLocked(true);
+                            // 保存续约锁的时间
                             processQueue.setLastLockTimestamp(System.currentTimeMillis());
                         }
                     }
@@ -223,7 +226,7 @@ public abstract class RebalanceImpl {
 
                             ProcessQueue processQueue = this.processQueueTable.get(mq);
                             if (processQueue != null) {
-                                // 表示续约锁失败了
+                                // 表示续约锁失败了，表示分布式锁尚未占用成功，消费任务不能消费
                                 processQueue.setLocked(false);
                                 log.warn("the message queue locked Failed, Group: {} {}", this.consumerGroup, mq);
                             }
@@ -442,10 +445,12 @@ public abstract class RebalanceImpl {
 
             // 老的队列中不包含新的 mq,则说明该mq是新分配过来的
             if (!this.processQueueTable.containsKey(mq)) {
-                if (isOrder && !this.lock(mq)) {
+                if (isOrder && !this.lock(mq) /*获取队列的分布式锁*/) {
                     log.warn("doRebalance, {}, add a new mq failed, {}, because lock failed", consumerGroup, mq);
                     continue;
                 }
+
+                // 获取分布式锁成功
 
                 // 先把可能存在的冗余(脏)数据删除掉
                 this.removeDirtyOffset(mq);

@@ -43,10 +43,12 @@ public class ConsumeMessageOrderlyService implements ConsumeMessageService {
 
     private final static long MAX_TIME_CONSUME_CONTINUOUSLY = Long.parseLong(System.getProperty("rocketmq.client.maxTimeConsumeContinuously", "60000"));
 
+    // 消费者门面对象
     private final DefaultMQPushConsumerImpl defaultMQPushConsumerImpl;
 
     private final DefaultMQPushConsumer defaultMQPushConsumer;
 
+    // 开发者提交的消费逻辑
     private final MessageListenerOrderly messageListener;
 
     // 消费任务线程池
@@ -60,6 +62,7 @@ public class ConsumeMessageOrderlyService implements ConsumeMessageService {
     // 调度任务线程池，用于延迟提交消费任务
     private final ScheduledExecutorService scheduledExecutorService;
 
+    // 当前状态
     private volatile boolean stopped = false;
 
     public ConsumeMessageOrderlyService(DefaultMQPushConsumerImpl defaultMQPushConsumerImpl, MessageListenerOrderly messageListener) {
@@ -68,6 +71,8 @@ public class ConsumeMessageOrderlyService implements ConsumeMessageService {
 
         this.defaultMQPushConsumer = this.defaultMQPushConsumerImpl.getDefaultMQPushConsumer();
         this.consumerGroup = this.defaultMQPushConsumer.getConsumerGroup();
+
+        // 消费任务队列
         BlockingQueue<Runnable> consumeRequestQueue = new LinkedBlockingQueue<Runnable>();
 
         this.consumeExecutor = new ThreadPoolExecutor(
@@ -79,14 +84,14 @@ public class ConsumeMessageOrderlyService implements ConsumeMessageService {
 
     public void start() {
         if (MessageModel.CLUSTERING.equals(ConsumeMessageOrderlyService.this.defaultMQPushConsumerImpl.messageModel())) {
+
             this.scheduledExecutorService.scheduleAtFixedRate(new Runnable() {
                 @Override
                 public void run() {
                     // 续约锁的任务
                     ConsumeMessageOrderlyService.this.lockMQPeriodically();
                 }
-                // 每 20s 执行一次续约锁操作
-            }, 1000, ProcessQueue.REBALANCE_LOCK_INTERVAL, TimeUnit.MILLISECONDS);
+            }, 1000 /*1s之后就执行*/, ProcessQueue.REBALANCE_LOCK_INTERVAL/*每 20s 执行一次续约锁操作*/, TimeUnit.MILLISECONDS);
         }
     }
 
@@ -329,6 +334,7 @@ public class ConsumeMessageOrderlyService implements ConsumeMessageService {
                     MessageAccessor.setReconsumeTime(msg, String.valueOf(msg.getReconsumeTimes()));
                     if (!sendMessageBack(msg)) {
                         suspend = true;
+                        // 增加重试次数
                         msg.setReconsumeTimes(msg.getReconsumeTimes() + 1);
                     }
                 } else {
@@ -376,8 +382,10 @@ public class ConsumeMessageOrderlyService implements ConsumeMessageService {
     @Getter
     class ConsumeRequest implements Runnable {
 
+        // 处理队列
         private final ProcessQueue processQueue;
 
+        // 队列信息
         private final MessageQueue messageQueue;
 
         @Override
@@ -391,9 +399,9 @@ public class ConsumeMessageOrderlyService implements ConsumeMessageService {
             final Object objLock = messageQueueLock.fetchLockObject(this.messageQueue);
 
             // 顺序消费逻辑，必须保证同一个时刻只有一个线程在执行，前提是一个队列只会被一个消费实例消费，不可能同时被多个消费实例消费
-            synchronized (objLock) {
+            synchronized (objLock) { // 顺序消费的逻辑必须是串行的
 
-                if (MessageModel.BROADCASTING.equals(ConsumeMessageOrderlyService.this.defaultMQPushConsumerImpl.messageModel()) || (this.processQueue.isLocked() && !this.processQueue.isLockExpired())) {
+                if (MessageModel.BROADCASTING.equals(ConsumeMessageOrderlyService.this.defaultMQPushConsumerImpl.messageModel()) || (this.processQueue.isLocked() /*拿到分布式锁*/ && !this.processQueue.isLockExpired()/*分布式锁咩有过期*/)) {
                     final long beginTime = System.currentTimeMillis();
 
                     // 循环一次表示处理一批消息
@@ -421,6 +429,7 @@ public class ConsumeMessageOrderlyService implements ConsumeMessageService {
                             break;
                         }
 
+                        // 每批消息数量，一般是1
                         final int consumeBatchSize = ConsumeMessageOrderlyService.this.defaultMQPushConsumer.getConsumeMessageBatchMaxSize();
 
                         // 从 pd 中拿一批消息
@@ -429,6 +438,7 @@ public class ConsumeMessageOrderlyService implements ConsumeMessageService {
                         if (!msgs.isEmpty()) {
                             final ConsumeOrderlyContext context = new ConsumeOrderlyContext(this.messageQueue);
 
+                            // 消费状态
                             ConsumeOrderlyStatus status = null;
 
                             ConsumeMessageContext consumeMessageContext = null;
@@ -492,6 +502,8 @@ public class ConsumeMessageOrderlyService implements ConsumeMessageService {
                             }
 
                             if (null == status) {
+
+                                // 如果是 null 则修改状态
                                 status = ConsumeOrderlyStatus.SUSPEND_CURRENT_QUEUE_A_MOMENT;
                             }
 
@@ -506,6 +518,8 @@ public class ConsumeMessageOrderlyService implements ConsumeMessageService {
                             // 处理消费结果
                             continueConsume = ConsumeMessageOrderlyService.this.processConsumeResult(msgs, status, context, this);
                         } else {
+
+                            // 结束循环，该顺序消费任务也就结束了
                             continueConsume = false;
                         }
                     }
