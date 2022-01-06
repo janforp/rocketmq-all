@@ -34,6 +34,7 @@ import java.util.concurrent.TimeoutException;
  * 提交日志，顺序写入
  * Store all metadata downtime for recovery, data protection reliability
  */
+@SuppressWarnings("all")
 public class CommitLog {
 
     /**
@@ -120,10 +121,7 @@ public class CommitLog {
         if (FlushDiskType.SYNC_FLUSH == defaultMessageStore.getMessageStoreConfig().getFlushDiskType()) {
             this.flushCommitLogService = new GroupCommitService();
         } else {
-
-            /**
-             * 默认异步刷盘
-             */
+            //默认异步刷盘
             this.flushCommitLogService = new FlushRealTimeService();
         }
 
@@ -917,8 +915,7 @@ public class CommitLog {
         int queueId = msg.getQueueId();
 
         final int tranType = MessageSysFlag.getTransactionValue(msg.getSysFlag());
-        if (tranType == MessageSysFlag.TRANSACTION_NOT_TYPE
-                || tranType == MessageSysFlag.TRANSACTION_COMMIT_TYPE) {
+        if (tranType == MessageSysFlag.TRANSACTION_NOT_TYPE || tranType == MessageSysFlag.TRANSACTION_COMMIT_TYPE) {
             // Delay Delivery
             if (msg.getDelayTimeLevel() > 0) {
                 if (msg.getDelayTimeLevel() > this.defaultMessageStore.getScheduleMessageService().getMaxDelayLevel()) {
@@ -1019,6 +1016,7 @@ public class CommitLog {
         storeStatsService.getSinglePutMessageTopicTimesTotal(msg.getTopic()).incrementAndGet();
         storeStatsService.getSinglePutMessageTopicSizeTotal(topic).addAndGet(result.getWroteBytes());
 
+        // 刷盘逻辑入口
         handleDiskFlush(result, putMessageResult, msg);
         handleHA(result, putMessageResult, msg);
 
@@ -1031,8 +1029,7 @@ public class CommitLog {
         if (FlushDiskType.SYNC_FLUSH == this.defaultMessageStore.getMessageStoreConfig().getFlushDiskType()) {
             final GroupCommitService service = (GroupCommitService) this.flushCommitLogService;
             if (messageExt.isWaitStoreMsgOK()) {
-                GroupCommitRequest request = new GroupCommitRequest(result.getWroteOffset() + result.getWroteBytes(),
-                        this.defaultMessageStore.getMessageStoreConfig().getSyncFlushTimeout());
+                GroupCommitRequest request = new GroupCommitRequest(result.getWroteOffset() + result.getWroteBytes(), this.defaultMessageStore.getMessageStoreConfig().getSyncFlushTimeout());
                 service.putRequest(request);
                 return request.future();
             } else {
@@ -1070,24 +1067,41 @@ public class CommitLog {
         return CompletableFuture.completedFuture(PutMessageStatus.PUT_OK);
     }
 
+    /**
+     * 刷盘逻辑入口
+     *
+     * @param result 消息append结果
+     * @param putMessageResult 消息 put 结果
+     * @param messageExt 消息
+     */
     public void handleDiskFlush(AppendMessageResult result, PutMessageResult putMessageResult, MessageExt messageExt) {
         // Synchronization flush
         if (FlushDiskType.SYNC_FLUSH == this.defaultMessageStore.getMessageStoreConfig().getFlushDiskType()) {
+            // 同步刷盘
+
+            // 获取同步刷盘服务
             final GroupCommitService service = (GroupCommitService) this.flushCommitLogService;
-            if (messageExt.isWaitStoreMsgOK()) {
-                GroupCommitRequest request = new GroupCommitRequest(result.getWroteOffset() + result.getWroteBytes());
+            if (messageExt.isWaitStoreMsgOK() /*一般情况返回 true*/) {
+
+                GroupCommitRequest request = new GroupCommitRequest(result.getWroteOffset() + result.getWroteBytes()  /*当前消息写完之后的commitLog的偏移量或者下条消息的开始偏移量*/);
+
+                // 提交
                 service.putRequest(request);
+
+                // 写消息线程 试图 获取到 request.future(),当前线程在此阻塞等待
                 CompletableFuture<PutMessageStatus> flushOkFuture = request.future();
                 PutMessageStatus flushStatus = null;
                 try {
-                    flushStatus = flushOkFuture.get(this.defaultMessageStore.getMessageStoreConfig().getSyncFlushTimeout(),
-                            TimeUnit.MILLISECONDS);
+                    /**
+                     * 写消息线程 试图 获取到 request.future(),当前线程在此阻塞等待
+                     * @see GroupCommitRequest#wakeupCustomer(boolean) 通过这个方法唤醒当前线程
+                     */
+                    flushStatus = flushOkFuture.get(this.defaultMessageStore.getMessageStoreConfig().getSyncFlushTimeout(), TimeUnit.MILLISECONDS);
                 } catch (InterruptedException | ExecutionException | TimeoutException e) {
                     //flushOK=false;
                 }
                 if (flushStatus != PutMessageStatus.PUT_OK) {
-                    log.error("do groupcommit, wait for flush failed, topic: " + messageExt.getTopic() + " tags: " + messageExt.getTags()
-                            + " client address: " + messageExt.getBornHostString());
+                    log.error("do groupcommit, wait for flush failed, topic: " + messageExt.getTopic() + " tags: " + messageExt.getTags() + " client address: " + messageExt.getBornHostString());
                     putMessageResult.setPutMessageStatus(PutMessageStatus.FLUSH_DISK_TIMEOUT);
                 }
             } else {
@@ -1096,6 +1110,7 @@ public class CommitLog {
         }
         // Asynchronous flush
         else {
+            // 异步刷盘
             if (!this.defaultMessageStore.getMessageStoreConfig().isTransientStorePoolEnable()) {
                 flushCommitLogService.wakeup();
             } else {
@@ -1518,6 +1533,8 @@ public class CommitLog {
 
     public static class GroupCommitRequest {
 
+        // wroteOffset + 消息size
+        @Getter
         private final long nextOffset;
 
         private CompletableFuture<PutMessageStatus> flushOKFuture = new CompletableFuture<>();
@@ -1535,14 +1552,13 @@ public class CommitLog {
             this.nextOffset = nextOffset;
         }
 
-        public long getNextOffset() {
-            return nextOffset;
-        }
-
         public void wakeupCustomer(final boolean flushOK) {
             long endTimestamp = System.currentTimeMillis();
-            PutMessageStatus result = (flushOK && ((endTimestamp - this.startTimestamp) <= this.timeoutMillis)) ?
-                    PutMessageStatus.PUT_OK : PutMessageStatus.FLUSH_SLAVE_TIMEOUT;
+            PutMessageStatus result = (flushOK && ((endTimestamp - this.startTimestamp) <= this.timeoutMillis)) ? PutMessageStatus.PUT_OK : PutMessageStatus.FLUSH_SLAVE_TIMEOUT;
+            /**
+             * 设置结果，这样就会唤醒在这个future 挂起的线程
+             * @see CommitLog#handleDiskFlush(org.apache.rocketmq.store.AppendMessageResult, org.apache.rocketmq.store.PutMessageResult, org.apache.rocketmq.common.message.MessageExt)
+             */
             this.flushOKFuture.complete(result);
         }
 
@@ -1553,10 +1569,12 @@ public class CommitLog {
     }
 
     /**
+     * 同步落盘
      * GroupCommit Service
      */
     class GroupCommitService extends FlushCommitLogService {
 
+        //
         private volatile List<GroupCommitRequest> requestsWrite = new ArrayList<GroupCommitRequest>();
 
         private volatile List<GroupCommitRequest> requestsRead = new ArrayList<GroupCommitRequest>();
@@ -1570,27 +1588,26 @@ public class CommitLog {
             }
         }
 
-        private void swapRequests() {
-            List<GroupCommitRequest> tmp = this.requestsWrite;
-            this.requestsWrite = this.requestsRead;
-            this.requestsRead = tmp;
-        }
-
         private void doCommit() {
             synchronized (this.requestsRead) {
                 if (!this.requestsRead.isEmpty()) {
+
+                    // 检查所有进度
                     for (GroupCommitRequest req : this.requestsRead) {
                         // There may be a message in the next file, so a maximum of
                         // two times the flush
                         boolean flushOK = false;
                         for (int i = 0; i < 2 && !flushOK; i++) {
+
+                            // 如果 flushOK 返回 true 则说明，req 关联的"生产者线程"需要被唤醒了，因为它关心的数据已经全部落盘了
                             flushOK = CommitLog.this.mappedFileQueue.getFlushedWhere() >= req.getNextOffset();
 
                             if (!flushOK) {
-                                CommitLog.this.mappedFileQueue.flush(0);
+                                // 如果上面返回还是没有刷盘，则强制刷盘
+                                CommitLog.this.mappedFileQueue.flush(0 /* 0 的意思就是 强制刷盘，只要有没有刷盘的数据就会刷盘，之后上面的 flushOk 肯定会返回 true 自然就退出循环了*/);
                             }
                         }
-
+                        // 设置 future 结果
                         req.wakeupCustomer(flushOK);
                     }
 
@@ -1599,6 +1616,7 @@ public class CommitLog {
                         CommitLog.this.defaultMessageStore.getStoreCheckpoint().setPhysicMsgTimestamp(storeTimestamp);
                     }
 
+                    // 清理列表，方便后面再次使用
                     this.requestsRead.clear();
                 } else {
                     // Because of individual messages is set to not sync flush, it
@@ -1613,33 +1631,35 @@ public class CommitLog {
 
             while (!this.isStopped()) {
                 try {
-                    this.waitForRunning(10);
+                    this.waitForRunning(10); // 休眠 10s 或者 被唤醒 之后就会继续往下执行
                     this.doCommit();
                 } catch (Exception e) {
                     CommitLog.log.warn(this.getServiceName() + " service has exception. ", e);
                 }
             }
-
-            // Under normal circumstances shutdown, wait for the arrival of the
-            // request, and then flush
+            // Under normal circumstances shutdown, wait for the arrival of the request, and then flush
             try {
                 Thread.sleep(10);
             } catch (InterruptedException e) {
                 CommitLog.log.warn("GroupCommitService Exception, ", e);
             }
-
             synchronized (this) {
                 this.swapRequests();
             }
-
             this.doCommit();
-
             CommitLog.log.info(this.getServiceName() + " service end");
         }
 
         @Override
         protected void onWaitEnd() {
             this.swapRequests();
+        }
+
+        // 交换 requestsWrite 和 requestsRead 对象
+        private void swapRequests() {
+            List<GroupCommitRequest> tmp = this.requestsWrite;
+            this.requestsWrite = this.requestsRead;
+            this.requestsRead = tmp;
         }
 
         @Override

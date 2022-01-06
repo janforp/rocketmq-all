@@ -1,5 +1,7 @@
 package org.apache.rocketmq.store.config;
 
+import lombok.Getter;
+import lombok.Setter;
 import org.apache.rocketmq.common.annotation.ImportantField;
 import org.apache.rocketmq.store.ConsumeQueue;
 
@@ -150,6 +152,8 @@ public class MessageStoreConfig {
     private BrokerRole brokerRole = BrokerRole.ASYNC_MASTER;
 
     @ImportantField
+    @Getter
+    @Setter
     private FlushDiskType flushDiskType = FlushDiskType.ASYNC_FLUSH;
 
     private int syncFlushTimeout = 1000 * 5;
@@ -550,14 +554,6 @@ public class MessageStoreConfig {
 
     public void setHaSlaveFallbehindMax(int haSlaveFallbehindMax) {
         this.haSlaveFallbehindMax = haSlaveFallbehindMax;
-    }
-
-    public FlushDiskType getFlushDiskType() {
-        return flushDiskType;
-    }
-
-    public void setFlushDiskType(FlushDiskType flushDiskType) {
-        this.flushDiskType = flushDiskType;
     }
 
     public void setFlushDiskType(String type) {
