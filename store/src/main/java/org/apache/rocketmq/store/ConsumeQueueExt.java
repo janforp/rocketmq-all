@@ -1,20 +1,3 @@
-/*
- * Licensed to the Apache Software Foundation (ASF) under one or more
- * contributor license agreements.  See the NOTICE file distributed with
- * this work for additional information regarding copyright ownership.
- * The ASF licenses this file to You under the Apache License, Version 2.0
- * (the "License"); you may not use this file except in compliance with
- * the License.  You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
 package org.apache.rocketmq.store;
 
 import org.apache.rocketmq.common.constant.LoggerName;
@@ -37,14 +20,17 @@ import java.util.List;
  * <li>4. Pls keep this file small.</li>
  */
 public class ConsumeQueueExt {
+
     private static final InternalLogger log = InternalLoggerFactory.getLogger(LoggerName.STORE_LOGGER_NAME);
 
     private final MappedFileQueue mappedFileQueue;
+
     private final String topic;
+
     private final int queueId;
 
-    private final String storePath;
     private final int mappedFileSize;
+
     private ByteBuffer tempContainer;
 
     public static final int END_BLANK_DATA_LENGTH = 4;
@@ -53,6 +39,7 @@ public class ConsumeQueueExt {
      * Addr can not exceed this value.For compatible.
      */
     public static final long MAX_ADDR = Integer.MIN_VALUE - 1L;
+
     public static final long MAX_REAL_OFFSET = MAX_ADDR - Long.MIN_VALUE;
 
     /**
@@ -64,27 +51,19 @@ public class ConsumeQueueExt {
      * @param mappedFileSize file size
      * @param bitMapLength bit map length.
      */
-    public ConsumeQueueExt(final String topic,
-        final int queueId,
-        final String storePath,
-        final int mappedFileSize,
-        final int bitMapLength) {
+    public ConsumeQueueExt(final String topic, final int queueId, final String storePath, final int mappedFileSize, final int bitMapLength) {
 
-        this.storePath = storePath;
         this.mappedFileSize = mappedFileSize;
 
         this.topic = topic;
         this.queueId = queueId;
 
-        String queueDir = this.storePath
-            + File.separator + topic
-            + File.separator + queueId;
+        String queueDir = storePath + File.separator + topic + File.separator + queueId;
 
         this.mappedFileQueue = new MappedFileQueue(queueDir, mappedFileSize, null);
 
         if (bitMapLength > 0) {
-            this.tempContainer = ByteBuffer.allocate(
-                bitMapLength / Byte.SIZE
+            this.tempContainer = ByteBuffer.allocate(bitMapLength / Byte.SIZE
             );
         }
     }
@@ -168,7 +147,7 @@ public class ConsumeQueueExt {
             log.warn("[BUG] Consume queue extend unit({}) is not found!", realOffset);
             return false;
         }
-        boolean ret = false;
+        boolean ret;
         try {
             ret = cqExtUnit.read(bufferResult.getByteBuffer());
         } finally {
@@ -221,7 +200,7 @@ public class ConsumeQueueExt {
                 if (size > blankSize) {
                     fullFillToEnd(mappedFile, wrotePosition);
                     log.info("No enough space(need:{}, has:{}) of file {}, so fill to end",
-                        size, blankSize, mappedFile.getFileName());
+                            size, blankSize, mappedFile.getFileName());
                     continue;
                 }
 
@@ -299,7 +278,7 @@ public class ConsumeQueueExt {
             }
 
             log.info("All files of consume queue extend has been recovered over, last mapped file "
-                + mappedFile.getFileName());
+                    + mappedFile.getFileName());
             break;
         }
 
@@ -321,7 +300,7 @@ public class ConsumeQueueExt {
 
         log.info("Truncate consume queue ext by min {}.", minAddress);
 
-        List<MappedFile> willRemoveFiles = new ArrayList<MappedFile>();
+        List<MappedFile> willRemoveFiles = new ArrayList<>();
 
         List<MappedFile> mappedFiles = this.mappedFileQueue.getMappedFiles();
         final long realOffset = unDecorate(minAddress);
@@ -331,7 +310,7 @@ public class ConsumeQueueExt {
 
             if (fileTailOffset < realOffset) {
                 log.info("Destroy consume queue ext by min: file={}, fileTailOffset={}, minOffset={}", file.getFileName(),
-                    fileTailOffset, realOffset);
+                        fileTailOffset, realOffset);
                 if (file.destroy(1000)) {
                     willRemoveFiles.add(file);
                 }
@@ -408,10 +387,11 @@ public class ConsumeQueueExt {
      * Store unit.
      */
     public static class CqExtUnit {
+
         public static final short MIN_EXT_UNIT_SIZE
-            = 2 * 1 // size, 32k max
-            + 8 * 2 // msg time + tagCode
-            + 2; // bitMapSize
+                = 2 // size, 32k max
+                + 8 * 2 // msg time + tagCode
+                + 2; // bitMapSize
 
         public static final int MAX_EXT_UNIT_SIZE = Short.MAX_VALUE;
 
@@ -430,18 +410,22 @@ public class ConsumeQueueExt {
          * unit size
          */
         private short size;
+
         /**
          * has code of tags
          */
         private long tagsCode;
+
         /**
          * the time to store into commit log of message
          */
         private long msgStoreTime;
+
         /**
          * size of bit map
          */
         private short bitMapSize;
+
         /**
          * filter bit map
          */
@@ -532,8 +516,7 @@ public class ConsumeQueueExt {
          * Calculate unit size by current data.
          */
         private int calcUnitSize() {
-            int sizeTemp = MIN_EXT_UNIT_SIZE + (filterBitMap == null ? 0 : filterBitMap.length);
-            return sizeTemp;
+            return MIN_EXT_UNIT_SIZE + (filterBitMap == null ? 0 : filterBitMap.length);
         }
 
         public long getTagsCode() {
@@ -571,30 +554,33 @@ public class ConsumeQueueExt {
 
         @Override
         public boolean equals(Object o) {
-            if (this == o)
+            if (this == o) {
                 return true;
-            if (!(o instanceof CqExtUnit))
+            }
+            if (!(o instanceof CqExtUnit)) {
                 return false;
+            }
 
             CqExtUnit cqExtUnit = (CqExtUnit) o;
 
-            if (bitMapSize != cqExtUnit.bitMapSize)
+            if (bitMapSize != cqExtUnit.bitMapSize) {
                 return false;
-            if (msgStoreTime != cqExtUnit.msgStoreTime)
+            }
+            if (msgStoreTime != cqExtUnit.msgStoreTime) {
                 return false;
-            if (size != cqExtUnit.size)
+            }
+            if (size != cqExtUnit.size) {
                 return false;
-            if (tagsCode != cqExtUnit.tagsCode)
+            }
+            if (tagsCode != cqExtUnit.tagsCode) {
                 return false;
-            if (!Arrays.equals(filterBitMap, cqExtUnit.filterBitMap))
-                return false;
-
-            return true;
+            }
+            return Arrays.equals(filterBitMap, cqExtUnit.filterBitMap);
         }
 
         @Override
         public int hashCode() {
-            int result = (int) size;
+            int result = size;
             result = 31 * result + (int) (tagsCode ^ (tagsCode >>> 32));
             result = 31 * result + (int) (msgStoreTime ^ (msgStoreTime >>> 32));
             result = 31 * result + (int) bitMapSize;
@@ -605,12 +591,12 @@ public class ConsumeQueueExt {
         @Override
         public String toString() {
             return "CqExtUnit{" +
-                "size=" + size +
-                ", tagsCode=" + tagsCode +
-                ", msgStoreTime=" + msgStoreTime +
-                ", bitMapSize=" + bitMapSize +
-                ", filterBitMap=" + Arrays.toString(filterBitMap) +
-                '}';
+                    "size=" + size +
+                    ", tagsCode=" + tagsCode +
+                    ", msgStoreTime=" + msgStoreTime +
+                    ", bitMapSize=" + bitMapSize +
+                    ", filterBitMap=" + Arrays.toString(filterBitMap) +
+                    '}';
         }
     }
 }
