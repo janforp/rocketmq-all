@@ -93,6 +93,10 @@ public class RequestCode {
 
     public static final int NOTIFY_CONSUMER_IDS_CHANGED = 40;
 
+    /**
+     * @see org.apache.rocketmq.client.impl.MQClientAPIImpl#lockBatchMQ(java.lang.String, org.apache.rocketmq.common.protocol.body.LockBatchRequestBody, long)
+     * @see org.apache.rocketmq.broker.processor.AdminBrokerProcessor#lockBatchMQ(io.netty.channel.ChannelHandlerContext, org.apache.rocketmq.remoting.protocol.RemotingCommand)
+     */
     public static final int LOCK_BATCH_MQ = 41;
 
     /**

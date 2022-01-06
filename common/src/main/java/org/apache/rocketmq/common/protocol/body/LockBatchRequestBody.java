@@ -16,5 +16,6 @@ public class LockBatchRequestBody extends RemotingSerializable {
 
     private String clientId;
 
+    // 要加锁的队列集合
     private Set<MessageQueue> mqSet = new HashSet<MessageQueue>();
 }

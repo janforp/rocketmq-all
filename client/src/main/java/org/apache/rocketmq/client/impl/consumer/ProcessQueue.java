@@ -326,6 +326,8 @@ public class ProcessQueue {
     /**
      * 顺序消费任务使用的方法
      * 策略完一批消息后回调用
+     *
+     * @see ConsumeMessageOrderlyService#processConsumeResult(java.util.List, org.apache.rocketmq.client.consumer.listener.ConsumeOrderlyStatus, org.apache.rocketmq.client.consumer.listener.ConsumeOrderlyContext, org.apache.rocketmq.client.impl.consumer.ConsumeMessageOrderlyService.ConsumeRequest)
      */
     public long commit() {
         try {
