@@ -105,14 +105,10 @@ public class NamespaceUtil {
         if (StringUtils.isEmpty(consumerGroup)) {
             return null;
         }
-
-        return new StringBuffer()
-                .append(MixAll.RETRY_GROUP_TOPIC_PREFIX)
-                .append(wrapNamespace(namespace, consumerGroup))
-                .toString();
+        return MixAll.RETRY_GROUP_TOPIC_PREFIX + wrapNamespace(namespace, consumerGroup);
     }
 
-    public static String getNamespaceFromResource(String resource) {
+    public static String getNamespaceFromResource(String resource /* group */) {
         if (StringUtils.isEmpty(resource) || isSystemResource(resource)) {
             return STRING_BLANK;
         }

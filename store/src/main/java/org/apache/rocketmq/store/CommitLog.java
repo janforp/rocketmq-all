@@ -660,11 +660,14 @@ public class CommitLog {
         // 消息的主题
         String topic = msg.getTopic();
         // 消息的队列id
-        int queueId = msg.getQueueId();
+        int queueId;
 
         final int tranType = MessageSysFlag.getTransactionValue(msg.getSysFlag());
         if (tranType == MessageSysFlag.TRANSACTION_NOT_TYPE || tranType == MessageSysFlag.TRANSACTION_COMMIT_TYPE) {
+
             // Delay Delivery
+
+            // 可能是重试消息，也可能是用户指定的延迟消息
             if (msg.getDelayTimeLevel() > 0 /* 当前消息是需要延迟的 */) {
                 if (msg.getDelayTimeLevel() > this.defaultMessageStore.getScheduleMessageService().getMaxDelayLevel()) {
                     msg.setDelayTimeLevel(this.defaultMessageStore.getScheduleMessageService().getMaxDelayLevel());
@@ -673,15 +676,16 @@ public class CommitLog {
                 // SCHEDULE_TOPIC_XXXX
                 topic = ScheduleMessageService.SCHEDULE_TOPIC;
                 // 修改 queueId,每个延迟级别，就会有多少个延迟队列
-                // queueId = delayLevel - 1
+                // queueId = delayLevel - 1，因为延迟级别是从1开始，而队列id是从0开始的
                 queueId = ScheduleMessageService.delayLevel2QueueId(msg.getDelayTimeLevel());
 
                 // Backup real topic, queueId
                 // 保存2个属性到消息中
-                MessageAccessor.putProperty(msg, MessageConst.PROPERTY_REAL_TOPIC, msg.getTopic());
-                MessageAccessor.putProperty(msg, MessageConst.PROPERTY_REAL_QUEUE_ID, String.valueOf(msg.getQueueId()));
+                MessageAccessor.putProperty(msg, MessageConst.PROPERTY_REAL_TOPIC, msg.getTopic() /* %RETRY%groupName */);
+                MessageAccessor.putProperty(msg, MessageConst.PROPERTY_REAL_QUEUE_ID, String.valueOf(msg.getQueueId()) /* 0 */);
                 msg.setPropertiesString(MessageDecoder.messageProperties2String(msg.getProperties()));
 
+                // 修改主题为 SCHEDULE_TOPIC_XXXX
                 msg.setTopic(topic);
                 msg.setQueueId(queueId);
             }
