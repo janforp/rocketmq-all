@@ -48,10 +48,10 @@ public class ScheduleMessageService extends ConfigManager {
      * 延迟级别 - 延迟时间，默认支持18个延迟级别，时间分别从1s到2h
      * load 方法初始化，通过配置加载
      */
-    private final ConcurrentMap<Integer /* level */, Long/* delay timeMillis */> delayLevelTable = new ConcurrentHashMap<>(32);
+    private final ConcurrentMap<Integer /* level 延迟级别 */, Long/* delay timeMillis 具体延迟时间 */> delayLevelTable = new ConcurrentHashMap<>(32);
 
     // 每个延迟级别都有自己的 queue ，这个map 就记录来每个延迟级别对于队列的消费进度
-    private final ConcurrentMap<Integer /* level */, Long/* offset */> offsetTable = new ConcurrentHashMap<>(32);
+    private final ConcurrentMap<Integer /* level 延迟级别 */, Long/* offset 队列消费进度，每10秒持久化到磁盘一次 */> offsetTable = new ConcurrentHashMap<>(32);
 
     private final DefaultMessageStore defaultMessageStore;
 
@@ -62,6 +62,7 @@ public class ScheduleMessageService extends ConfigManager {
     @Setter
     private MessageStore writeMessageStore;
 
+    // 最大延迟级别
     @Getter
     private int maxDelayLevel;
 
@@ -104,9 +105,15 @@ public class ScheduleMessageService extends ConfigManager {
 
     public void start() {
         if (started.compareAndSet(false, true)) {
+
+            // 创建定时器对象，里面有自己的线程资源
             this.timer = new Timer("ScheduleMessageTimerThread", true);
+
+            // 遍历所有的延迟级别，为每个延迟级别创建一个任务，提交到定时器中
             for (Map.Entry<Integer /* level */, Long /* delay timeMillis */> entry : this.delayLevelTable.entrySet()) {
+                // 延迟级别
                 Integer level = entry.getKey();
+                // 延迟时间
                 Long timeDelay = entry.getValue();
                 // ConcurrentMap<Integer /* level */, Long/* offset */> offsetTable
                 Long offset = this.offsetTable.get(level);
@@ -122,6 +129,7 @@ public class ScheduleMessageService extends ConfigManager {
             }
 
             // 提交一个：按间隔时间重复执行的任务
+            // 延迟10s之后执行，以后每隔10s执行一次
             this.timer.scheduleAtFixedRate(new TimerTask() {
 
                 @Override
@@ -129,6 +137,7 @@ public class ScheduleMessageService extends ConfigManager {
                     try {
                         if (started.get()) {
                             // 持久化 offsetTable 的值到 文件中
+                            // 持久化延迟队列消费进度的定时任务
                             ScheduleMessageService.this.persist();
                         }
                     } catch (Throwable e) {
@@ -159,6 +168,9 @@ public class ScheduleMessageService extends ConfigManager {
 
     @Override
     public boolean load() {
+        // 从指定文件中加载配置，并且设置到内存中去
+        // delayOffset.json
+        // @see org.apache.rocketmq.store.schedule.ScheduleMessageService.decode
         boolean result = super.load();
         result = result && this.parseDelayLevel();
         return result;
@@ -188,26 +200,42 @@ public class ScheduleMessageService extends ConfigManager {
     }
 
     public boolean parseDelayLevel() {
+
+        // 存储 s,分，时，天 对应的 ms 数值
         HashMap<String, Long> timeUnitTable = new HashMap<>();
         timeUnitTable.put("s", 1000L);
         timeUnitTable.put("m", 1000L * 60);
         timeUnitTable.put("h", 1000L * 60 * 60);
         timeUnitTable.put("d", 1000L * 60 * 60 * 24);
 
+        // String messageDelayLevel = "1s 5s 10s 30s 1m 2m 3m 4m 5m 6m 7m 8m 9m 10m 20m 30m 1h 2h";
+        // 默认支持的延迟级别 1s 到 2h
         String levelString = this.defaultMessageStore.getMessageStoreConfig().getMessageDelayLevel();
         try {
+            // 1s 5s 10s 30s 1m 2m 3m 4m 5m 6m 7m 8m 9m 10m 20m 30m 1h 2h 按空格拆分
             String[] levelArray = levelString.split(" ");
             for (int i = 0; i < levelArray.length; i++) {
+
+                // 如1s，2m，1h等
                 String value = levelArray[i];
+                // 拿到时间单位，如：s,m,h
                 String ch = value.substring(value.length() - 1);
+                // 拿到单位对应的ms值
                 Long tu = timeUnitTable.get(ch);
 
+                // 延迟级别从1开始
                 int level = i + 1;
                 if (level > this.maxDelayLevel) {
+                    // 不能超过最大的延迟级别，保存最大的延迟级别
                     this.maxDelayLevel = level;
                 }
+
+                // 获取数值
                 long num = Long.parseLong(value.substring(0, value.length() - 1));
+
+                // 数值 乘以 时间单位 就是延迟的总时间
                 long delayTimeMillis = tu * num;
+                // 存储到内存中，方便后面使用
                 this.delayLevelTable.put(level, delayTimeMillis);
             }
         } catch (Exception e) {
@@ -232,7 +260,7 @@ public class ScheduleMessageService extends ConfigManager {
         public void run() {
             try {
                 if (isStarted()) {
-                    this.executeOnTimeup();
+                    this.executeOnTimeUp();
                 }
             } catch (Exception e) {
                 // XXX: warn and notify me
@@ -251,11 +279,14 @@ public class ScheduleMessageService extends ConfigManager {
             return result;
         }
 
-        public void executeOnTimeup() {
+        public void executeOnTimeUp() {
+
+            // 拿到消费队列
             ConsumeQueue cq = ScheduleMessageService.this.defaultMessageStore.findConsumeQueue(SCHEDULE_TOPIC, delayLevel2QueueId(delayLevel));
             long failScheduleOffset = offset;
 
             if (cq != null) {
+
                 SelectMappedBufferResult bufferCQ = cq.getIndexBuffer(this.offset);
                 if (bufferCQ != null) {
                     try {
