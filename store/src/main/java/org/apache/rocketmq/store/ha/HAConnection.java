@@ -360,6 +360,7 @@ public class HAConnection {
                         this.byteBufferHeader.putInt(size);
                         this.byteBufferHeader.flip();
 
+                        // true：不是处理完成
                         this.lastWriteOver = this.transferData();
                     } else {
                         HAConnection.this.haService.getWaitNotifyObject().allWaitForRunning(100);
