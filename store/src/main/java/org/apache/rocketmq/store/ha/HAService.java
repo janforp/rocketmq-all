@@ -201,8 +201,7 @@ public class HAService {
                                 SocketChannel sc = ((ServerSocketChannel) k.channel()).accept();
 
                                 if (sc != null) {
-                                    HAService.log.info("HAService receive new connection, "
-                                            + sc.socket().getRemoteSocketAddress());
+                                    HAService.log.info("HAService receive new connection, " + sc.socket().getRemoteSocketAddress());
 
                                     try {
                                         HAConnection conn = new HAConnection(HAService.this, sc);
@@ -573,13 +572,9 @@ public class HAService {
                             continue;
                         }
 
-                        long interval =
-                                HAService.this.getDefaultMessageStore().getSystemClock().now()
-                                        - this.lastWriteTimestamp;
-                        if (interval > HAService.this.getDefaultMessageStore().getMessageStoreConfig()
-                                .getHaHousekeepingInterval()) {
-                            log.warn("HAClient, housekeeping, found this connection[" + this.masterAddress
-                                    + "] expired, " + interval);
+                        long interval = HAService.this.getDefaultMessageStore().getSystemClock().now() - this.lastWriteTimestamp;
+                        if (interval > HAService.this.getDefaultMessageStore().getMessageStoreConfig().getHaHousekeepingInterval()) {
+                            log.warn("HAClient, housekeeping, found this connection[" + this.masterAddress + "] expired, " + interval);
                             this.closeMaster();
                             log.warn("HAClient, master not response some time, so close connection");
                         }
