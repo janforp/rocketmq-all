@@ -307,16 +307,10 @@ public class MessageStoreConfig {
     @Setter
     private boolean enableDLegerCommitLog = false;
 
-    @Getter
-    @Setter
     private String dLegerGroup;
 
-    @Getter
-    @Setter
     private String dLegerPeers;
 
-    @Getter
-    @Setter
     private String dLegerSelfId;
 
     public int getMappedFileSizeConsumeQueue() {
@@ -362,7 +356,27 @@ public class MessageStoreConfig {
         return transientStorePoolEnable && FlushDiskType.ASYNC_FLUSH == getFlushDiskType() && BrokerRole.SLAVE != getBrokerRole();
     }
 
-    public static void main(String[] args) {
-        System.out.println(1);
+    public String getdLegerSelfId() {
+        return dLegerSelfId;
+    }
+
+    public String getdLegerGroup() {
+        return dLegerGroup;
+    }
+
+    public String getdLegerPeers() {
+        return dLegerPeers;
+    }
+
+    public void setdLegerGroup(String dLegerGroup) {
+        this.dLegerGroup = dLegerGroup;
+    }
+
+    public void setdLegerPeers(String dLegerPeers) {
+        this.dLegerPeers = dLegerPeers;
+    }
+
+    public void setdLegerSelfId(String dLegerSelfId) {
+        this.dLegerSelfId = dLegerSelfId;
     }
 }
