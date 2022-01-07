@@ -409,8 +409,11 @@ public class HAService {
         }
 
         private void reallocateByteBuffer() {
+
+            // 未处理的数量
             int remain = READ_MAX_BUFFER_SIZE - this.dispatchPosition;
-            if (remain > 0) {
+
+            if (remain > 0 /* 说明最后一桢是半包数据 */) {
                 this.byteBufferRead.position(this.dispatchPosition);
 
                 this.byteBufferBackup.position(0);
@@ -418,10 +421,13 @@ public class HAService {
                 this.byteBufferBackup.put(this.byteBufferRead);
             }
 
+            // 交换
             this.swapByteBuffer();
 
             this.byteBufferRead.position(remain);
             this.byteBufferRead.limit(READ_MAX_BUFFER_SIZE);
+
+            // 恢复
             this.dispatchPosition = 0;
         }
 
@@ -488,38 +494,56 @@ public class HAService {
             int readSocketPos = this.byteBufferRead.position();
 
             while (true) {
-                int diff = this.byteBufferRead.position() - this.dispatchPosition;
-                if (diff >= msgHeaderSize) {
+
+                // 表示 当前 byteBufferRead 还剩余多少 byte 没处理
+                // 每处理一桢数据就会更新 dispatchPosition，让他增加一桢的长度
+                int diff = this.byteBufferRead.position() - this.dispatchPosition /* 初始状态是 0  */;
+                if (diff >= msgHeaderSize /* 条件成立，说明：byteBufferRead 内部至少有一个完整的 header 数据的  */) {
+
                     long masterPhyOffset = this.byteBufferRead.getLong(this.dispatchPosition);
                     int bodySize = this.byteBufferRead.getInt(this.dispatchPosition + 8);
 
+                    // 当前 slave 端最大的物理偏移量
                     long slavePhyOffset = HAService.this.defaultMessageStore.getMaxPhyOffset();
 
                     if (slavePhyOffset != 0) {
                         if (slavePhyOffset != masterPhyOffset) {
+
+                            // 正常情况 二者必须相等，否则就不正常了，就要返回失败
                             return false;
                         }
                     }
 
-                    if (diff >= (msgHeaderSize + bodySize)) {
+                    if (diff >= (msgHeaderSize + bodySize) /* 该条件成立，说明：当前  byteBufferRead  内部最起码包含当前桢的全部数据的，下面就是处理桢数据*/) {
+
+                        // 用于存储桢中的数据块
                         byte[] bodyData = new byte[bodySize];
-                        this.byteBufferRead.position(this.dispatchPosition + msgHeaderSize);
+                        this.byteBufferRead.position(this.dispatchPosition + msgHeaderSize /* 跳过头，从 body 开始读取 */);
+                        // 把数据读到数组中
                         this.byteBufferRead.get(bodyData);
 
+                        // slave 存储数据的逻辑 ！！！！！！
+                        // 把从 master 上读取到的数据写到读取 slave 节点的 commitLog 文件中
                         HAService.this.defaultMessageStore.appendToCommitLog(masterPhyOffset, bodyData);
 
+                        // 恢复指针
                         this.byteBufferRead.position(readSocketPos);
+
+                        // 更新，加一桢数据长度，方便处理下一条数据使用
                         this.dispatchPosition += msgHeaderSize + bodySize;
 
-                        if (!reportSlaveMaxOffsetPlus()) {
+                        if (!reportSlaveMaxOffsetPlus() /* 上报 slave 的同步进度 */) {
                             return false;
                         }
 
+                        // 处理下一条
                         continue;
                     }
                 }
 
                 if (!this.byteBufferRead.hasRemaining()) {
+
+                    // 说明 byteBufferRead 写满了
                     this.reallocateByteBuffer();
                 }
 
