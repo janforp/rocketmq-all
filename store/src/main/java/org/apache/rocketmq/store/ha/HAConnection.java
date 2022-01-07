@@ -25,8 +25,10 @@ public class HAConnection {
 
     private final String clientAddr;
 
+    // 写
     private final WriteSocketService writeSocketService;
 
+    // 读
     private final ReadSocketService readSocketService;
 
     private volatile long slaveRequestOffset = -1;

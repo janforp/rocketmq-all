@@ -138,13 +138,16 @@ public class HAService {
      */
     class AcceptSocketService extends ServiceThread {
 
+        // master 服务器监听绑定的端口
         private final SocketAddress socketAddressListen;
 
+        // 服务器端的通道
         private ServerSocketChannel serverSocketChannel;
 
+        // 多路复用器
         private Selector selector;
 
-        public AcceptSocketService(final int port) {
+        public AcceptSocketService(final int port /* 10912 */) {
             this.socketAddressListen = new InetSocketAddress(port);
         }
 
@@ -157,8 +160,12 @@ public class HAService {
             this.serverSocketChannel = ServerSocketChannel.open();
             this.selector = RemotingUtil.openSelector();
             this.serverSocketChannel.socket().setReuseAddress(true);
+
+            // 绑定
             this.serverSocketChannel.socket().bind(this.socketAddressListen);
             this.serverSocketChannel.configureBlocking(false);
+
+            // 把通道注册到多路复用器并且监听 OP_ACCEPT 事件（就是客户端发起连接的事件）
             this.serverSocketChannel.register(this.selector, SelectionKey.OP_ACCEPT);
         }
 
@@ -181,32 +188,34 @@ public class HAService {
          */
         @Override
         public void run() {
-            ////log.info(this.getServiceName() + " service started");
-
             while (!this.isStopped()) {
                 try {
                     this.selector.select(1000);
+
+                    // 1.OP_ACCEPT 事件就绪，2.超时了
                     Set<SelectionKey> selected = this.selector.selectedKeys();
 
                     if (selected != null) {
+
+                        // 遍历事件
                         for (SelectionKey k : selected) {
-                            if ((k.readyOps() & SelectionKey.OP_ACCEPT) != 0) {
+
+                            if ((k.readyOps() & SelectionKey.OP_ACCEPT) != 0 /*当前事件是 客户端发起连接事件*/) {
+
+                                // 拿到客户端的连接
                                 SocketChannel sc = ((ServerSocketChannel) k.channel()).accept();
-
                                 if (sc != null) {
-                                    //                                    HAService.//log.info("HAService receive new connection, " + sc.socket().getRemoteSocketAddress());
-
                                     try {
+                                        // 给每个 slave 发起的连接对象封装到 一个 HAConnection 对象中去
                                         HAConnection conn = new HAConnection(HAService.this, sc);
                                         conn.start();
+                                        // 塞入集合
                                         HAService.this.addConnection(conn);
                                     } catch (Exception e) {
-                                        //log.error("new HAConnection exception", e);
                                         sc.close();
                                     }
                                 }
                             } else {
-                                //log.warn("Unexpected ops in select " + k.readyOps());
                             }
                         }
 
@@ -216,8 +225,6 @@ public class HAService {
                     ////log.error(this.getServiceName() + " service has exception.", e);
                 }
             }
-
-            ////log.info(this.getServiceName() + " service end");
         }
 
         /**
