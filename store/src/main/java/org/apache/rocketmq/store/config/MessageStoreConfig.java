@@ -10,6 +10,7 @@ import java.io.File;
 public class MessageStoreConfig {
 
     //The root directory in which the log data is kept
+    // 如：/Users/zhuchenjian
     @ImportantField
     @Getter
     @Setter

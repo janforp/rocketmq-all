@@ -1,5 +1,6 @@
 package org.apache.rocketmq.store.ha;
 
+import lombok.Getter;
 import org.apache.rocketmq.common.ServiceThread;
 import org.apache.rocketmq.common.constant.LoggerName;
 import org.apache.rocketmq.logging.InternalLogger;
@@ -19,13 +20,14 @@ public class HAConnection {
 
     private final HAService haService;
 
+    @Getter
     private final SocketChannel socketChannel;
 
     private final String clientAddr;
 
-    private WriteSocketService writeSocketService;
+    private final WriteSocketService writeSocketService;
 
-    private ReadSocketService readSocketService;
+    private final ReadSocketService readSocketService;
 
     private volatile long slaveRequestOffset = -1;
 
@@ -64,10 +66,6 @@ public class HAConnection {
                 HAConnection.log.error("", e);
             }
         }
-    }
-
-    public SocketChannel getSocketChannel() {
-        return socketChannel;
     }
 
     class ReadSocketService extends ServiceThread {
@@ -249,11 +247,9 @@ public class HAConnection {
 
                     if (this.lastWriteOver) {
 
-                        long interval =
-                                HAConnection.this.haService.getDefaultMessageStore().getSystemClock().now() - this.lastWriteTimestamp;
+                        long interval = HAConnection.this.haService.getDefaultMessageStore().getSystemClock().now() - this.lastWriteTimestamp;
 
-                        if (interval > HAConnection.this.haService.getDefaultMessageStore().getMessageStoreConfig()
-                                .getHaSendHeartbeatInterval()) {
+                        if (interval > HAConnection.this.haService.getDefaultMessageStore().getMessageStoreConfig().getHaSendHeartbeatInterval()) {
 
                             // Build Header
                             this.byteBufferHeader.position(0);

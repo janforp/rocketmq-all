@@ -2,9 +2,6 @@ package org.apache.rocketmq.store.ha;
 
 import lombok.Getter;
 import org.apache.rocketmq.common.ServiceThread;
-import org.apache.rocketmq.common.constant.LoggerName;
-import org.apache.rocketmq.logging.InternalLogger;
-import org.apache.rocketmq.logging.InternalLoggerFactory;
 import org.apache.rocketmq.remoting.common.RemotingUtil;
 import org.apache.rocketmq.store.CommitLog;
 import org.apache.rocketmq.store.DefaultMessageStore;
@@ -32,9 +29,8 @@ import java.util.concurrent.atomic.AtomicReference;
 @SuppressWarnings("all")
 public class HAService {
 
-    private static final InternalLogger log = InternalLoggerFactory.getLogger(LoggerName.STORE_LOGGER_NAME);
-
     // 表示当前主节点 有多少个 slave 节点 与其进行数据同步
+    @Getter
     private final AtomicInteger connectionCount = new AtomicInteger(0);
 
     // master 会给每个向其发起连接的 slave 节点(socketChannel) 创建一个 HAConnection 对象，它封装了 socketChannel ，控制 master 端向 slave 端 传输数据的逻辑
@@ -95,14 +91,6 @@ public class HAService {
             }
         }
     }
-
-    public AtomicInteger getConnectionCount() {
-        return connectionCount;
-    }
-
-    // public void notifyTransferSome() {
-    // this.groupTransferService.notifyTransferSome();
-    // }
 
     public void start() throws Exception {
         this.acceptSocketService.beginAccept();
@@ -179,7 +167,7 @@ public class HAService {
                 this.serverSocketChannel.close();
                 this.selector.close();
             } catch (IOException e) {
-                log.error("AcceptSocketService shutdown exception", e);
+                ////log.error("AcceptSocketService shutdown exception", e);
             }
         }
 
@@ -188,7 +176,7 @@ public class HAService {
          */
         @Override
         public void run() {
-            log.info(this.getServiceName() + " service started");
+            ////log.info(this.getServiceName() + " service started");
 
             while (!this.isStopped()) {
                 try {
@@ -201,30 +189,30 @@ public class HAService {
                                 SocketChannel sc = ((ServerSocketChannel) k.channel()).accept();
 
                                 if (sc != null) {
-                                    HAService.log.info("HAService receive new connection, " + sc.socket().getRemoteSocketAddress());
+                                    //                                    HAService.//log.info("HAService receive new connection, " + sc.socket().getRemoteSocketAddress());
 
                                     try {
                                         HAConnection conn = new HAConnection(HAService.this, sc);
                                         conn.start();
                                         HAService.this.addConnection(conn);
                                     } catch (Exception e) {
-                                        log.error("new HAConnection exception", e);
+                                        //log.error("new HAConnection exception", e);
                                         sc.close();
                                     }
                                 }
                             } else {
-                                log.warn("Unexpected ops in select " + k.readyOps());
+                                //log.warn("Unexpected ops in select " + k.readyOps());
                             }
                         }
 
                         selected.clear();
                     }
                 } catch (Exception e) {
-                    log.error(this.getServiceName() + " service has exception.", e);
+                    ////log.error(this.getServiceName() + " service has exception.", e);
                 }
             }
 
-            log.info(this.getServiceName() + " service end");
+            ////log.info(this.getServiceName() + " service end");
         }
 
         /**
@@ -279,7 +267,7 @@ public class HAService {
                         }
 
                         if (!transferOK) {
-                            log.warn("transfer messsage to slave timeout, " + req.getNextOffset());
+                            ////log.warn("transfer messsage to slave timeout, " + req.getNextOffset());
                         }
 
                         req.wakeupCustomer(transferOK);
@@ -291,18 +279,18 @@ public class HAService {
         }
 
         public void run() {
-            log.info(this.getServiceName() + " service started");
+            ////log.info(this.getServiceName() + " service started");
 
             while (!this.isStopped()) {
                 try {
                     this.waitForRunning(10);
                     this.doWaitTransfer();
                 } catch (Exception e) {
-                    log.warn(this.getServiceName() + " service has exception. ", e);
+                    ////log.warn(this.getServiceName() + " service has exception. ", e);
                 }
             }
 
-            log.info(this.getServiceName() + " service end");
+            ////log.info(this.getServiceName() + " service end");
         }
 
         @Override
@@ -354,7 +342,7 @@ public class HAService {
             String currentAddr = this.masterAddress.get();
             if (currentAddr == null || !currentAddr.equals(newAddr)) {
                 this.masterAddress.set(newAddr);
-                log.info("update master address, OLD: " + currentAddr + " NEW: " + newAddr);
+                //log.info("update master address, OLD: " + currentAddr + " NEW: " + newAddr);
             }
         }
 
@@ -374,7 +362,7 @@ public class HAService {
                 try {
                     this.socketChannel.write(this.reportOffset);
                 } catch (IOException e) {
-                    log.error(this.getServiceName() + "reportSlaveMaxOffset this.socketChannel.write exception", e);
+                    ////log.error(this.getServiceName() + "reportSlaveMaxOffset this.socketChannel.write exception", e);
                     return false;
                 }
             }
@@ -415,7 +403,7 @@ public class HAService {
                         readSizeZeroTimes = 0;
                         boolean result = this.dispatchReadRequest();
                         if (!result) {
-                            log.error("HAClient, dispatchReadRequest error");
+                            ////log.error("HAClient, dispatchReadRequest error");
                             return false;
                         }
                     } else if (readSize == 0) {
@@ -423,11 +411,11 @@ public class HAService {
                             break;
                         }
                     } else {
-                        log.info("HAClient, processReadEvent read socket < 0");
+                        ////log.info("HAClient, processReadEvent read socket < 0");
                         return false;
                     }
                 } catch (IOException e) {
-                    log.info("HAClient, processReadEvent read socket exception", e);
+                    ////log.info("HAClient, processReadEvent read socket exception", e);
                     return false;
                 }
             }
@@ -449,7 +437,7 @@ public class HAService {
 
                     if (slavePhyOffset != 0) {
                         if (slavePhyOffset != masterPhyOffset) {
-                            log.error("master pushed offset not equal the max phy offset in slave, SLAVE: " + slavePhyOffset + " MASTER: " + masterPhyOffset);
+                            //log.error("master pushed offset not equal the max phy offset in slave, SLAVE: " + slavePhyOffset + " MASTER: " + masterPhyOffset);
                             return false;
                         }
                     }
@@ -490,7 +478,7 @@ public class HAService {
                 result = this.reportSlaveMaxOffset(this.currentReportedOffset);
                 if (!result) {
                     this.closeMaster();
-                    log.error("HAClient, reportSlaveMaxOffset error, " + this.currentReportedOffset);
+                    //log.error("HAClient, reportSlaveMaxOffset error, " + this.currentReportedOffset);
                 }
             }
 
@@ -532,7 +520,7 @@ public class HAService {
 
                     this.socketChannel = null;
                 } catch (IOException e) {
-                    log.warn("closeMaster exception. ", e);
+                    //log.warn("closeMaster exception. ", e);
                 }
 
                 this.lastWriteTimestamp = 0;
@@ -548,7 +536,7 @@ public class HAService {
 
         @Override
         public void run() {
-            log.info(this.getServiceName() + " service started");
+            //log.info(this.getServiceName() + " service started");
 
             while (!this.isStopped()) {
                 try {
@@ -574,20 +562,20 @@ public class HAService {
 
                         long interval = HAService.this.getDefaultMessageStore().getSystemClock().now() - this.lastWriteTimestamp;
                         if (interval > HAService.this.getDefaultMessageStore().getMessageStoreConfig().getHaHousekeepingInterval()) {
-                            log.warn("HAClient, housekeeping, found this connection[" + this.masterAddress + "] expired, " + interval);
+                            //log.warn("HAClient, housekeeping, found this connection[" + this.masterAddress + "] expired, " + interval);
                             this.closeMaster();
-                            log.warn("HAClient, master not response some time, so close connection");
+                            //log.warn("HAClient, master not response some time, so close connection");
                         }
                     } else {
                         this.waitForRunning(1000 * 5);
                     }
                 } catch (Exception e) {
-                    log.warn(this.getServiceName() + " service has exception. ", e);
+                    //log.warn(this.getServiceName() + " service has exception. ", e);
                     this.waitForRunning(1000 * 5);
                 }
             }
 
-            log.info(this.getServiceName() + " service end");
+            ////log.info(this.getServiceName() + " service end");
         }
         // private void disableWriteFlag() {
         // if (this.socketChannel != null) {
