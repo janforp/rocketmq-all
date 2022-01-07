@@ -152,10 +152,9 @@ public class RemotingUtil {
 
     public static String socketAddress2String(final SocketAddress addr) {
         InetSocketAddress inetSocketAddress = (InetSocketAddress) addr;
-        String sb = inetSocketAddress.getAddress().getHostAddress()
+        return inetSocketAddress.getAddress().getHostAddress()
                 + ":"
                 + inetSocketAddress.getPort();
-        return sb;
     }
 
     public static SocketChannel connect(SocketAddress remote) {
@@ -175,6 +174,7 @@ public class RemotingUtil {
             socket.setReceiveBufferSize(1024 * 64);
             socket.setSendBufferSize(1024 * 64);
             socket.connect(remote, timeoutMillis);
+            // 非阻塞
             sc.configureBlocking(false);
             return sc;
         } catch (Exception e) {
