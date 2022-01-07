@@ -31,8 +31,17 @@ public class HAConnection {
     // 读
     private final ReadSocketService readSocketService;
 
+    /**
+     * 在 slave 上报过 本地的 maxOffset 之后会被赋值。它 >= 0 之后同步数据的逻辑才会执行
+     *
+     * why?因为 master 它不知道 slave 节点当前的消息存储进度是在哪里了？它就没办法去给slave推送数据
+     */
     private volatile long slaveRequestOffset = -1;
 
+    /**
+     * 保存最新的 slave 上的 offset 信息， slaveAckOffset 之前的数据，都可以认为   slave 已经全部同步完成了
+     * 对应的 生产者线程 需要被唤醒
+     */
     private volatile long slaveAckOffset = -1;
 
     public HAConnection(final HAService haService, final SocketChannel socketChannel) throws IOException {
@@ -42,10 +51,14 @@ public class HAConnection {
         this.socketChannel.configureBlocking(false);
         this.socketChannel.socket().setSoLinger(false, -1);
         this.socketChannel.socket().setTcpNoDelay(true);
+
+        // 设置 socket 读写缓冲区 64 kb
         this.socketChannel.socket().setReceiveBufferSize(1024 * 64);
         this.socketChannel.socket().setSendBufferSize(1024 * 64);
         this.writeSocketService = new WriteSocketService(this.socketChannel);
         this.readSocketService = new ReadSocketService(this.socketChannel);
+
+        // 统计自增
         this.haService.getConnectionCount().incrementAndGet();
     }
 
@@ -70,23 +83,35 @@ public class HAConnection {
         }
     }
 
+    /**
+     * slave 向 master 上报的是 slave 本地的同步进度，这个同步进度就是一个 long 值，
+     * 所以，该服务处理的桢格式为：
+     * [long][long][long][long]。。。。
+     */
     class ReadSocketService extends ServiceThread {
 
+        // 1 mb
         private static final int READ_MAX_BUFFER_SIZE = 1024 * 1024;
 
         private final Selector selector;
 
+        // master slave 会话
         private final SocketChannel socketChannel;
 
+        // 1mb 缓冲区
         private final ByteBuffer byteBufferRead = ByteBuffer.allocate(READ_MAX_BUFFER_SIZE);
 
+        // 缓冲区处理位点
         private int processPosition = 0;
 
+        // 上次读时间
         private volatile long lastReadTimestamp = System.currentTimeMillis();
 
         public ReadSocketService(final SocketChannel socketChannel) throws IOException {
             this.selector = RemotingUtil.openSelector();
             this.socketChannel = socketChannel;
+
+            // 将 master slave 会话 注册到多路复用器 监听 OP_READ 事件
             this.socketChannel.register(this.selector, SelectionKey.OP_READ);
             this.setDaemon(true);
         }
@@ -97,13 +122,15 @@ public class HAConnection {
 
             while (!this.isStopped()) {
                 try {
+                    // 最长阻塞 1 s
                     this.selector.select(1000);
+
+                    // 1.可以读数据了，事件就绪.2.超时了
                     boolean ok = this.processReadEvent();
                     if (!ok) {
                         HAConnection.log.error("processReadEvent error");
                         break;
                     }
-
                     long interval = HAConnection.this.haService.getDefaultMessageStore().getSystemClock().now() - this.lastReadTimestamp;
                     if (interval > HAConnection.this.haService.getDefaultMessageStore().getMessageStoreConfig().getHaHousekeepingInterval()) {
                         log.warn("ha housekeeping, found this connection[" + HAConnection.this.clientAddr + "] expired, " + interval);
@@ -143,23 +170,55 @@ public class HAConnection {
             return ReadSocketService.class.getSimpleName();
         }
 
+        /**
+         * 处理读事件
+         *
+         * @return true 表示处理成功，false 表示 socket 关闭
+         */
         private boolean processReadEvent() {
+
+            // 循环控制变量，连续 读取失败3次跳出循环
             int readSizeZeroTimes = 0;
 
             if (!this.byteBufferRead.hasRemaining()) {
-                this.byteBufferRead.flip();
+
+                // 说明 byteBufferRead 没有剩余空间了
+
+                this.byteBufferRead.flip() /* 相当于清理操作， pos = 0  */;
+                // 归零
                 this.processPosition = 0;
             }
 
-            while (this.byteBufferRead.hasRemaining()) {
+            while (this.byteBufferRead.hasRemaining() /*有空闲空间*/) {
                 try {
-                    int readSize = this.socketChannel.read(this.byteBufferRead);
+
+                    /*
+                     * slave 向 master 上报的是 slave 本地的同步进度，这个同步进度就是一个 long 值，
+                     * 所以，该服务处理的桢格式为：
+                     * [long][long][long][long]。。。。
+                     */
+
+                    // 从 socket 中读取数据到缓冲区
+                    int readSize /*本次读取到的字节数*/ = this.socketChannel.read(this.byteBufferRead);
                     if (readSize > 0) {
+
+                        // 重置次数
                         readSizeZeroTimes = 0;
+
+                        // 记录最近一次读取到数据的时间
                         this.lastReadTimestamp = HAConnection.this.haService.getDefaultMessageStore().getSystemClock().now();
-                        if ((this.byteBufferRead.position() - this.processPosition) >= 8) {
+
+                        if ((this.byteBufferRead.position() - this.processPosition) >= 8 /* 本次读取到的数据两大于 8 个字节，一个 long 的值肯定没问题 */) {
+
+                            // pos 是啥呢？
+                            // pos = 100 - 100 % 8 = 96
+                            // pos = 107 - 107 % 8 = 104
+                            // pos = 104 - 104 % 8 = 104
+                            // pos 是 byteBufferRead 中可读数据 中的 最后一个 桢的 数据，本次就是要从该 pos 位置开始读取数据 （前面的可以不要了）
                             int pos = this.byteBufferRead.position() - (this.byteBufferRead.position() % 8);
+                            // 读取最后一个桢的数据，就是读取 slave 端的同步进度
                             long readOffset = this.byteBufferRead.getLong(pos - 8);
+                            // 更新处理位点
                             this.processPosition = pos;
 
                             HAConnection.this.slaveAckOffset = readOffset;
@@ -168,13 +227,16 @@ public class HAConnection {
                                 log.info("slave[" + HAConnection.this.clientAddr + "] request offset " + readOffset);
                             }
 
+                            // 唤醒阻塞的生产者线程（哪些正在做存储消息的线程）
                             HAConnection.this.haService.notifyTransferSome(HAConnection.this.slaveAckOffset);
                         }
                     } else if (readSize == 0) {
                         if (++readSizeZeroTimes >= 3) {
+                            // 一般在此处跳出循环
                             break;
                         }
                     } else {
+                        // socket 半关闭状态
                         log.error("read socket[" + HAConnection.this.clientAddr + "] < 0");
                         return false;
                     }

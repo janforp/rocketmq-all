@@ -290,18 +290,13 @@ public class HAService {
         }
 
         public void run() {
-            ////log.info(this.getServiceName() + " service started");
-
             while (!this.isStopped()) {
                 try {
                     this.waitForRunning(10);
                     this.doWaitTransfer();
                 } catch (Exception e) {
-                    ////log.warn(this.getServiceName() + " service has exception. ", e);
                 }
             }
-
-            ////log.info(this.getServiceName() + " service end");
         }
 
         @Override
