@@ -259,8 +259,7 @@ public class HAService {
                 if (!this.requestsRead.isEmpty()) {
                     for (CommitLog.GroupCommitRequest req : this.requestsRead) {
                         boolean transferOK = HAService.this.push2SlaveMaxOffset.get() >= req.getNextOffset();
-                        long waitUntilWhen = HAService.this.defaultMessageStore.getSystemClock().now()
-                                + HAService.this.defaultMessageStore.getMessageStoreConfig().getSyncFlushTimeout();
+                        long waitUntilWhen = HAService.this.defaultMessageStore.getSystemClock().now() + HAService.this.defaultMessageStore.getMessageStoreConfig().getSyncFlushTimeout();
                         while (!transferOK && HAService.this.defaultMessageStore.getSystemClock().now() < waitUntilWhen) {
                             this.notifyTransferObject.waitForRunning(1000);
                             transferOK = HAService.this.push2SlaveMaxOffset.get() >= req.getNextOffset();
@@ -489,7 +488,6 @@ public class HAService {
             if (null == socketChannel) {
                 String addr = this.masterAddress.get();
                 if (addr != null) {
-
                     SocketAddress socketAddress = RemotingUtil.string2SocketAddress(addr);
                     if (socketAddress != null) {
                         this.socketChannel = RemotingUtil.connect(socketAddress);
@@ -498,12 +496,9 @@ public class HAService {
                         }
                     }
                 }
-
                 this.currentReportedOffset = HAService.this.defaultMessageStore.getMaxPhyOffset();
-
                 this.lastWriteTimestamp = System.currentTimeMillis();
             }
-
             return this.socketChannel != null;
         }
 
@@ -536,67 +531,35 @@ public class HAService {
 
         @Override
         public void run() {
-            //log.info(this.getServiceName() + " service started");
-
             while (!this.isStopped()) {
                 try {
                     if (this.connectMaster()) {
-
                         if (this.isTimeToReportOffset()) {
                             boolean result = this.reportSlaveMaxOffset(this.currentReportedOffset);
                             if (!result) {
                                 this.closeMaster();
                             }
                         }
-
                         this.selector.select(1000);
-
                         boolean ok = this.processReadEvent();
                         if (!ok) {
                             this.closeMaster();
                         }
-
                         if (!reportSlaveMaxOffsetPlus()) {
                             continue;
                         }
-
                         long interval = HAService.this.getDefaultMessageStore().getSystemClock().now() - this.lastWriteTimestamp;
                         if (interval > HAService.this.getDefaultMessageStore().getMessageStoreConfig().getHaHousekeepingInterval()) {
-                            //log.warn("HAClient, housekeeping, found this connection[" + this.masterAddress + "] expired, " + interval);
                             this.closeMaster();
-                            //log.warn("HAClient, master not response some time, so close connection");
                         }
                     } else {
                         this.waitForRunning(1000 * 5);
                     }
                 } catch (Exception e) {
-                    //log.warn(this.getServiceName() + " service has exception. ", e);
                     this.waitForRunning(1000 * 5);
                 }
             }
-
-            ////log.info(this.getServiceName() + " service end");
         }
-        // private void disableWriteFlag() {
-        // if (this.socketChannel != null) {
-        // SelectionKey sk = this.socketChannel.keyFor(this.selector);
-        // if (sk != null) {
-        // int ops = sk.interestOps();
-        // ops &= ~SelectionKey.OP_WRITE;
-        // sk.interestOps(ops);
-        // }
-        // }
-        // }
-        // private void enableWriteFlag() {
-        // if (this.socketChannel != null) {
-        // SelectionKey sk = this.socketChannel.keyFor(this.selector);
-        // if (sk != null) {
-        // int ops = sk.interestOps();
-        // ops |= SelectionKey.OP_WRITE;
-        // sk.interestOps(ops);
-        // }
-        // }
-        // }
 
         @Override
         public String getServiceName() {
