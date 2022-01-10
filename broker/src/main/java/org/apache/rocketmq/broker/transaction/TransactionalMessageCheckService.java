@@ -27,13 +27,13 @@ public class TransactionalMessageCheckService extends ServiceThread {
     @Override
     protected void onWaitEnd() {
         long timeout = brokerController.getBrokerConfig().getTransactionTimeOut();
-        int checkMax = brokerController.getBrokerConfig().getTransactionCheckMax();
+        int checkMax = brokerController.getBrokerConfig().getTransactionCheckMax();// 回查最大次数
         long begin = System.currentTimeMillis();
         log.info("Begin to check prepare message, begin time:{}", begin);
 
         // 妈的 写在这里，说明意思
         TransactionalMessageService service = this.brokerController.getTransactionalMessageService();
-        AbstractTransactionalMessageCheckListener listener = this.brokerController.getTransactionalMessageCheckListener();
+        AbstractTransactionalMessageCheckListener listener = this.brokerController.getTransactionalMessageCheckListener(); // 回查监听器
         service.check(timeout, checkMax, listener);
         log.info("End to check prepare message, consumed time:{}", System.currentTimeMillis() - begin);
     }
