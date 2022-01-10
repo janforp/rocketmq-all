@@ -29,6 +29,7 @@ public class EndTransactionRequestHeader implements CommandCustomHeader {
     private Long commitLogOffset;
 
     @CFNotNull
+    @Getter
     private Integer commitOrRollback; // TRANSACTION_COMMIT_TYPE
     // TRANSACTION_ROLLBACK_TYPE
     // TRANSACTION_NOT_TYPE

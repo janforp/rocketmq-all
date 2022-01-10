@@ -1,5 +1,7 @@
 package org.apache.rocketmq.client.impl.producer;
 
+import lombok.Getter;
+import lombok.Setter;
 import org.apache.rocketmq.client.QueryResult;
 import org.apache.rocketmq.client.Validators;
 import org.apache.rocketmq.client.common.ClientErrorCode;
@@ -119,6 +121,8 @@ public class DefaultMQProducerImpl implements MQProducerInner {
     protected ExecutorService checkExecutor;
 
     // 状态
+    @Getter
+    @Setter
     private ServiceState serviceState = ServiceState.CREATE_JUST;
 
     // 客户端实例对象，生产者启动后需要注册到该客户端对象中（观察者模式）
@@ -128,6 +132,8 @@ public class DefaultMQProducerImpl implements MQProducerInner {
     private final ArrayList<CheckForbiddenHook> checkForbiddenHookList = new ArrayList<CheckForbiddenHook>();
 
     // zip 压缩级别，默认5
+    @Getter
+    @Setter
     private int zipCompressLevel = Integer.parseInt(System.getProperty(MixAll.MESSAGE_COMPRESS_LEVEL, "5"));
 
     // 选择队列容错策略
@@ -366,6 +372,7 @@ public class DefaultMQProducerImpl implements MQProducerInner {
 
     @Override
     public void checkTransactionState(final String addr, final MessageExt msg, final CheckTransactionStateRequestHeader header) {
+        // 创建一个任务
         Runnable request = new Runnable() {
             private final String brokerAddr = addr;
 
@@ -377,6 +384,7 @@ public class DefaultMQProducerImpl implements MQProducerInner {
 
             @Override
             public void run() {
+                // 内部类的巧妙之处！
                 TransactionCheckListener transactionCheckListener = DefaultMQProducerImpl.this.checkListener();
                 TransactionListener transactionListener = getCheckListener();
                 if (transactionCheckListener != null || transactionListener != null) {
@@ -384,6 +392,7 @@ public class DefaultMQProducerImpl implements MQProducerInner {
                     Throwable exception = null;
                     try {
                         if (transactionCheckListener != null) {
+                            // 交给用户自己处理
                             localTransactionState = transactionCheckListener.checkLocalTransactionState(message);
                         } else if (transactionListener != null) {
                             log.debug("Used new check API in transaction message");
@@ -395,7 +404,6 @@ public class DefaultMQProducerImpl implements MQProducerInner {
                         log.error("Broker call checkTransactionState, but checkLocalTransactionState exception", e);
                         exception = e;
                     }
-
                     this.processTransactionState(localTransactionState, group, exception);
                 } else {
                     log.warn("CheckTransactionState, pick transactionCheckListener by group[{}] failed", group);
@@ -409,7 +417,7 @@ public class DefaultMQProducerImpl implements MQProducerInner {
                 thisHeader.setTranStateTableOffset(checkRequestHeader.getTranStateTableOffset());
                 thisHeader.setFromTransactionCheck(true);
 
-                String uniqueKey = message.getProperties().get(MessageConst.PROPERTY_UNIQ_CLIENT_MESSAGE_ID_KEYIDX);
+                String uniqueKey = message.getProperties().get(MessageConst.PROPERTY_UNIQ_CLIENT_MESSAGE_ID_KEYIDX/*UNIQ_KEY*/);
                 if (uniqueKey == null) {
                     uniqueKey = message.getMsgId();
                 }
@@ -444,6 +452,7 @@ public class DefaultMQProducerImpl implements MQProducerInner {
             }
         };
 
+        // 提交任务
         this.checkExecutor.submit(request);
     }
 
@@ -1659,22 +1668,6 @@ public class DefaultMQProducerImpl implements MQProducerInner {
 
     public ConcurrentMap<String, TopicPublishInfo> getTopicPublishInfoTable() {
         return topicPublishInfoTable;
-    }
-
-    public int getZipCompressLevel() {
-        return zipCompressLevel;
-    }
-
-    public void setZipCompressLevel(int zipCompressLevel) {
-        this.zipCompressLevel = zipCompressLevel;
-    }
-
-    public ServiceState getServiceState() {
-        return serviceState;
-    }
-
-    public void setServiceState(ServiceState serviceState) {
-        this.serviceState = serviceState;
     }
 
     public long[] getNotAvailableDuration() {
