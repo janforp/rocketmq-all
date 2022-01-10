@@ -12,14 +12,17 @@ public interface TransactionListener {
      * @param arg Custom business parameter
      * @return Transaction state
      */
-    LocalTransactionState executeLocalTransaction(final Message msg, final Object arg);
+    LocalTransactionState executeLocalTransaction(final Message msg, final Object arg /* 业务层的参数 */);
 
     /**
+     * 查询该半消息对应事务的状态,
+     * 该方法由客户端实例调用！！！！！
+     *
      * When no response to prepare(half) message. broker will send check message to check the transaction status, and this
      * method will be invoked to get local transaction status.
      *
      * @param msg Check message
-     * @return Transaction state
+     * @return Transaction state 查询该半消息对应事务的状态
      */
     LocalTransactionState checkLocalTransaction(final MessageExt msg);
 }

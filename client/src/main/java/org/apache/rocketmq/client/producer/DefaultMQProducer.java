@@ -41,7 +41,6 @@ import java.util.concurrent.ExecutorService;
  * <p> <strong>Thread Safety:</strong> After configuring and starting process, this class can be regarded as thread-safe
  * and used among multiple threads context. </p>
  */
-
 /**
  * 业务层使用它完成消息发送
  * 管理配置信息

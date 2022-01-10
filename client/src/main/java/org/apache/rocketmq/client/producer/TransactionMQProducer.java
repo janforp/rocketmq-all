@@ -15,10 +15,16 @@ public class TransactionMQProducer extends DefaultMQProducer {
     @Setter
     private TransactionCheckListener transactionCheckListener;
 
+    /**
+     * 回查线程池相关
+     */
     @Getter
     @Setter
     private int checkThreadPoolMinSize = 1;
 
+    /**
+     * 回查线程池相关
+     */
     @Getter
     @Setter
     private int checkThreadPoolMaxSize = 1;
@@ -27,6 +33,9 @@ public class TransactionMQProducer extends DefaultMQProducer {
     @Setter
     private int checkRequestHoldMax = 2000;
 
+    /**
+     * 回查线程池相关
+     */
     @Getter
     @Setter
     private ExecutorService executorService;
@@ -72,19 +81,17 @@ public class TransactionMQProducer extends DefaultMQProducer {
      */
     @Override
     @Deprecated
-    public TransactionSendResult sendMessageInTransaction(final Message msg,
-            final LocalTransactionExecuter tranExecuter, final Object arg) throws MQClientException {
+    public TransactionSendResult sendMessageInTransaction(final Message msg, final LocalTransactionExecuter tranExecutor, final Object arg) throws MQClientException {
         if (null == this.transactionCheckListener) {
             throw new MQClientException("localTransactionBranchCheckListener is null", null);
         }
 
         msg.setTopic(NamespaceUtil.wrapNamespace(this.getNamespace(), msg.getTopic()));
-        return this.defaultMQProducerImpl.sendMessageInTransaction(msg, tranExecuter, arg);
+        return this.defaultMQProducerImpl.sendMessageInTransaction(msg, tranExecutor, arg);
     }
 
     @Override
-    public TransactionSendResult sendMessageInTransaction(final Message msg,
-            final Object arg) throws MQClientException {
+    public TransactionSendResult sendMessageInTransaction(final Message msg, final Object arg) throws MQClientException {
         if (null == this.transactionListener) {
             throw new MQClientException("TransactionListener is null", null);
         }

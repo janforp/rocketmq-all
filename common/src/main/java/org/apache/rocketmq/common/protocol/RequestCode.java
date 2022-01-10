@@ -81,6 +81,9 @@ public class RequestCode {
      */
     public static final int CONSUMER_SEND_MSG_BACK = 36;
 
+    /**
+     * @see org.apache.rocketmq.client.impl.MQClientAPIImpl#endTransactionOneway(java.lang.String, org.apache.rocketmq.common.protocol.header.EndTransactionRequestHeader, java.lang.String, long)
+     */
     public static final int END_TRANSACTION = 37;
 
     /**

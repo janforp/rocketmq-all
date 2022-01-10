@@ -25,6 +25,7 @@ public class SendResult {
     @Setter
     private long queueOffset;
 
+    // 没有用
     @Getter
     @Setter
     private String transactionId;
