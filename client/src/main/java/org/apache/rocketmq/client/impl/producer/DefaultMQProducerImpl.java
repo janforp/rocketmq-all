@@ -79,6 +79,7 @@ import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
+@SuppressWarnings("all")
 public class DefaultMQProducerImpl implements MQProducerInner {
 
     private final InternalLogger log = ClientLogger.getLog();

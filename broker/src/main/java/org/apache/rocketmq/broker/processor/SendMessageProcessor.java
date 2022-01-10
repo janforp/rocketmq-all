@@ -335,10 +335,7 @@ public class SendMessageProcessor extends AbstractSendMessageProcessor implement
             if (reconsumeTimes >= maxReconsumeTimes) {
                 newTopic = MixAll.getDLQTopic(groupName);
                 int queueIdInt = Math.abs(this.random.nextInt() % 99999999) % DLQ_NUMS_PER_GROUP;
-                topicConfig = this.brokerController.getTopicConfigManager().createTopicInSendMessageBackMethod(newTopic,
-                        DLQ_NUMS_PER_GROUP,
-                        PermName.PERM_WRITE, 0
-                );
+                topicConfig = this.brokerController.getTopicConfigManager().createTopicInSendMessageBackMethod(newTopic, DLQ_NUMS_PER_GROUP, PermName.PERM_WRITE, 0);
                 msg.setTopic(newTopic);
                 msg.setQueueId(queueIdInt);
                 if (null == topicConfig) {

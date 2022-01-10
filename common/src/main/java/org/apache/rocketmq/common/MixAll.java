@@ -137,7 +137,6 @@ public class MixAll {
     }
 
     /**
-     *
      * @param consumerGroup 用户指定的消费组每次，如 SOCINSCORE_CONSUMER_GROUP
      * @return %RETRY%SOCINSCORE_CONSUMER_GROUP
      */
@@ -166,8 +165,7 @@ public class MixAll {
             int split = brokerAddr.lastIndexOf(":");
             String ip = brokerAddr.substring(0, split);
             String port = brokerAddr.substring(split + 1);
-            String brokerAddrNew = ip + ":" + (Integer.parseInt(port) - 2);
-            return brokerAddrNew;
+            return ip + ":" + (Integer.parseInt(port) - 2);
         } else {
             return brokerAddr;
         }
@@ -184,6 +182,13 @@ public class MixAll {
         }
 
         return 0;
+    }
+
+    public static void main(String[] args) {
+        System.out.println(getPID());
+        System.out.println(getPID());
+        System.out.println(getPID());
+        System.out.println(getPID());
     }
 
     public static void string2File(final String str, final String fileName) throws IOException {
@@ -279,8 +284,7 @@ public class MixAll {
         printObjectProperties(logger, object, false);
     }
 
-    public static void printObjectProperties(final InternalLogger logger, final Object object,
-            final boolean onlyImportantField) {
+    public static void printObjectProperties(final InternalLogger logger, final Object object, final boolean onlyImportantField) {
         Field[] fields = object.getClass().getDeclaredFields();
         for (Field field : fields) {
             if (!Modifier.isStatic(field.getModifiers())) {

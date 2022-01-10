@@ -70,6 +70,7 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 
+@SuppressWarnings("all")
 public class MQClientInstance {
 
     private final static long LOCK_TIMEOUT_MILLIS = 3000;
