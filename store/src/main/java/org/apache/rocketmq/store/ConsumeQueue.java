@@ -45,28 +45,26 @@ public class ConsumeQueue {
 
     private ConsumeQueueExt consumeQueueExt = null;
 
-    public ConsumeQueue(final String topic, final int queueId, final String storePath, final int mappedFileSize, final DefaultMessageStore defaultMessageStore) {
-        // 目录路径，如： ../store/consumerqueue/xxx_topic/0,../store/consumerqueue/xxx_topic/1,../store/consumerqueue/xxx_topic/2 .....
-        this.mappedFileSize = mappedFileSize;
+    public ConsumeQueue(final String topic, final int queueId, final String storePath/* users/zhuchenjian/store/consumequeue */, final int mappedFileSize /* 6000000 KB =  5.72 MB*/, final DefaultMessageStore defaultMessageStore) {
+        this.mappedFileSize = mappedFileSize; /* 6000000 KB =  5.72 MB*/
         this.defaultMessageStore = defaultMessageStore;
-
         this.topic = topic;
         this.queueId = queueId;
 
-        // 目录路径，如： ../store/consumerqueue/xxx_topic/0,../store/consumerqueue/xxx_topic/1,../store/consumerqueue/xxx_topic/2 .....
+        // users/zhuchenjian/store/consumequeue/topic/queueId
         String queueDir = storePath + File.separator + topic + File.separator + queueId;
 
         this.mappedFileQueue = new MappedFileQueue(queueDir, mappedFileSize, null);
 
         // 申请了一个 20 字节大小的缓冲区
-        this.byteBufferIndex = ByteBuffer.allocate(CQ_STORE_UNIT_SIZE);
+        this.byteBufferIndex = ByteBuffer.allocate(CQ_STORE_UNIT_SIZE /*20*/);
 
         if (defaultMessageStore.getMessageStoreConfig().isEnableConsumeQueueExt()) {
             // 默认是 false
             this.consumeQueueExt = new ConsumeQueueExt(
                     topic,
                     queueId,
-                    StorePathConfigHelper.getStorePathConsumeQueueExt(defaultMessageStore.getMessageStoreConfig().getStorePathRootDir()),
+                    StorePathConfigHelper.getStorePathConsumeQueueExt(defaultMessageStore.getMessageStoreConfig().getStorePathRootDir()), // /users/zhuchenjian/store/consumequeue_ext
                     defaultMessageStore.getMessageStoreConfig().getMappedFileSizeConsumeQueueExt(),
                     defaultMessageStore.getMessageStoreConfig().getBitMapLengthConsumeQueueExt()
             );

@@ -1,14 +1,5 @@
 package org.apache.rocketmq.store;
 
-import java.io.File;
-import java.io.IOException;
-import java.util.ServiceLoader;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ConcurrentMap;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.PriorityBlockingQueue;
-import java.util.concurrent.TimeUnit;
-
 import lombok.Getter;
 import lombok.Setter;
 import org.apache.rocketmq.common.ServiceThread;
@@ -18,14 +9,21 @@ import org.apache.rocketmq.logging.InternalLogger;
 import org.apache.rocketmq.logging.InternalLoggerFactory;
 import org.apache.rocketmq.store.config.BrokerRole;
 
+import java.io.File;
+import java.io.IOException;
+import java.util.ServiceLoader;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.PriorityBlockingQueue;
+import java.util.concurrent.TimeUnit;
+
 /**
  * Create MappedFile in advance
  */
 public class AllocateMappedFileService extends ServiceThread {
 
     private static final InternalLogger log = InternalLoggerFactory.getLogger(LoggerName.STORE_LOGGER_NAME);
-
-    private static int waitTimeOut = 1000 * 5;
 
     private final ConcurrentMap<String, AllocateRequest> requestTable = new ConcurrentHashMap<String, AllocateRequest>();
 
@@ -60,8 +58,7 @@ public class AllocateMappedFileService extends ServiceThread {
 
         if (nextPutOK) {
             if (canSubmitRequests <= 0) {
-                log.warn("[NOTIFYME]TransientStorePool is not enough, so create mapped file error, " +
-                        "RequestQueueSize : {}, StorePoolSize: {}", this.requestQueue.size(), this.messageStore.getTransientStorePool().availableBufferNums());
+                log.warn("[NOTIFYME]TransientStorePool is not enough, so create mapped file error, " + "RequestQueueSize : {}, StorePoolSize: {}", this.requestQueue.size(), this.messageStore.getTransientStorePool().availableBufferNums());
                 this.requestTable.remove(nextFilePath);
                 return null;
             }
@@ -76,8 +73,8 @@ public class AllocateMappedFileService extends ServiceThread {
         boolean nextNextPutOK = this.requestTable.putIfAbsent(nextNextFilePath, nextNextReq) == null;
         if (nextNextPutOK) {
             if (canSubmitRequests <= 0) {
-                log.warn("[NOTIFYME]TransientStorePool is not enough, so skip preallocate mapped file, " +
-                        "RequestQueueSize : {}, StorePoolSize: {}", this.requestQueue.size(), this.messageStore.getTransientStorePool().availableBufferNums());
+                log.warn("[NOTIFYME]TransientStorePool is not enough, so skip preallocate mapped file, " + "RequestQueueSize : {}, StorePoolSize: {}", this.requestQueue.size(),
+                        this.messageStore.getTransientStorePool().availableBufferNums());
                 this.requestTable.remove(nextNextFilePath);
             } else {
                 boolean offerOK = this.requestQueue.offer(nextNextReq);
@@ -95,6 +92,7 @@ public class AllocateMappedFileService extends ServiceThread {
         AllocateRequest result = this.requestTable.get(nextFilePath);
         try {
             if (result != null) {
+                int waitTimeOut = 1000 * 5;
                 boolean waitOK = result.getCountDownLatch().await(waitTimeOut, TimeUnit.MILLISECONDS);
                 if (!waitOK) {
                     log.warn("create mmap timeout " + result.getFilePath() + " " + result.getFileSize());
@@ -250,13 +248,7 @@ public class AllocateMappedFileService extends ServiceThread {
                 long mName = Long.parseLong(this.filePath.substring(mIndex + 1));
                 int oIndex = other.filePath.lastIndexOf(File.separator);
                 long oName = Long.parseLong(other.filePath.substring(oIndex + 1));
-                if (mName < oName) {
-                    return -1;
-                } else if (mName > oName) {
-                    return 1;
-                } else {
-                    return 0;
-                }
+                return Long.compare(mName, oName);
             }
         }
 

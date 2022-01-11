@@ -315,8 +315,8 @@ public class MessageStoreConfig {
     private String dLegerSelfId;
 
     public int getMappedFileSizeConsumeQueue() {
-        int factor = (int) Math.ceil(this.mappedFileSizeConsumeQueue / (ConsumeQueue.CQ_STORE_UNIT_SIZE * 1.0));
-        return factor * ConsumeQueue.CQ_STORE_UNIT_SIZE;
+        int factor = (int) Math.ceil(this.mappedFileSizeConsumeQueue /* 6000000 */ / (ConsumeQueue.CQ_STORE_UNIT_SIZE /*20*/ * 1.0)); // 6000000 / 20 = 300000
+        return factor * ConsumeQueue.CQ_STORE_UNIT_SIZE /* 6000000 */;
     }
 
     public int getDiskMaxUsedSpaceRatio() {

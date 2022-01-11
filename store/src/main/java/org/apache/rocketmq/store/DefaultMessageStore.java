@@ -49,6 +49,7 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 
+@SuppressWarnings("all")
 public class DefaultMessageStore implements MessageStore {
 
     private static final InternalLogger log = InternalLoggerFactory.getLogger(LoggerName.STORE_LOGGER_NAME);
@@ -74,7 +75,7 @@ public class DefaultMessageStore implements MessageStore {
     @Getter
     private final AllocateMappedFileService allocateMappedFileService;
 
-    // TODO 分发？？？
+    // TODO 分发？？？分发到 consumerQueue
     private final ReputMessageService reputMessageService;
 
     @Getter
@@ -143,23 +144,16 @@ public class DefaultMessageStore implements MessageStore {
             this.haService = null;
         }
         this.reputMessageService = new ReputMessageService();
-
         this.scheduleMessageService = new ScheduleMessageService(this);
-
         this.transientStorePool = new TransientStorePool(messageStoreConfig);
-
         if (messageStoreConfig.isTransientStorePoolEnable()) {
             this.transientStorePool.init();
         }
-
         this.allocateMappedFileService.start();
-
         this.indexService.start();
-
         this.dispatcherList = new LinkedList<>();
         this.dispatcherList.addLast(new CommitLogDispatcherBuildConsumeQueue());
         this.dispatcherList.addLast(new CommitLogDispatcherBuildIndex());
-
         File file = new File(StorePathConfigHelper.getLockFile(messageStoreConfig.getStorePathRootDir()));
         MappedFile.ensureDirOK(file.getParent());
         lockFile = new RandomAccessFile(file, "rw");
@@ -186,39 +180,29 @@ public class DefaultMessageStore implements MessageStore {
             // 上次是否正常退出
             boolean lastExitOK = !this.isTempFileExist();
             log.info("last shutdown {}", lastExitOK ? "normally" : "abnormally");
-
             if (null != scheduleMessageService) {
                 result = this.scheduleMessageService.load();
             }
-
             // load Commit Log
             result = result && this.commitLog.load();
-
             // load Consume Queue
             result = result && this.loadConsumeQueue();
-
             // 到这里 commitLog 跟 cq 中到位点没有恢复
-
             if (result) {
                 this.storeCheckpoint = new StoreCheckpoint(StorePathConfigHelper.getStoreCheckpoint(this.messageStoreConfig.getStorePathRootDir()));
-
                 // 索引
                 this.indexService.load(lastExitOK);
-
                 // 恢复
                 this.recover(lastExitOK);
-
                 log.info("load over, and the max phy offset = {}", this.getMaxPhyOffset());
             }
         } catch (Exception e) {
             log.error("load exception", e);
             result = false;
         }
-
         if (!result) {
             this.allocateMappedFileService.shutdown();
         }
-
         return result;
     }
 
@@ -1458,11 +1442,8 @@ public class DefaultMessageStore implements MessageStore {
 
                         // 创建 cq 对象
                         ConsumeQueue logic = new ConsumeQueue(
-                                topic,
-                                queueId,
-                                StorePathConfigHelper.getStorePathConsumeQueue(this.messageStoreConfig.getStorePathRootDir()),
-                                this.getMessageStoreConfig().getMappedFileSizeConsumeQueue(),
-                                this);
+                                topic, queueId, StorePathConfigHelper.getStorePathConsumeQueue(this.messageStoreConfig.getStorePathRootDir()), // /users/zhuchenjian/store/consumequeue
+                                this.getMessageStoreConfig().getMappedFileSizeConsumeQueue() /* 6000000 KB =  5.72 MB*/, this);
 
                         // 存储到 consumeQueueTable
                         this.putConsumeQueue(topic, queueId, logic);
@@ -1974,7 +1955,6 @@ public class DefaultMessageStore implements MessageStore {
                                     readSize = result.getSize();
                                 }
                             } else if (!dispatchRequest.isSuccess()) {
-
                                 if (size > 0) {
                                     log.error("[BUG]read total count not equals msg total size. reputFromOffset={}", reputFromOffset);
                                     this.reputFromOffset += size;
@@ -2003,7 +1983,6 @@ public class DefaultMessageStore implements MessageStore {
         @Override
         public void run() {
             DefaultMessageStore.log.info(this.getServiceName() + " service started");
-
             while (!this.isStopped()) {
                 try {
                     Thread.sleep(1);
