@@ -105,6 +105,8 @@ public class RemotingCommand {
 
     /**
      * 该请求的类型
+     * request:请求操作码，应答方根据不同的请求码进行不同的业务处理
+     * response:应答响应码。0表示成功，非0则表示各种错误
      */
     @Setter
     @Getter
@@ -118,23 +120,31 @@ public class RemotingCommand {
     @Getter
     private int version = 0;
 
+    /**
+     * request:相当于requestId，在同一个连接上的不同请求标识码，与响应消息中的相对应
+     * response:应答不做修改直接返回
+     */
     @Setter
     @Getter
     private int opaque = requestId.getAndIncrement();
 
     /**
      * TODO 标记是响应还是请求？？
+     * 区分是普通RPC还是onewayRPC得标志
      */
     @Setter
     @Getter
     private int flag = 0;
 
+    // 传输自定义文本信息
     @Setter
     @Getter
     private String remark;
 
     /**
      * 字段的名称跟值的映射表
+     *
+     * 请求自定义扩展信息 或者 响应自定义扩展信息
      */
     @Setter
     @Getter

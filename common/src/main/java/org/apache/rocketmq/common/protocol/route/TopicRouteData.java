@@ -2,12 +2,14 @@ package org.apache.rocketmq.common.protocol.route;
 
 import lombok.Getter;
 import lombok.Setter;
+import lombok.ToString;
 import org.apache.rocketmq.remoting.protocol.RemotingSerializable;
 
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 
+@ToString
 public class TopicRouteData extends RemotingSerializable {
 
     @Setter
@@ -105,11 +107,5 @@ public class TopicRouteData extends RemotingSerializable {
             return false;
         }
         return true;
-    }
-
-    @Override
-    public String toString() {
-        return "TopicRouteData [orderTopicConf=" + orderTopicConf + ", queueDatas=" + queueDatas
-                + ", brokerDatas=" + brokerDatas + ", filterServerTable=" + filterServerTable + "]";
     }
 }

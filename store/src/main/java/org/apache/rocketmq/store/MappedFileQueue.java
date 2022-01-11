@@ -1,5 +1,12 @@
 package org.apache.rocketmq.store;
 
+import lombok.Getter;
+import lombok.Setter;
+import org.apache.rocketmq.common.UtilAll;
+import org.apache.rocketmq.common.constant.LoggerName;
+import org.apache.rocketmq.logging.InternalLogger;
+import org.apache.rocketmq.logging.InternalLoggerFactory;
+
 import java.io.File;
 import java.io.IOException;
 import java.util.ArrayList;
@@ -8,13 +15,6 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.ListIterator;
 import java.util.concurrent.CopyOnWriteArrayList;
-
-import lombok.Getter;
-import lombok.Setter;
-import org.apache.rocketmq.common.UtilAll;
-import org.apache.rocketmq.common.constant.LoggerName;
-import org.apache.rocketmq.logging.InternalLogger;
-import org.apache.rocketmq.logging.InternalLoggerFactory;
 
 /**
  * MappedFile 的管理对象
@@ -49,8 +49,12 @@ public class MappedFileQueue {
     private final AllocateMappedFileService allocateMappedFileService;
 
     // 目录下的刷盘位点，其实就是：curMappedFile.fileName + curMappedFile.wrotePos
+    @Setter
+    @Getter
     private long flushedWhere = 0;
 
+    @Setter
+    @Getter
     private long committedWhere = 0;
 
     // 当前目录最后一条消息的存储时间
@@ -712,14 +716,6 @@ public class MappedFileQueue {
         }
     }
 
-    public long getFlushedWhere() {
-        return flushedWhere;
-    }
-
-    public void setFlushedWhere(long flushedWhere) {
-        this.flushedWhere = flushedWhere;
-    }
-
     public long getStoreTimestamp() {
         return storeTimestamp;
     }
@@ -730,13 +726,5 @@ public class MappedFileQueue {
 
     public int getMappedFileSize() {
         return mappedFileSize;
-    }
-
-    public long getCommittedWhere() {
-        return committedWhere;
-    }
-
-    public void setCommittedWhere(final long committedWhere) {
-        this.committedWhere = committedWhere;
     }
 }

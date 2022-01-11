@@ -1,5 +1,7 @@
 package org.apache.rocketmq.store;
 
+import lombok.Getter;
+import lombok.Setter;
 import org.apache.rocketmq.common.constant.LoggerName;
 import org.apache.rocketmq.logging.InternalLogger;
 import org.apache.rocketmq.logging.InternalLoggerFactory;
@@ -23,24 +25,30 @@ public class ConsumeQueue {
     private final DefaultMessageStore defaultMessageStore;
 
     // 当前 cq 文件管理器
-    private final MappedFileQueue mappedFileQueue;
+    private final MappedFileQueue mappedFileQueue; /* users/zhuchenjian/store/consumequeue */
 
     // ConsumeQueue主题
+    @Getter
     private final String topic;
 
     // ConsumeQueue队列，每一个队列都有一个ConsumeQueue对象管理
+    @Getter
     private final int queueId;
 
     // 临时缓冲区，用途：插新的 CQData 使用
     private final ByteBuffer byteBufferIndex;
 
     // 每一个 ConsumeQueue 存储文件大小，默认是 600w字节
-    private final int mappedFileSize;
+    private final int mappedFileSize;  /* 6000000 KB =  5.72 MB*/
 
     // 当前 ConsumeQueue 最大消息物理偏移量
+    @Getter
+    @Setter
     private long maxPhysicOffset = -1;
 
     // 当前 ConsumeQueue 最小消息物理偏移量
+    @Getter
+    @Setter
     private volatile long minLogicOffset = 0;
 
     private ConsumeQueueExt consumeQueueExt = null;
@@ -89,12 +97,11 @@ public class ConsumeQueue {
     public void recover() {
         final List<MappedFile> mappedFiles = this.mappedFileQueue.getMappedFiles();
         if (!mappedFiles.isEmpty()) {
-
             int index = mappedFiles.size() - 3;
             if (index < 0) {
+                // 文件夹下面不足3个文件，则从第一个文件开始
                 index = 0;
             }
-
             int mappedFileSizeLogics = this.mappedFileSize;
             MappedFile mappedFile = mappedFiles.get(index);
             ByteBuffer byteBuffer = mappedFile.sliceByteBuffer();
@@ -102,12 +109,12 @@ public class ConsumeQueue {
             long mappedFileOffset = 0;
             long maxExtAddr = 1;
             while (true) {
-                for (int i = 0; i < mappedFileSizeLogics; i += CQ_STORE_UNIT_SIZE) {
+                for (int i = 0; i < mappedFileSizeLogics; i += CQ_STORE_UNIT_SIZE /*20*/) {
 
                     // 读取 前 20 个字节 start
-                    long offset = byteBuffer.getLong();
-                    int size = byteBuffer.getInt();
-                    long tagsCode = byteBuffer.getLong();
+                    long offset = byteBuffer.getLong();// 8个字节存储该条消息在 commitLog 的物理偏移量
+                    int size = byteBuffer.getInt(); // 中间4个字节存储的一会消息的大小
+                    long tagsCode = byteBuffer.getLong();// 后8个字节存储的时候该消息的 tag 的 hashcode 值
                     // 读取 前 20 个字节 end
 
                     if (offset >= 0 && size > 0) {
@@ -121,7 +128,6 @@ public class ConsumeQueue {
                         break;
                     }
                 }
-
                 if (mappedFileOffset == mappedFileSizeLogics) {
 
                     // 上一个文件到文件尾了，则继续执行下一个文件
@@ -151,7 +157,6 @@ public class ConsumeQueue {
             this.mappedFileQueue.setFlushedWhere(processOffset);
             this.mappedFileQueue.setCommittedWhere(processOffset);
             this.mappedFileQueue.truncateDirtyFiles(processOffset);
-
             if (isExtReadEnable()) {
                 this.consumeQueueExt.recover();
                 log.info("Truncate consume queue extend file by max {}", maxExtAddr);
@@ -558,34 +563,10 @@ public class ConsumeQueue {
         return false;
     }
 
-    public long getMinLogicOffset() {
-        return minLogicOffset;
-    }
-
-    public void setMinLogicOffset(long minLogicOffset) {
-        this.minLogicOffset = minLogicOffset;
-    }
-
     public long rollNextFile(final long index) {
         int mappedFileSize = this.mappedFileSize;
         int totalUnitsInFile = mappedFileSize / CQ_STORE_UNIT_SIZE;
         return index + totalUnitsInFile - index % totalUnitsInFile;
-    }
-
-    public String getTopic() {
-        return topic;
-    }
-
-    public int getQueueId() {
-        return queueId;
-    }
-
-    public long getMaxPhysicOffset() {
-        return maxPhysicOffset;
-    }
-
-    public void setMaxPhysicOffset(long maxPhysicOffset) {
-        this.maxPhysicOffset = maxPhysicOffset;
     }
 
     public void destroy() {
@@ -617,8 +598,7 @@ public class ConsumeQueue {
     }
 
     protected boolean isExtWriteEnable() {
-        return this.consumeQueueExt != null
-                && this.defaultMessageStore.getMessageStoreConfig().isEnableConsumeQueueExt();
+        return this.consumeQueueExt != null && this.defaultMessageStore.getMessageStoreConfig().isEnableConsumeQueueExt();
     }
 
     /**

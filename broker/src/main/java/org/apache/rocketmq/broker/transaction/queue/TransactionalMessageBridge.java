@@ -99,6 +99,7 @@ public class TransactionalMessageBridge {
 
     public PullResult getOpMessage(int queueId, long offset, int nums) {
         String group = TransactionalMessageUtil.buildConsumerGroup();
+        // RMQ_SYS_TRANS_OP_HALF_TOPIC
         String topic = TransactionalMessageUtil.buildOpTopic();
         SubscriptionData sub = new SubscriptionData(topic, "*");
         return getMessage(group, topic, queueId, offset, nums, sub);

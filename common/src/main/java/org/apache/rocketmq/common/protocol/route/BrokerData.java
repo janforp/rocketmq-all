@@ -3,6 +3,7 @@ package org.apache.rocketmq.common.protocol.route;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
+import lombok.ToString;
 import org.apache.rocketmq.common.MixAll;
 
 import java.util.ArrayList;
@@ -10,6 +11,10 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Random;
 
+/**
+ * broker 信息
+ */
+@ToString
 @NoArgsConstructor
 public class BrokerData implements Comparable<BrokerData> {
 
@@ -102,10 +107,5 @@ public class BrokerData implements Comparable<BrokerData> {
             return false;
         }
         return true;
-    }
-
-    @Override
-    public String toString() {
-        return "BrokerData [brokerName=" + brokerName + ", brokerAddrs=" + brokerAddrs + "]";
     }
 }

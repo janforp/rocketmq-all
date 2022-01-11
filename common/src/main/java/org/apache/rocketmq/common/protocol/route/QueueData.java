@@ -2,10 +2,12 @@ package org.apache.rocketmq.common.protocol.route;
 
 import lombok.Getter;
 import lombok.Setter;
+import lombok.ToString;
 
 /**
  * 主题队列分布 map
  */
+@ToString
 public class QueueData implements Comparable<QueueData> {
 
     /**
@@ -85,16 +87,6 @@ public class QueueData implements Comparable<QueueData> {
         if (writeQueueNums != other.writeQueueNums) {
             return false;
         }
-        if (topicSynFlag != other.topicSynFlag) {
-            return false;
-        }
-        return true;
-    }
-
-    @Override
-    public String toString() {
-        return "QueueData [brokerName=" + brokerName + ", readQueueNums=" + readQueueNums
-                + ", writeQueueNums=" + writeQueueNums + ", perm=" + perm + ", topicSynFlag=" + topicSynFlag
-                + "]";
+        return topicSynFlag == other.topicSynFlag;
     }
 }

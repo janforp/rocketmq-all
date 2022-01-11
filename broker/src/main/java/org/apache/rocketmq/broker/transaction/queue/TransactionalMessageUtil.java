@@ -12,6 +12,7 @@ public class TransactionalMessageUtil {
     public static Charset charset = StandardCharsets.UTF_8;
 
     public static String buildOpTopic() {
+        // RMQ_SYS_TRANS_OP_HALF_TOPIC
         return MixAll.RMQ_SYS_TRANS_OP_HALF_TOPIC;
     }
 

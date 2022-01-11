@@ -2,6 +2,7 @@ package org.apache.rocketmq.client.impl.producer;
 
 import lombok.Getter;
 import lombok.Setter;
+import lombok.ToString;
 import org.apache.rocketmq.client.common.ThreadLocalIndex;
 import org.apache.rocketmq.common.message.MessageQueue;
 import org.apache.rocketmq.common.protocol.route.QueueData;
@@ -10,6 +11,7 @@ import org.apache.rocketmq.common.protocol.route.TopicRouteData;
 import java.util.ArrayList;
 import java.util.List;
 
+@ToString
 public class TopicPublishInfo {
 
     @Setter
@@ -84,11 +86,5 @@ public class TopicPublishInfo {
         }
 
         return -1;
-    }
-
-    @Override
-    public String toString() {
-        return "TopicPublishInfo [orderTopic=" + orderTopic + ", messageQueueList=" + messageQueueList
-                + ", sendWhichQueue=" + sendWhichQueue + ", haveTopicRouterInfo=" + haveTopicRouterInfo + "]";
     }
 }
