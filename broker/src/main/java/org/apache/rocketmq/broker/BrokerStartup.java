@@ -43,7 +43,12 @@ public class BrokerStartup {
     public static InternalLogger log;
 
     public static void main(String[] args) {
-        start(createBrokerController(args));
+
+        // /Users/zhuchenjian/Documents/code/learn/rocketmq/home/broker/broker.properties
+        BrokerController controller = createBrokerController(args);
+
+        start(controller);
+        System.out.println("broker 启动成功");
     }
 
     public static BrokerController start(BrokerController controller) {

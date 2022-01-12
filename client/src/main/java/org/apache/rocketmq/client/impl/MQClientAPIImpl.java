@@ -1197,19 +1197,14 @@ public class MQClientAPIImpl {
         throw new MQBrokerException(response.getCode(), response.getRemark());
     }
 
-    public ClusterInfo getBrokerClusterInfo(
-            final long timeoutMillis) throws InterruptedException, RemotingTimeoutException,
+    public ClusterInfo getBrokerClusterInfo(final long timeoutMillis) throws InterruptedException, RemotingTimeoutException,
             RemotingSendRequestException, RemotingConnectException, MQBrokerException {
         RemotingCommand request = RemotingCommand.createRequestCommand(RequestCode.GET_BROKER_CLUSTER_INFO, null);
 
         RemotingCommand response = this.remotingClient.invokeSync(null, request, timeoutMillis);
         assert response != null;
-        switch (response.getCode()) {
-            case ResponseCode.SUCCESS: {
-                return ClusterInfo.decode(response.getBody(), ClusterInfo.class);
-            }
-            default:
-                break;
+        if (response.getCode() == ResponseCode.SUCCESS) {
+            return ClusterInfo.decode(response.getBody(), ClusterInfo.class);
         }
 
         throw new MQBrokerException(response.getCode(), response.getRemark());

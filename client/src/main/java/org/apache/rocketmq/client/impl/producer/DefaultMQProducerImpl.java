@@ -13,6 +13,7 @@ import org.apache.rocketmq.client.hook.CheckForbiddenHook;
 import org.apache.rocketmq.client.hook.SendMessageContext;
 import org.apache.rocketmq.client.hook.SendMessageHook;
 import org.apache.rocketmq.client.impl.CommunicationMode;
+import org.apache.rocketmq.client.impl.MQAdminImpl;
 import org.apache.rocketmq.client.impl.MQClientManager;
 import org.apache.rocketmq.client.impl.factory.MQClientInstance;
 import org.apache.rocketmq.client.latency.MQFaultStrategy;
@@ -478,8 +479,8 @@ public class DefaultMQProducerImpl implements MQProducerInner {
     public void createTopic(String key, String newTopic, int queueNum, int topicSysFlag) throws MQClientException {
         this.makeSureStateOK();
         Validators.checkTopic(newTopic);
-
-        this.mQClientFactory.getMQAdminImpl().createTopic(key, newTopic, queueNum, topicSysFlag);
+        MQAdminImpl adminImpl = this.mQClientFactory.getMQAdminImpl();
+        adminImpl.createTopic(key, newTopic, queueNum, topicSysFlag);
     }
 
     private void makeSureStateOK() throws MQClientException {

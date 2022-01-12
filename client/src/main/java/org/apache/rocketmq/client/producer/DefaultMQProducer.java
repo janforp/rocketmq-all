@@ -758,7 +758,8 @@ public class DefaultMQProducer extends ClientConfig implements MQProducer {
     @Deprecated
     @Override
     public void createTopic(String key, String newTopic, int queueNum) throws MQClientException {
-        createTopic(key, withNamespace(newTopic), queueNum, 0);
+        String withNamespace = withNamespace(newTopic);
+        createTopic(key, withNamespace, queueNum, 0);
     }
 
     /**
@@ -774,7 +775,8 @@ public class DefaultMQProducer extends ClientConfig implements MQProducer {
     @Deprecated
     @Override
     public void createTopic(String key, String newTopic, int queueNum, int topicSysFlag) throws MQClientException {
-        this.defaultMQProducerImpl.createTopic(key, withNamespace(newTopic), queueNum, topicSysFlag);
+        String withNamespace = withNamespace(newTopic);
+        this.defaultMQProducerImpl.createTopic(key, withNamespace, queueNum, topicSysFlag);
     }
 
     /**
