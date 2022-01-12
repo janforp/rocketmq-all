@@ -37,7 +37,7 @@ public class Producer {
 
         String testTopic = "TopicTest";
 
-        producer.createTopic(testTopic, testTopic, 4);
+        //producer.createTopic(testTopic, testTopic, 4);
 
         for (int i = 0; i < 1000; i++) {
             try {
