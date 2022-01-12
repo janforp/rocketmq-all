@@ -42,6 +42,11 @@ public class BrokerStartup {
 
     public static InternalLogger log;
 
+    /**
+     * -c /Users/zhuchenjian/Documents/code/learn/rocketmq/rocketmq-all/conf/home/broker/broker.properties
+     *
+     * @param args 参数
+     */
     public static void main(String[] args) {
 
         // /Users/zhuchenjian/Documents/code/learn/rocketmq/home/broker/broker.properties

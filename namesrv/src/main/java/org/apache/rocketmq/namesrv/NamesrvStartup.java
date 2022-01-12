@@ -59,7 +59,7 @@ public class NamesrvStartup {
     private static Properties properties = null;
 
     /**
-     * -c /Users/zhuchenjian/Documents/code/learn/rocketmq/home/nameerver/NameServer.properties
+     * -c /Users/zhuchenjian/Documents/code/learn/rocketmq/rocketmq-all/conf/home/nameerver/nameserver.properties
      *
      * @param args 参数
      */
