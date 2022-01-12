@@ -3,6 +3,9 @@ package org.apache.rocketmq.broker.client;
 import io.netty.channel.Channel;
 import lombok.AllArgsConstructor;
 import org.apache.rocketmq.broker.BrokerController;
+import org.apache.rocketmq.broker.client.net.Broker2Client;
+import org.apache.rocketmq.broker.filter.ConsumerFilterManager;
+import org.apache.rocketmq.common.BrokerConfig;
 import org.apache.rocketmq.common.protocol.heartbeat.SubscriptionData;
 
 import java.util.Collection;
@@ -25,14 +28,18 @@ public class DefaultConsumerIdsChangeListener implements ConsumerIdsChangeListen
                 }
                 @SuppressWarnings("unchecked")
                 List<Channel> channels = (List<Channel>) args[0];
-                if (channels != null && brokerController.getBrokerConfig().isNotifyConsumerIdsChangedEnable()) {
+
+                BrokerConfig brokerConfig = brokerController.getBrokerConfig();
+                if (channels != null && brokerConfig.isNotifyConsumerIdsChangedEnable()) {
                     for (Channel chl : channels) {
-                        this.brokerController.getBroker2Client().notifyConsumerIdsChanged(chl, group);
+                        Broker2Client broker2Client = brokerController.getBroker2Client();
+                        broker2Client.notifyConsumerIdsChanged(chl, group);
                     }
                 }
                 break;
             case UNREGISTER:
-                this.brokerController.getConsumerFilterManager().unRegister(group);
+                ConsumerFilterManager consumerFilterManager = this.brokerController.getConsumerFilterManager();
+                consumerFilterManager.unRegister(group);
                 break;
             case REGISTER:
                 if (args == null || args.length < 1) {
@@ -40,7 +47,8 @@ public class DefaultConsumerIdsChangeListener implements ConsumerIdsChangeListen
                 }
                 @SuppressWarnings("unchecked")
                 Collection<SubscriptionData> subscriptionDataList = (Collection<SubscriptionData>) args[0];
-                this.brokerController.getConsumerFilterManager().register(group, subscriptionDataList);
+                ConsumerFilterManager filterManager = this.brokerController.getConsumerFilterManager();
+                filterManager.register(group, subscriptionDataList);
                 break;
             default:
                 throw new RuntimeException("Unknown event " + event);

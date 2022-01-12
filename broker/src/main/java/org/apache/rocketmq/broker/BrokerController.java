@@ -252,6 +252,9 @@ public class BrokerController {
 
     private final Map<Class<?>, AccessValidator> accessValidatorMap = new HashMap<>();
 
+    /**
+     * 所有入参数都是通过 配置 文件 注入大
+     */
     public BrokerController(final BrokerConfig brokerConfig, final NettyServerConfig nettyServerConfig, final NettyClientConfig nettyClientConfig, final MessageStoreConfig messageStoreConfig) {
         this.brokerConfig = brokerConfig;
         this.nettyServerConfig = nettyServerConfig;
@@ -390,7 +393,8 @@ public class BrokerController {
                 @Override
                 public void run() {
                     try {
-                        BrokerController.this.getBrokerStats().record();
+                        BrokerStats brokerStats = BrokerController.this.getBrokerStats();
+                        brokerStats.record();
                     } catch (Throwable e) {
                         log.error("schedule record error.", e);
                     }
@@ -446,7 +450,8 @@ public class BrokerController {
                 @Override
                 public void run() {
                     try {
-                        log.info("dispatch behind commit log {} bytes", BrokerController.this.getMessageStore().dispatchBehindBytes());
+                        long dispatchBehindBytes = BrokerController.this.getMessageStore().dispatchBehindBytes();
+                        log.info("dispatch behind commit log {} bytes", dispatchBehindBytes);
                     } catch (Throwable e) {
                         log.error("schedule dispatchBehindBytes error.", e);
                     }
@@ -828,7 +833,9 @@ public class BrokerController {
     }
 
     private void unregisterBrokerAll() {
-        this.brokerOuterAPI.unregisterBrokerAll(this.brokerConfig.getBrokerClusterName(), this.getBrokerAddr(), this.brokerConfig.getBrokerName(), this.brokerConfig.getBrokerId());
+        String brokerClusterName = this.brokerConfig.getBrokerClusterName();
+        String brokerAddr = this.getBrokerAddr();// ip:port
+        this.brokerOuterAPI.unregisterBrokerAll(brokerClusterName, brokerAddr, this.brokerConfig.getBrokerName(), this.brokerConfig.getBrokerId());
     }
 
     public String getBrokerAddr() {

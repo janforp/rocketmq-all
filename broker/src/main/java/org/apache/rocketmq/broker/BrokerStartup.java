@@ -7,6 +7,7 @@ import org.apache.commons.cli.Option;
 import org.apache.commons.cli.Options;
 import org.apache.commons.cli.PosixParser;
 import org.apache.rocketmq.common.BrokerConfig;
+import org.apache.rocketmq.common.Configuration;
 import org.apache.rocketmq.common.MQVersion;
 import org.apache.rocketmq.common.MixAll;
 import org.apache.rocketmq.common.constant.LoggerName;
@@ -85,13 +86,16 @@ public class BrokerStartup {
     }
 
     public static BrokerController createBrokerController(String[] args) {
+        // 设置当前版本信息大环境变量
         System.setProperty(RemotingCommand.REMOTING_VERSION_KEY, Integer.toString(MQVersion.CURRENT_VERSION));
 
         if (null == System.getProperty(NettySystemConfig.COM_ROCKETMQ_REMOTING_SOCKET_SNDBUF_SIZE)) {
+            // 128 KB
             NettySystemConfig.socketSndbufSize = 131072;
         }
 
         if (null == System.getProperty(NettySystemConfig.COM_ROCKETMQ_REMOTING_SOCKET_RCVBUF_SIZE)) {
+            // 128 KB
             NettySystemConfig.socketRcvbufSize = 131072;
         }
 
@@ -111,7 +115,8 @@ public class BrokerStartup {
             nettyServerConfig.setListenPort(10911);
             final MessageStoreConfig messageStoreConfig = new MessageStoreConfig();
 
-            if (BrokerRole.SLAVE == messageStoreConfig.getBrokerRole()) {
+            BrokerRole brokerRole = messageStoreConfig.getBrokerRole();
+            if (BrokerRole.SLAVE == brokerRole) {
                 int ratio = messageStoreConfig.getAccessMessageInMemoryMaxRatio() - 10;
                 messageStoreConfig.setAccessMessageInMemoryMaxRatio(ratio);
             }
@@ -156,7 +161,7 @@ public class BrokerStartup {
                 }
             }
 
-            switch (messageStoreConfig.getBrokerRole()) {
+            switch (brokerRole) {
                 case ASYNC_MASTER:
                 case SYNC_MASTER:
                     brokerConfig.setBrokerId(MixAll.MASTER_ID);
@@ -175,7 +180,8 @@ public class BrokerStartup {
                 brokerConfig.setBrokerId(-1);
             }
 
-            messageStoreConfig.setHaListenPort(nettyServerConfig.getListenPort() + 1);
+            int haPort = nettyServerConfig.getListenPort() + 1;
+            messageStoreConfig.setHaListenPort(haPort);
             LoggerContext lc = (LoggerContext) LoggerFactory.getILoggerFactory();
             JoranConfigurator configurator = new JoranConfigurator();
             configurator.setContext(lc);
@@ -206,7 +212,8 @@ public class BrokerStartup {
 
             final BrokerController controller = new BrokerController(brokerConfig, nettyServerConfig, nettyClientConfig, messageStoreConfig);
             // remember all configs to prevent discard
-            controller.getConfiguration().registerConfig(properties);
+            Configuration configuration = controller.getConfiguration();
+            configuration.registerConfig(properties);
 
             boolean initResult = controller.initialize();
             if (!initResult) {
