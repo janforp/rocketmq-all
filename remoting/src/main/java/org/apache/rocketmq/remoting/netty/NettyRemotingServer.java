@@ -242,7 +242,7 @@ public class NettyRemotingServer extends NettyRemotingAbstract implements Remoti
                         .localAddress(new InetSocketAddress(this.nettyServerConfig.getListenPort()))
                         .childHandler(new ChannelInitializer<SocketChannel>() {
                             @Override
-                            public void initChannel(SocketChannel ch) throws Exception {
+                            public void initChannel(SocketChannel ch) {
                                 ch.pipeline()
                                         // ChannelPipeline addLast(EventExecutorGroup group, String name, ChannelHandler handler);
                                         .addLast(defaultEventExecutorGroup, HANDSHAKE_HANDLER_NAME, handshakeHandler)

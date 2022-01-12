@@ -33,6 +33,7 @@ public class KVConfigManager {
         try {
             // 从namesrvconfig获取kv的路径;
             NamesrvConfig namesrvConfig = this.namesrvController.getNamesrvConfig();
+            // /Users/zhuchenjian/Documents/code/learn/rocketmq/rocketmq-all/conf/home/nameerver/kvConfig.json
             String kvConfigPath = namesrvConfig.getKvConfigPath();
             content = MixAll.file2String(kvConfigPath);
         } catch (IOException e) {
@@ -167,10 +168,10 @@ public class KVConfigManager {
 
                 {
                     log.info("configTable SIZE: {}", this.configTable.size());
+                    // HashMap<String/* Namespace */, HashMap<String/* Key */, String/* Value */>> configTable
                     for (Entry<String, HashMap<String, String>> next : this.configTable.entrySet()) {
                         for (Entry<String, String> nextSub : next.getValue().entrySet()) {
-                            log.info("configTable NS: {} Key: {} Value: {}", next.getKey(), nextSub.getKey(),
-                                    nextSub.getValue());
+                            log.info("configTable NS: {} Key: {} Value: {}", next.getKey(), nextSub.getKey(), nextSub.getValue());
                         }
                     }
                 }

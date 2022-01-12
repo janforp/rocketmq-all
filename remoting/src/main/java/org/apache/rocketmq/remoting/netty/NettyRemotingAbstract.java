@@ -405,6 +405,7 @@ public abstract class NettyRemotingAbstract {
         final List<ResponseFuture> rfList = new LinkedList<ResponseFuture>();
         // ConcurrentMap<Integer /* opaque */, ResponseFuture> responseTable
         // key:opaque,value:ResponseFuture
+        // ConcurrentMap<Integer /* opaque */, ResponseFuture> responseTable
         Iterator<Entry<Integer, ResponseFuture>> iterator = this.responseTable.entrySet().iterator();
         while (iterator.hasNext()) {
             // key:opaque,value:ResponseFuture
