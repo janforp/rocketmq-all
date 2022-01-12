@@ -36,9 +36,11 @@ public class NamesrvController {
      */
     private static final InternalLogger log = InternalLoggerFactory.getLogger(LoggerName.NAMESRV_LOGGER_NAME);
 
+    // 配置文件加载进来
     @Getter
     private final NamesrvConfig namesrvConfig;
 
+    // 配置文件加载进来
     @Getter
     private final NettyServerConfig nettyServerConfig;
 

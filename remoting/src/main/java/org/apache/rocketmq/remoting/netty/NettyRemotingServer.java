@@ -117,6 +117,15 @@ public class NettyRemotingServer extends NettyRemotingAbstract implements Remoti
         this.channelEventListener = channelEventListener;
 
         // 公共线程池的线程数量，默认0，修改为4
+        /*
+         * ##
+         * # 名称：NettyServerConfig.serverCallbackExecutorThreads <int>
+         * # 默认值：0 <在源程序中初始化字段时指定>
+         * # 描述：Netty public 任务线程池线程个数，Netty 网络设计，根据业务类型会创建不同的线程池，比如处理发送消息、消息消费、心跳检测等。如果该业务类型(RequestCode)未注册线程池，则由 public 线程池执行
+         * # 建议：
+         * ##
+         * serverCallbackExecutorThreads=0
+         */
         int publicThreadNums = nettyServerConfig.getServerCallbackExecutorThreads();
         if (publicThreadNums <= 0) {
             publicThreadNums = 4;

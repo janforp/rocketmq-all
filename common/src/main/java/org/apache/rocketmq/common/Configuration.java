@@ -15,7 +15,7 @@ public class Configuration {
 
     private final InternalLogger log;
 
-    private List<Object> configObjectList = new ArrayList<Object>(4);
+    private final List<Object> configObjectList = new ArrayList<Object>(4);
 
     private String storePath;
 
@@ -25,14 +25,14 @@ public class Configuration {
 
     private Field storePathField;
 
-    private DataVersion dataVersion = new DataVersion();
+    private final DataVersion dataVersion = new DataVersion();
 
-    private ReadWriteLock readWriteLock = new ReentrantReadWriteLock();
+    private final ReadWriteLock readWriteLock = new ReentrantReadWriteLock();
 
     /**
      * All properties include configs in object and extend properties.
      */
-    private Properties allConfigs = new Properties();
+    private final Properties allConfigs = new Properties();
 
     public Configuration(InternalLogger log) {
         this.log = log;
@@ -119,8 +119,7 @@ public class Configuration {
                 this.storePathObject = object;
                 // check
                 this.storePathField = object.getClass().getDeclaredField(fieldName);
-                assert this.storePathField != null
-                        && !Modifier.isStatic(this.storePathField.getModifiers());
+                assert this.storePathField != null && !Modifier.isStatic(this.storePathField.getModifiers());
                 this.storePathField.setAccessible(true);
             } catch (NoSuchFieldException e) {
                 throw new RuntimeException(e);
