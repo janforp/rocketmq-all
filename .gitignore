@@ -18,3 +18,13 @@ nohup.out
 /conf/home/broker/store/checkpoint
 /conf/home/broker/store/lock
 /conf/home/broker/store/config/
+/conf/home/broker/store/commitlog/00000000000000000000
+/conf/home/broker/store/consumequeue/order/0/00000000000000000000
+/conf/home/broker/store/consumequeue/order/1/00000000000000000000
+/conf/home/broker/store/consumequeue/order/2/00000000000000000000
+/conf/home/broker/store/consumequeue/order/3/00000000000000000000
+/conf/home/broker/store/consumequeue/TopicTest/0/00000000000000000000
+/conf/home/broker/store/consumequeue/TopicTest/1/00000000000000000000
+/conf/home/broker/store/consumequeue/TopicTest/2/00000000000000000000
+/conf/home/broker/store/consumequeue/TopicTest/3/00000000000000000000
+/conf/home/broker/store/index/20220112140643793
