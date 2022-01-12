@@ -219,9 +219,7 @@ public class ConsumeQueue {
 
                             offset = leftOffset;
                         } else {
-                            offset =
-                                    Math.abs(timestamp - leftIndexValue) > Math.abs(timestamp
-                                            - rightIndexValue) ? rightOffset : leftOffset;
+                            offset = Math.abs(timestamp - leftIndexValue) > Math.abs(timestamp - rightIndexValue) ? rightOffset : leftOffset;
                         }
                     }
 

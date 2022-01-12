@@ -58,19 +58,19 @@ public class NamesrvStartup {
     private static Properties properties = null;
 
     /**
-     * 命令行
+     * -c /Users/zhuchenjian/Documents/code/learn/rocketmq/home/nameerver/NameServer.properties
+     *
+     * @param args
      */
-    private static CommandLine commandLine = null;
-
     public static void main(String[] args) {
         // 如果启动时使用了 -c -p ... 设置了参数，这些参数由 args 承接
-        main0(args);
+        NamesrvController controller = main0(args);
     }
 
     public static NamesrvController main0(String[] args) {
 
         try {
-            /**
+            /*
              * 创建 namesrv 控制器：
              * namesrv 控制器：初始化 namesrv,启动namesrv，关闭namesrv
              *
@@ -81,6 +81,7 @@ public class NamesrvStartup {
             String tip = "The Name Server boot success. serializeType=" + RemotingCommand.getSerializeTypeConfigInThisServer();
             log.info(tip);
             System.out.printf("%s%n", tip);
+            System.out.println("nameserver 启动成功");
             return controller;
         } catch (Throwable e) {
             e.printStackTrace();
@@ -94,12 +95,14 @@ public class NamesrvStartup {
      * 读取配置信息，初始化控制器
      */
     public static NamesrvController createNamesrvController(String[] args) throws IOException, JoranException {
-        System.setProperty(RemotingCommand.REMOTING_VERSION_KEY, Integer.toString(MQVersion.CURRENT_VERSION));
-        //PackageConflictDetect.detectFastjson();
+        System.setProperty(RemotingCommand.REMOTING_VERSION_KEY/*rocketmq.remoting.version*/, Integer.toString(MQVersion.CURRENT_VERSION));
 
         Options options = ServerUtil.buildCommandlineOptions(new Options());
-        // 非核心：启动参数信息，由commandLine管理
-        commandLine = ServerUtil.parseCmdLine("mqnamesrv", args, buildCommandlineOptions(options), new PosixParser());
+        /*
+         * 非核心：启动参数信息，由commandLine管理
+         * 命令行
+         */
+        CommandLine commandLine = ServerUtil.parseCmdLine("mqnamesrv", args, buildCommandlineOptions(options), new PosixParser());
         if (null == commandLine) {
             System.exit(-1);
             return null;

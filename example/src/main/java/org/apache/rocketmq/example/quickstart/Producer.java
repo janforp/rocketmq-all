@@ -10,6 +10,7 @@ import org.apache.rocketmq.remoting.common.RemotingHelper;
  * This class demonstrates how to send messages to brokers using provided {@link DefaultMQProducer}.
  */
 public class Producer {
+
     public static void main(String[] args) throws MQClientException, InterruptedException {
 
         /*
@@ -28,7 +29,7 @@ public class Producer {
          * }
          * </pre>
          */
-        producer.setNamesrvAddr("10.199.150.82:9876");
+        producer.setNamesrvAddr("127.0.0.1:9876");
         /*
          * Launch the instance.
          */
