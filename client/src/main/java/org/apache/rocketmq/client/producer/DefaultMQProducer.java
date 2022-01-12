@@ -30,6 +30,10 @@ import java.util.List;
 import java.util.concurrent.ExecutorService;
 
 /**
+ * /**
+ * * 业务层使用它完成消息发送
+ * * 管理配置信息
+ *
  * This class is the entry point for applications intending to send messages. </p>
  * <p>
  * It's fine to tune fields which exposes getter/setter methods, but keep in mind, all of them should work well out of
@@ -40,10 +44,6 @@ import java.util.concurrent.ExecutorService;
  *
  * <p> <strong>Thread Safety:</strong> After configuring and starting process, this class can be regarded as thread-safe
  * and used among multiple threads context. </p>
- */
-/**
- * 业务层使用它完成消息发送
- * 管理配置信息
  */
 @SuppressWarnings("all")
 public class DefaultMQProducer extends ClientConfig implements MQProducer {

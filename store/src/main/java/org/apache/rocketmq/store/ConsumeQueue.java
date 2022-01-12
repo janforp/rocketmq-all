@@ -472,7 +472,7 @@ public class ConsumeQueue {
         }
 
         this.byteBufferIndex.flip();
-        this.byteBufferIndex.limit(CQ_STORE_UNIT_SIZE);
+        this.byteBufferIndex.limit(CQ_STORE_UNIT_SIZE/*20*/);
 
         // 20 个字节加入到临时缓冲区
         this.byteBufferIndex.putLong(offset);
@@ -500,8 +500,8 @@ public class ConsumeQueue {
 
                 if (expectLogicOffset < currentLogicOffset) {
                     // 复写操作
-                    log.warn("Build  consume queue repeatedly, expectLogicOffset: {} currentLogicOffset: {} Topic: {} QID: {} Diff: {}", expectLogicOffset, currentLogicOffset, this.topic, this.queueId,
-                            expectLogicOffset - currentLogicOffset);
+                    log.warn("Build  consume queue repeatedly, expectLogicOffset: {} currentLogicOffset: {} Topic: {} QID: {} Diff: {}",
+                            expectLogicOffset, currentLogicOffset, this.topic, this.queueId, expectLogicOffset - currentLogicOffset);
                     return true;
                 }
 
@@ -509,11 +509,7 @@ public class ConsumeQueue {
                     // 错误的插入
                     LOG_ERROR.warn(
                             "[BUG]logic queue order maybe wrong, expectLogicOffset: {} currentLogicOffset: {} Topic: {} QID: {} Diff: {}",
-                            expectLogicOffset,
-                            currentLogicOffset,
-                            this.topic,
-                            this.queueId,
-                            expectLogicOffset - currentLogicOffset
+                            expectLogicOffset, currentLogicOffset, this.topic, this.queueId, expectLogicOffset - currentLogicOffset
                     );
                 }
             }
