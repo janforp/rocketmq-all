@@ -1,5 +1,6 @@
 package org.apache.rocketmq.client.impl.factory;
 
+import com.alibaba.fastjson.JSON;
 import lombok.Getter;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.rocketmq.client.ClientConfig;
@@ -613,8 +614,9 @@ public class MQClientInstance {
 
     private void sendHeartbeatToAllBroker() {
 
-        // 包括所有生产者，消费者信息，以及当前实例id
+        // 包括所有生产者，消费者信息，以及当前实例id,如：{"clientID":"10.201.13.28@9738","consumerDataSet":[],"producerDataSet":[{"groupName":"testProducerGroup"},{"groupName":"CLIENT_INNER_PRODUCER"}]}
         final HeartbeatData heartbeatData = this.prepareHeartbeatData();
+        System.out.println("发送心跳的内容为：" + JSON.toJSONString(heartbeatData));
         final boolean producerEmpty = heartbeatData.getProducerDataSet().isEmpty();
         final boolean consumerEmpty = heartbeatData.getConsumerDataSet().isEmpty();
         if (producerEmpty && consumerEmpty) {

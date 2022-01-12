@@ -235,7 +235,7 @@ public class DefaultMQProducerImpl implements MQProducerInner {
                     this.defaultMQProducer.changeInstanceNameToPID();
                 }
 
-                // 获取当前进程的RocketMQ客户端实例对象
+                // 获取当前进程的RocketMQ客户端实例对象，其中包括设置 clientId 的逻辑，一般为：10.201.13.28@9738
                 this.mQClientFactory = MQClientManager.getInstance().getOrCreateMQClientInstance(this.defaultMQProducer, rpcHook);
 
                 // 将生产者自己注册到mq客户端实例内(观察者模式)

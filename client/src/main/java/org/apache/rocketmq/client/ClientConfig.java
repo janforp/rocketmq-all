@@ -115,13 +115,13 @@ public class ClientConfig {
     public String buildMQClientId() {
         StringBuilder sb = new StringBuilder();
 
-        String clientIP = this.getClientIP();
+        String clientIP = this.getClientIP(); // 10.201.13.28
         sb.append(clientIP);
 
-        sb.append("@");
+        sb.append("@"); // 10.201.13.28@
 
-        String instanceName = this.getInstanceName();
-        sb.append(instanceName);
+        String instanceName = this.getInstanceName(); // 9738
+        sb.append(instanceName); // 10.201.13.28@9738
 
         if (!UtilAll.isBlank(this.unitName)) {
             sb.append("@");
@@ -132,6 +132,8 @@ public class ClientConfig {
     }
 
     public void changeInstanceNameToPID() {
+
+        // String instanceName = System.getProperty("rocketmq.client.name", "DEFAULT");
         if ("DEFAULT".equals(this.instanceName)) {
             int pid = UtilAll.getPid();
             this.instanceName = String.valueOf(pid);

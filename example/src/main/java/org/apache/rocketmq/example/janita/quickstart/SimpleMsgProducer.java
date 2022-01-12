@@ -36,5 +36,6 @@ public class SimpleMsgProducer {
         } catch (MQClientException | RemotingException | MQBrokerException | InterruptedException e) {
             e.printStackTrace();
         }
+        producer.shutdown();
     }
 }

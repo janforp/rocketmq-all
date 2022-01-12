@@ -39,7 +39,7 @@ public class MQClientManager {
 
     public MQClientInstance getOrCreateMQClientInstance(final ClientConfig clientConfig, RPCHook rpcHook) {
 
-        // 构建客户端Id：IP&instanceName（当前进程PID）
+        // 构建客户端Id：IP&instanceName（当前进程PID），如：10.201.13.28@9738
         String clientId = clientConfig.buildMQClientId();
         MQClientInstance instance = this.factoryTable.get(clientId);
         if (null == instance) {

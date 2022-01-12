@@ -2,11 +2,13 @@ package org.apache.rocketmq.client.consumer.listener;
 
 import lombok.Getter;
 import lombok.Setter;
+import lombok.ToString;
 import org.apache.rocketmq.common.message.MessageQueue;
 
 /**
  * Consumer concurrent consumption context
  */
+@ToString
 public class ConsumeConcurrentlyContext {
 
     // 消息归属队列

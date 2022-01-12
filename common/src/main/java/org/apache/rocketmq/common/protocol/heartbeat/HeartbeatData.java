@@ -1,19 +1,19 @@
 package org.apache.rocketmq.common.protocol.heartbeat;
 
-import java.util.HashSet;
-import java.util.Set;
-
 import lombok.Getter;
 import lombok.Setter;
 import lombok.ToString;
 import org.apache.rocketmq.remoting.protocol.RemotingSerializable;
+
+import java.util.HashSet;
+import java.util.Set;
 
 @Setter
 @Getter
 @ToString
 public class HeartbeatData extends RemotingSerializable {
 
-    // ip&pid
+    // ip&pid，如：10.201.13.28@9738
     private String clientID;
 
     // 生产者

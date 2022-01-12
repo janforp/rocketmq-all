@@ -20,9 +20,9 @@ public class TopAddressing {
     @Setter
     private String nsAddr;
 
-    private String wsAddr;
+    private final String wsAddr;
 
-    private String unitName;
+    private final String unitName;
 
     public TopAddressing(final String wsAddr) {
         this(wsAddr, null);
