@@ -13,4 +13,8 @@ devenv
 .DS_Store
 localbin
 nohup.out
-/conf/broker/store/*
+/conf/broker/store/*/*
+/conf/home/broker/store/abort
+/conf/home/broker/store/checkpoint
+/conf/home/broker/store/lock
+/conf/home/broker/store/config/
