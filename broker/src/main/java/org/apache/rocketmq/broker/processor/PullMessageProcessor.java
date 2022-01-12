@@ -4,12 +4,9 @@ import io.netty.channel.Channel;
 import io.netty.channel.ChannelFutureListener;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.FileRegion;
-
-import java.nio.ByteBuffer;
-import java.util.List;
-
 import org.apache.rocketmq.broker.BrokerController;
 import org.apache.rocketmq.broker.client.ConsumerGroupInfo;
+import org.apache.rocketmq.broker.client.ConsumerManager;
 import org.apache.rocketmq.broker.filter.ConsumerFilterData;
 import org.apache.rocketmq.broker.filter.ConsumerFilterManager;
 import org.apache.rocketmq.broker.filter.ExpressionForRetryMessageFilter;
@@ -20,6 +17,8 @@ import org.apache.rocketmq.broker.mqtrace.ConsumeMessageContext;
 import org.apache.rocketmq.broker.mqtrace.ConsumeMessageHook;
 import org.apache.rocketmq.broker.offset.ConsumerOffsetManager;
 import org.apache.rocketmq.broker.pagecache.ManyMessageTransfer;
+import org.apache.rocketmq.broker.subscription.SubscriptionGroupManager;
+import org.apache.rocketmq.broker.topic.TopicConfigManager;
 import org.apache.rocketmq.common.MixAll;
 import org.apache.rocketmq.common.TopicConfig;
 import org.apache.rocketmq.common.TopicFilterType;
@@ -54,6 +53,9 @@ import org.apache.rocketmq.store.MessageStore;
 import org.apache.rocketmq.store.config.BrokerRole;
 import org.apache.rocketmq.store.stats.BrokerStatsManager;
 
+import java.nio.ByteBuffer;
+import java.util.List;
+
 public class PullMessageProcessor /*extends AsyncNettyRequestProcessor */ implements NettyRequestProcessor {
 
     private static final InternalLogger log = InternalLoggerFactory.getLogger(LoggerName.BROKER_LOGGER_NAME);
@@ -79,31 +81,33 @@ public class PullMessageProcessor /*extends AsyncNettyRequestProcessor */ implem
     private RemotingCommand processRequest(final Channel channel, RemotingCommand request, boolean brokerAllowSuspend /*是否允许本次拉消息长轮询*/) throws RemotingCommandException {
         // 创建响应对象
         RemotingCommand response = RemotingCommand.createResponseCommand(PullMessageResponseHeader.class);
-        // 拿到刚才创建的空对象
+        // 拿到刚才上面创建的空对象
         final PullMessageResponseHeader responseHeader = (PullMessageResponseHeader) response.readCustomHeader();
         // 解码请求对象
         final PullMessageRequestHeader requestHeader = (PullMessageRequestHeader) request.decodeCommandCustomHeader(PullMessageRequestHeader.class);
-
         // 设置请求id
         response.setOpaque(request.getOpaque());
 
-        if (!PermName.isReadable(this.brokerController.getBrokerConfig().getBrokerPermission())) {
+        if (!PermName.isReadable(this.brokerController.getBrokerConfig().getBrokerPermission())/*当前broker的权限*/) {
+            // 不可读
             response.setCode(ResponseCode.NO_PERMISSION);
             response.setRemark(String.format("the broker[%s] pulling message is forbidden", this.brokerController.getBrokerConfig().getBrokerIP1()));
             return response;
         }
 
+        SubscriptionGroupManager subscriptionGroupManager = this.brokerController.getSubscriptionGroupManager();
         // 订阅组配置
-        SubscriptionGroupConfig subscriptionGroupConfig = this.brokerController.getSubscriptionGroupManager().findSubscriptionGroupConfig(requestHeader.getConsumerGroup());
+        String consumerGroup = requestHeader.getConsumerGroup();
+        SubscriptionGroupConfig subscriptionGroupConfig = subscriptionGroupManager.findSubscriptionGroupConfig(consumerGroup);
         if (null == subscriptionGroupConfig) {
             response.setCode(ResponseCode.SUBSCRIPTION_GROUP_NOT_EXIST);
-            response.setRemark(String.format("subscription group [%s] does not exist, %s", requestHeader.getConsumerGroup(), FAQUrl.suggestTodo(FAQUrl.SUBSCRIPTION_GROUP_NOT_EXIST)));
+            response.setRemark(String.format("subscription group [%s] does not exist, %s", consumerGroup, FAQUrl.suggestTodo(FAQUrl.SUBSCRIPTION_GROUP_NOT_EXIST)));
             return response;
         }
 
         if (!subscriptionGroupConfig.isConsumeEnable()) { // 当前消费组不可消费
             response.setCode(ResponseCode.NO_PERMISSION);
-            response.setRemark("subscription group no permission, " + requestHeader.getConsumerGroup());
+            response.setRemark("subscription group no permission, " + consumerGroup);
             return response;
         }
 
@@ -117,7 +121,9 @@ public class PullMessageProcessor /*extends AsyncNettyRequestProcessor */ implem
         final long suspendTimeoutMillisLong = hasSuspendFlag ? requestHeader.getSuspendTimeoutMillis() : 0;
 
         // 主题配置
-        TopicConfig topicConfig = this.brokerController.getTopicConfigManager().selectTopicConfig(requestHeader.getTopic());
+        TopicConfigManager topicConfigManager = this.brokerController.getTopicConfigManager();
+        String topicInRequest = requestHeader.getTopic();
+        TopicConfig topicConfig = topicConfigManager.selectTopicConfig(topicInRequest);
         if (null == topicConfig) {
             log.error("the topic {} not exist, consumer: {}", requestHeader.getTopic(), RemotingHelper.parseChannelRemoteAddr(channel));
             response.setCode(ResponseCode.TOPIC_NOT_EXIST);
@@ -160,7 +166,8 @@ public class PullMessageProcessor /*extends AsyncNettyRequestProcessor */ implem
             // 没有过滤表达式
 
             // 消费者组信息，主要包含每个主题的订阅详情
-            ConsumerGroupInfo consumerGroupInfo = this.brokerController.getConsumerManager().getConsumerGroupInfo(requestHeader.getConsumerGroup());
+            ConsumerManager consumerManager = this.brokerController.getConsumerManager();
+            ConsumerGroupInfo consumerGroupInfo = consumerManager.getConsumerGroupInfo(topicInRequest);
             if (null == consumerGroupInfo) {
                 log.warn("the consumer's group info not exist, group: {}", requestHeader.getConsumerGroup());
                 response.setCode(ResponseCode.SUBSCRIPTION_NOT_EXIST);
@@ -175,7 +182,7 @@ public class PullMessageProcessor /*extends AsyncNettyRequestProcessor */ implem
             }
 
             // 从消费者组中提取出来当前请求主题的订阅数据
-            subscriptionData = consumerGroupInfo.findSubscriptionData(requestHeader.getTopic());
+            subscriptionData = consumerGroupInfo.findSubscriptionData(topicInRequest);
             if (null == subscriptionData) {
                 log.warn("the consumer's subscription not exist, group: {}, topic:{}", requestHeader.getConsumerGroup(), requestHeader.getTopic());
                 response.setCode(ResponseCode.SUBSCRIPTION_NOT_EXIST);

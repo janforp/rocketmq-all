@@ -18,6 +18,9 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 
+/**
+ * broker 上的 消费者实例管理
+ */
 public class ConsumerManager {
 
     private static final InternalLogger log = InternalLoggerFactory.getLogger(LoggerName.BROKER_LOGGER_NAME);
@@ -26,6 +29,9 @@ public class ConsumerManager {
 
     private final ConcurrentMap<String/* Group */, ConsumerGroupInfo> consumerTable = new ConcurrentHashMap<>(1024);
 
+    /**
+     * @see DefaultConsumerIdsChangeListener
+     */
     private final ConsumerIdsChangeListener consumerIdsChangeListener;
 
     public ConsumerManager(final ConsumerIdsChangeListener consumerIdsChangeListener) {
@@ -56,7 +62,8 @@ public class ConsumerManager {
     public int findSubscriptionDataCount(final String group) {
         ConsumerGroupInfo consumerGroupInfo = this.getConsumerGroupInfo(group);
         if (consumerGroupInfo != null) {
-            return consumerGroupInfo.getSubscriptionTable().size();
+            ConcurrentMap<String, SubscriptionData> subscriptionTable = consumerGroupInfo.getSubscriptionTable();
+            return subscriptionTable.size();
         }
 
         return 0;
@@ -70,12 +77,12 @@ public class ConsumerManager {
                 if (info.getChannelInfoTable().isEmpty()) {
                     ConsumerGroupInfo remove = this.consumerTable.remove(next.getKey());
                     if (remove != null) {
-                        log.info("unregister consumer ok, no any connection, and remove consumer group, {}",
-                                next.getKey());
+                        log.info("unregister consumer ok, no any connection, and remove consumer group, {}", next.getKey());
                         this.consumerIdsChangeListener.handle(ConsumerGroupEvent.UNREGISTER, next.getKey());
                     }
                 }
 
+                // 消费者id发送变化了
                 this.consumerIdsChangeListener.handle(ConsumerGroupEvent.CHANGE, next.getKey(), info.getAllChannel());
             }
         }
@@ -125,23 +132,26 @@ public class ConsumerManager {
     }
 
     public void scanNotActiveChannel() {
-        Iterator<Entry<String, ConsumerGroupInfo>> it = this.consumerTable.entrySet().iterator();
+        // ConcurrentMap<String/* Group */, ConsumerGroupInfo> consumerTable
+        Iterator<Entry<String /* Group */, ConsumerGroupInfo>> it = this.consumerTable.entrySet().iterator();
         while (it.hasNext()) {
             Entry<String, ConsumerGroupInfo> next = it.next();
-            String group = next.getKey();
-            ConsumerGroupInfo consumerGroupInfo = next.getValue();
+            String group = next.getKey(); // group名称
+            ConsumerGroupInfo consumerGroupInfo = next.getValue(); // 该消费者组的 信息
+            // 该消费者组的连接信息
             ConcurrentMap<Channel, ClientChannelInfo> channelInfoTable = consumerGroupInfo.getChannelInfoTable();
 
             Iterator<Entry<Channel, ClientChannelInfo>> itChannel = channelInfoTable.entrySet().iterator();
             while (itChannel.hasNext()) {
                 Entry<Channel, ClientChannelInfo> nextChannel = itChannel.next();
                 ClientChannelInfo clientChannelInfo = nextChannel.getValue();
+
+                // 看时间差
                 long diff = System.currentTimeMillis() - clientChannelInfo.getLastUpdateTimestamp();
                 if (diff > CHANNEL_EXPIRED_TIMEOUT) {
-                    log.warn(
-                            "SCAN: remove expired channel from ConsumerManager consumerTable. channel={}, consumerGroup={}",
-                            RemotingHelper.parseChannelRemoteAddr(clientChannelInfo.getChannel()), group);
 
+                    // 如果时间差超过了 120 秒，则任务该消费者已经不活跃了，需要移除
+                    log.warn("SCAN: remove expired channel from ConsumerManager consumerTable. channel={}, consumerGroup={}", RemotingHelper.parseChannelRemoteAddr(clientChannelInfo.getChannel()), group);
                     RemotingUtil.closeChannel(clientChannelInfo.getChannel());
                     itChannel.remove();
                 }
@@ -154,12 +164,23 @@ public class ConsumerManager {
         }
     }
 
+    /**
+     * 根据主题查询订阅他的消费者组集合
+     *
+     * @param topic 主题
+     * @return 订阅他的消费者组集合
+     */
     public HashSet<String> queryTopicConsumeByWho(final String topic) {
         HashSet<String> groups = new HashSet<>();
+        // ConcurrentMap<String/* Group */, ConsumerGroupInfo> consumerTable
         for (Entry<String, ConsumerGroupInfo> entry : this.consumerTable.entrySet()) {
-            ConcurrentMap<String, SubscriptionData> subscriptionTable = entry.getValue().getSubscriptionTable();
+            // 消费者组信息
+            ConsumerGroupInfo consumerGroupInfo = entry.getValue();
+            // 该消费者组下的订阅信息 ConcurrentMap<String/* Topic */, SubscriptionData> subscriptionTable
+            ConcurrentMap<String, SubscriptionData> subscriptionTable = consumerGroupInfo.getSubscriptionTable();
             if (subscriptionTable.containsKey(topic)) {
-                groups.add(entry.getKey());
+                String group = entry.getKey();
+                groups.add(group);
             }
         }
         return groups;

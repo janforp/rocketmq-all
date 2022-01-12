@@ -1,6 +1,15 @@
 package org.apache.rocketmq.broker.client;
 
 import io.netty.channel.Channel;
+import lombok.Getter;
+import lombok.Setter;
+import org.apache.rocketmq.common.constant.LoggerName;
+import org.apache.rocketmq.common.consumer.ConsumeFromWhere;
+import org.apache.rocketmq.common.protocol.heartbeat.ConsumeType;
+import org.apache.rocketmq.common.protocol.heartbeat.MessageModel;
+import org.apache.rocketmq.common.protocol.heartbeat.SubscriptionData;
+import org.apache.rocketmq.logging.InternalLogger;
+import org.apache.rocketmq.logging.InternalLoggerFactory;
 
 import java.util.ArrayList;
 import java.util.Iterator;
@@ -10,30 +19,32 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 
-import org.apache.rocketmq.common.constant.LoggerName;
-import org.apache.rocketmq.common.consumer.ConsumeFromWhere;
-import org.apache.rocketmq.logging.InternalLogger;
-import org.apache.rocketmq.logging.InternalLoggerFactory;
-import org.apache.rocketmq.common.protocol.heartbeat.ConsumeType;
-import org.apache.rocketmq.common.protocol.heartbeat.MessageModel;
-import org.apache.rocketmq.common.protocol.heartbeat.SubscriptionData;
-
 public class ConsumerGroupInfo {
 
     private static final InternalLogger log = InternalLoggerFactory.getLogger(LoggerName.BROKER_LOGGER_NAME);
 
     private final String groupName;
 
+    @Getter
     private final ConcurrentMap<String/* Topic */, SubscriptionData> subscriptionTable = new ConcurrentHashMap<String, SubscriptionData>();
 
+    @Getter
     private final ConcurrentMap<Channel, ClientChannelInfo> channelInfoTable = new ConcurrentHashMap<Channel, ClientChannelInfo>(16);
 
+    @Getter
+    @Setter
     private volatile ConsumeType consumeType;
 
+    @Getter
+    @Setter
     private volatile MessageModel messageModel;
 
+    @Getter
+    @Setter
     private volatile ConsumeFromWhere consumeFromWhere;
 
+    @Getter
+    @Setter
     private volatile long lastUpdateTimestamp = System.currentTimeMillis();
 
     public ConsumerGroupInfo(String groupName, ConsumeType consumeType, MessageModel messageModel, ConsumeFromWhere consumeFromWhere) {
@@ -43,22 +54,17 @@ public class ConsumerGroupInfo {
         this.consumeFromWhere = consumeFromWhere;
     }
 
+    // 根据 clientId 查询
     public ClientChannelInfo findChannel(final String clientId) {
         for (Entry<Channel, ClientChannelInfo> next : this.channelInfoTable.entrySet()) {
-            if (next.getValue().getClientId().equals(clientId)) {
-                return next.getValue();
+
+            ClientChannelInfo channelInfo = next.getValue();
+            if (channelInfo.getClientId().equals(clientId)) {
+                // 根据 clientId 查询
+                return channelInfo;
             }
         }
-
         return null;
-    }
-
-    public ConcurrentMap<String, SubscriptionData> getSubscriptionTable() {
-        return subscriptionTable;
-    }
-
-    public ConcurrentMap<Channel, ClientChannelInfo> getChannelInfoTable() {
-        return channelInfoTable;
     }
 
     public List<Channel> getAllChannel() {
@@ -67,17 +73,18 @@ public class ConsumerGroupInfo {
 
     public List<String> getAllClientId() {
         List<String> result = new ArrayList<>();
-        // ConcurrentMap<Channel, ClientChannelInfo> channelInfoTable = new ConcurrentHashMap<Channel, ClientChannelInfo>(16);
         for (Entry<Channel, ClientChannelInfo> entry : this.channelInfoTable.entrySet()) {
             ClientChannelInfo clientChannelInfo = entry.getValue();
-            result.add(clientChannelInfo.getClientId());
+            String clientId = clientChannelInfo.getClientId();
+            result.add(clientId);
         }
 
         return result;
     }
 
     public void unregisterChannel(final ClientChannelInfo clientChannelInfo) {
-        ClientChannelInfo old = this.channelInfoTable.remove(clientChannelInfo.getChannel());
+        Channel channel = clientChannelInfo.getChannel();
+        ClientChannelInfo old = this.channelInfoTable.remove(channel);
         if (old != null) {
             log.info("unregister a consumer[{}] from consumerGroupInfo {}", this.groupName, old.toString());
         }
@@ -89,10 +96,10 @@ public class ConsumerGroupInfo {
             log.warn("NETTY EVENT: remove not active channel[{}] from ConsumerGroupInfo groupChannelTable, consumer group: {}", info.toString(), groupName);
             return true;
         }
-
         return false;
     }
 
+    // 修改 或者  添加
     public boolean updateChannel(final ClientChannelInfo infoNew, ConsumeType consumeType, MessageModel messageModel, ConsumeFromWhere consumeFromWhere) {
         boolean updated = false;
         this.consumeType = consumeType;
@@ -103,18 +110,15 @@ public class ConsumerGroupInfo {
         if (null == infoOld) {
             ClientChannelInfo prev = this.channelInfoTable.put(infoNew.getChannel(), infoNew);
             if (null == prev) {
-                log.info("new consumer connected, group: {} {} {} channel: {}", this.groupName, consumeType,
-                        messageModel, infoNew.toString());
+                log.info("new consumer connected, group: {} {} {} channel: {}", this.groupName, consumeType, messageModel, infoNew.toString());
+                // 真正的修改
                 updated = true;
             }
 
             infoOld = infoNew;
         } else {
             if (!infoOld.getClientId().equals(infoNew.getClientId())) {
-                log.error("[BUG] consumer channel exist in broker, but clientId not equal. GROUP: {} OLD: {} NEW: {} ",
-                        this.groupName,
-                        infoOld.toString(),
-                        infoNew.toString());
+                log.error("[BUG] consumer channel exist in broker, but clientId not equal. GROUP: {} OLD: {} NEW: {} ", this.groupName, infoOld.toString(), infoNew.toString());
                 this.channelInfoTable.put(infoNew.getChannel(), infoNew);
             }
         }
@@ -129,28 +133,26 @@ public class ConsumerGroupInfo {
         boolean updated = false;
 
         for (SubscriptionData sub : subList) {
-            SubscriptionData old = this.subscriptionTable.get(sub.getTopic());
+            String subTopic = sub.getTopic();
+            SubscriptionData old = this.subscriptionTable.get(subTopic);
             if (old == null) {
-                SubscriptionData prev = this.subscriptionTable.putIfAbsent(sub.getTopic(), sub);
+                SubscriptionData prev = this.subscriptionTable.putIfAbsent(subTopic, sub);
                 if (null == prev) {
+
+                    // 之前没有 subTopic 对应的数据，则为修改
                     updated = true;
-                    log.info("subscription changed, add new topic, group: {} {}",
-                            this.groupName,
-                            sub.toString());
+                    log.info("subscription changed, add new topic, group: {} {}", this.groupName, sub.toString());
                 }
             } else if (sub.getSubVersion() > old.getSubVersion()) {
                 if (this.consumeType == ConsumeType.CONSUME_PASSIVELY) {
-                    log.info("subscription changed, group: {} OLD: {} NEW: {}",
-                            this.groupName,
-                            old.toString(),
-                            sub.toString()
-                    );
+                    log.info("subscription changed, group: {} OLD: {} NEW: {}", this.groupName, old.toString(), sub.toString());
                 }
 
-                this.subscriptionTable.put(sub.getTopic(), sub);
+                this.subscriptionTable.put(subTopic, sub);
             }
         }
 
+        // ConcurrentMap<String/* Topic */, SubscriptionData> subscriptionTable
         Iterator<Entry<String, SubscriptionData>> it = this.subscriptionTable.entrySet().iterator();
         while (it.hasNext()) {
             Entry<String, SubscriptionData> next = it.next();
@@ -165,10 +167,7 @@ public class ConsumerGroupInfo {
             }
 
             if (!exist) {
-                log.warn("subscription changed, group: {} remove topic {} {}",
-                        this.groupName,
-                        oldTopic,
-                        next.getValue().toString()
+                log.warn("subscription changed, group: {} remove topic {} {}", this.groupName, oldTopic, next.getValue().toString()
                 );
 
                 it.remove();
@@ -187,41 +186,5 @@ public class ConsumerGroupInfo {
 
     public SubscriptionData findSubscriptionData(final String topic) {
         return this.subscriptionTable.get(topic);
-    }
-
-    public ConsumeType getConsumeType() {
-        return consumeType;
-    }
-
-    public void setConsumeType(ConsumeType consumeType) {
-        this.consumeType = consumeType;
-    }
-
-    public MessageModel getMessageModel() {
-        return messageModel;
-    }
-
-    public void setMessageModel(MessageModel messageModel) {
-        this.messageModel = messageModel;
-    }
-
-    public String getGroupName() {
-        return groupName;
-    }
-
-    public long getLastUpdateTimestamp() {
-        return lastUpdateTimestamp;
-    }
-
-    public void setLastUpdateTimestamp(long lastUpdateTimestamp) {
-        this.lastUpdateTimestamp = lastUpdateTimestamp;
-    }
-
-    public ConsumeFromWhere getConsumeFromWhere() {
-        return consumeFromWhere;
-    }
-
-    public void setConsumeFromWhere(ConsumeFromWhere consumeFromWhere) {
-        this.consumeFromWhere = consumeFromWhere;
     }
 }

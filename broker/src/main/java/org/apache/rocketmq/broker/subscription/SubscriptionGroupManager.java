@@ -1,31 +1,135 @@
 package org.apache.rocketmq.broker.subscription;
 
-import java.util.Iterator;
-import java.util.Map.Entry;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ConcurrentMap;
-
+import lombok.Getter;
 import org.apache.rocketmq.broker.BrokerController;
 import org.apache.rocketmq.broker.BrokerPathConfigHelper;
 import org.apache.rocketmq.common.ConfigManager;
 import org.apache.rocketmq.common.DataVersion;
 import org.apache.rocketmq.common.MixAll;
 import org.apache.rocketmq.common.constant.LoggerName;
+import org.apache.rocketmq.common.subscription.SubscriptionGroupConfig;
 import org.apache.rocketmq.logging.InternalLogger;
 import org.apache.rocketmq.logging.InternalLoggerFactory;
-import org.apache.rocketmq.common.subscription.SubscriptionGroupConfig;
 import org.apache.rocketmq.remoting.protocol.RemotingSerializable;
 
+import java.util.Map.Entry;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
+
+/**
+ * 订阅组管理
+ *
+ * 管理文件：/Users/zhuchenjian/Documents/code/learn/rocketmq/rocketmq-all/conf/home/broker/store/config/subscriptionGroup.json
+ * * {
+ * * 	"dataVersion":{
+ * * 		"counter":1,
+ * * 		"timestamp":1641967891916
+ * *        },
+ * * 	"subscriptionGroupTable":{
+ * * 		"SELF_TEST_C_GROUP":{
+ * * 			"brokerId":0,
+ * * 			"consumeBroadcastEnable":true,
+ * * 			"consumeEnable":true,
+ * * 			"consumeFromMinEnable":true,
+ * * 			"groupName":"SELF_TEST_C_GROUP",
+ * * 			"notifyConsumerIdsChangedEnable":true,
+ * * 			"retryMaxTimes":16,
+ * * 			"retryQueueNums":1,
+ * * 			"whichBrokerWhenConsumeSlowly":1
+ * *        },
+ * * 		"CID_ONSAPI_OWNER":{
+ * * 			"brokerId":0,
+ * * 			"consumeBroadcastEnable":true,
+ * * 			"consumeEnable":true,
+ * * 			"consumeFromMinEnable":true,
+ * * 			"groupName":"CID_ONSAPI_OWNER",
+ * * 			"notifyConsumerIdsChangedEnable":true,
+ * * 			"retryMaxTimes":16,
+ * * 			"retryQueueNums":1,
+ * * 			"whichBrokerWhenConsumeSlowly":1
+ * *        },
+ * * 		"testConsumerGroup":{
+ * * 			"brokerId":0,
+ * * 			"consumeBroadcastEnable":true,
+ * * 			"consumeEnable":true,
+ * * 			"consumeFromMinEnable":true,
+ * * 			"groupName":"testConsumerGroup",
+ * * 			"notifyConsumerIdsChangedEnable":true,
+ * * 			"retryMaxTimes":16,
+ * * 			"retryQueueNums":1,
+ * * 			"whichBrokerWhenConsumeSlowly":1
+ * *        },
+ * * 		"CID_ONSAPI_PERMISSION":{
+ * * 			"brokerId":0,
+ * * 			"consumeBroadcastEnable":true,
+ * * 			"consumeEnable":true,
+ * * 			"consumeFromMinEnable":true,
+ * * 			"groupName":"CID_ONSAPI_PERMISSION",
+ * * 			"notifyConsumerIdsChangedEnable":true,
+ * * 			"retryMaxTimes":16,
+ * * 			"retryQueueNums":1,
+ * * 			"whichBrokerWhenConsumeSlowly":1
+ * *        },
+ * * 		"TOOLS_CONSUMER":{
+ * * 			"brokerId":0,
+ * * 			"consumeBroadcastEnable":true,
+ * * 			"consumeEnable":true,
+ * * 			"consumeFromMinEnable":true,
+ * * 			"groupName":"TOOLS_CONSUMER",
+ * * 			"notifyConsumerIdsChangedEnable":true,
+ * * 			"retryMaxTimes":16,
+ * * 			"retryQueueNums":1,
+ * * 			"whichBrokerWhenConsumeSlowly":1
+ * *        },
+ * * 		"CID_ONS-HTTP-PROXY":{
+ * * 			"brokerId":0,
+ * * 			"consumeBroadcastEnable":true,
+ * * 			"consumeEnable":true,
+ * * 			"consumeFromMinEnable":true,
+ * * 			"groupName":"CID_ONS-HTTP-PROXY",
+ * * 			"notifyConsumerIdsChangedEnable":true,
+ * * 			"retryMaxTimes":16,
+ * * 			"retryQueueNums":1,
+ * * 			"whichBrokerWhenConsumeSlowly":1
+ * *        },
+ * * 		"FILTERSRV_CONSUMER":{
+ * * 			"brokerId":0,
+ * * 			"consumeBroadcastEnable":true,
+ * * 			"consumeEnable":true,
+ * * 			"consumeFromMinEnable":true,
+ * * 			"groupName":"FILTERSRV_CONSUMER",
+ * * 			"notifyConsumerIdsChangedEnable":true,
+ * * 			"retryMaxTimes":16,
+ * * 			"retryQueueNums":1,
+ * * 			"whichBrokerWhenConsumeSlowly":1
+ * *        },
+ * * 		"CID_ONSAPI_PULL":{
+ * * 			"brokerId":0,
+ * * 			"consumeBroadcastEnable":true,
+ * * 			"consumeEnable":true,
+ * * 			"consumeFromMinEnable":true,
+ * * 			"groupName":"CID_ONSAPI_PULL",
+ * * 			"notifyConsumerIdsChangedEnable":true,
+ * * 			"retryMaxTimes":16,
+ * * 			"retryQueueNums":1,
+ * * 			"whichBrokerWhenConsumeSlowly":1
+ * *        }
+ * *    }
+ * * }
+ */
 public class SubscriptionGroupManager extends ConfigManager {
 
     private static final InternalLogger log = InternalLoggerFactory.getLogger(LoggerName.BROKER_LOGGER_NAME);
 
-    private final ConcurrentMap<String, SubscriptionGroupConfig> subscriptionGroupTable = new ConcurrentHashMap<String, SubscriptionGroupConfig>(1024);
+    @Getter
+    private final ConcurrentMap<String/*TODO group?*/, SubscriptionGroupConfig> subscriptionGroupTable = new ConcurrentHashMap<>(1024);
 
+    @Getter
     private final DataVersion dataVersion = new DataVersion();
 
     private transient BrokerController brokerController;
 
+    @SuppressWarnings("unused")
     public SubscriptionGroupManager() {
         this.init();
     }
@@ -35,6 +139,7 @@ public class SubscriptionGroupManager extends ConfigManager {
         this.init();
     }
 
+    // 一些系统自待的组
     private void init() {
         {
             // TOOLS_CONSUMER
@@ -87,7 +192,8 @@ public class SubscriptionGroupManager extends ConfigManager {
 
     public void updateSubscriptionGroupConfig(final SubscriptionGroupConfig config) {
         // 塞入新的，返回老的
-        SubscriptionGroupConfig old = this.subscriptionGroupTable.put(config.getGroupName(), config);
+        String groupName = config.getGroupName();
+        SubscriptionGroupConfig old = this.subscriptionGroupTable.put(groupName, config);
         if (old != null) {
             log.info("update subscription group config, old: {} new: {}", old, config);
         } else {
@@ -95,7 +201,7 @@ public class SubscriptionGroupManager extends ConfigManager {
         }
 
         this.dataVersion.nextVersion();
-
+        // 持久化到 /Users/zhuchenjian/Documents/code/learn/rocketmq/rocketmq-all/conf/home/broker/store/config/subscriptionGroup.json
         this.persist();
     }
 
@@ -132,8 +238,9 @@ public class SubscriptionGroupManager extends ConfigManager {
 
     @Override
     public String configFilePath() {
-        return BrokerPathConfigHelper.getSubscriptionGroupPath(this.brokerController.getMessageStoreConfig()
-                .getStorePathRootDir());
+        // System.getProperty("user.home") + File.separator + "store";
+        String storePathRootDir = this.brokerController.getMessageStoreConfig().getStorePathRootDir();
+        return BrokerPathConfigHelper.getSubscriptionGroupPath(storePathRootDir);
     }
 
     @Override
@@ -154,19 +261,9 @@ public class SubscriptionGroupManager extends ConfigManager {
     }
 
     private void printLoadDataWhenFirstBoot(final SubscriptionGroupManager sgm) {
-        Iterator<Entry<String, SubscriptionGroupConfig>> it = sgm.getSubscriptionGroupTable().entrySet().iterator();
-        while (it.hasNext()) {
-            Entry<String, SubscriptionGroupConfig> next = it.next();
+        for (Entry<String, SubscriptionGroupConfig> next : sgm.getSubscriptionGroupTable().entrySet()) {
             log.info("load exist subscription group, {}", next.getValue().toString());
         }
-    }
-
-    public ConcurrentMap<String, SubscriptionGroupConfig> getSubscriptionGroupTable() {
-        return subscriptionGroupTable;
-    }
-
-    public DataVersion getDataVersion() {
-        return dataVersion;
     }
 
     public void deleteSubscriptionGroupConfig(final String groupName) {

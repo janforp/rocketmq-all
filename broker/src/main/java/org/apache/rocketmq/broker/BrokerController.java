@@ -126,9 +126,11 @@ public class BrokerController {
 
     private final ClientHousekeepingService clientHousekeepingService;
 
+    // 处理客户端拉消息请求
     @Getter
     private final PullMessageProcessor pullMessageProcessor;
 
+    // 拉消息挂起逻辑
     @Getter
     private final PullRequestHoldService pullRequestHoldService;
 
@@ -195,6 +197,7 @@ public class BrokerController {
     @Setter
     private RemotingServer fastRemotingServer;
 
+    // 维护 /Users/zhuchenjian/Documents/code/learn/rocketmq/rocketmq-all/conf/home/broker/store/config/topics.json
     @Getter
     @Setter
     private TopicConfigManager topicConfigManager;
@@ -260,16 +263,23 @@ public class BrokerController {
         this.nettyServerConfig = nettyServerConfig;
         this.messageStoreConfig = messageStoreConfig;
         this.consumerOffsetManager = new ConsumerOffsetManager(this);
+        // 维护 /Users/zhuchenjian/Documents/code/learn/rocketmq/rocketmq-all/conf/home/broker/store/config/topics.json
         this.topicConfigManager = new TopicConfigManager(this);
+        // 处理客户端拉消息请求
         this.pullMessageProcessor = new PullMessageProcessor(this);
+        // 拉消息挂起逻辑
         this.pullRequestHoldService = new PullRequestHoldService(this);
         this.messageArrivingListener = new NotifyMessageArrivingListener(this.pullRequestHoldService);
         ConsumerIdsChangeListener consumerIdsChangeListener = new DefaultConsumerIdsChangeListener(this);
+        // 管理该 broker 的消费者
         this.consumerManager = new ConsumerManager(consumerIdsChangeListener);
         this.consumerFilterManager = new ConsumerFilterManager(this);
+        // 管理该broker的生产者
         this.producerManager = new ProducerManager();
         this.clientHousekeepingService = new ClientHousekeepingService(this);
+        // broker 主动 连接 客户的逻辑
         this.broker2Client = new Broker2Client(this);
+        // 该 broker 的订阅信息
         this.subscriptionGroupManager = new SubscriptionGroupManager(this);
         this.brokerOuterAPI = new BrokerOuterAPI(nettyClientConfig);
         this.filterServerManager = new FilterServerManager(this);
@@ -294,7 +304,7 @@ public class BrokerController {
 
     public boolean initialize() throws CloneNotSupportedException {
 
-        boolean result = this.topicConfigManager.load();
+        boolean result = this.topicConfigManager.load();// /Users/zhuchenjian/Documents/code/learn/rocketmq/rocketmq-all/conf/home/broker/store/config/topics.json
 
         result = result && this.consumerOffsetManager.load();
         result = result && this.subscriptionGroupManager.load();

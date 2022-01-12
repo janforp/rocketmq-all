@@ -12,6 +12,7 @@ public class ClientChannelInfo {
 
     private final Channel channel;
 
+    // 客户端id
     private final String clientId;
 
     private final LanguageCode language;
@@ -57,13 +58,9 @@ public class ClientChannelInfo {
         }
         ClientChannelInfo other = (ClientChannelInfo) obj;
         if (channel == null) {
-            if (other.channel != null) {
-                return false;
-            }
-        } else if (this.channel != other.channel) {
-            return false;
+            return other.channel == null;
+        } else {
+            return this.channel == other.channel;
         }
-
-        return true;
     }
 }

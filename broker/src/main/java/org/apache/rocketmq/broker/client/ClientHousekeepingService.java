@@ -12,6 +12,12 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 
+/**
+ * 定时扫描
+ * 1.生产者
+ * 2.消费者
+ * 3.过滤器
+ */
 public class ClientHousekeepingService implements ChannelEventListener {
 
     private static final InternalLogger log = InternalLoggerFactory.getLogger(LoggerName.BROKER_LOGGER_NAME);
@@ -25,7 +31,6 @@ public class ClientHousekeepingService implements ChannelEventListener {
     }
 
     public void start() {
-
         this.scheduledExecutorService.scheduleAtFixedRate(() -> {
             try {
                 ClientHousekeepingService.this.scanExceptionChannel();
@@ -36,8 +41,16 @@ public class ClientHousekeepingService implements ChannelEventListener {
     }
 
     private void scanExceptionChannel() {
-        this.brokerController.getProducerManager().scanNotActiveChannel();
-        this.brokerController.getConsumerManager().scanNotActiveChannel();
+
+        // 扫描生产者
+        ProducerManager producerManager = this.brokerController.getProducerManager();
+        producerManager.scanNotActiveChannel();
+
+        // 扫描消费者
+        ConsumerManager consumerManager = this.brokerController.getConsumerManager();
+        consumerManager.scanNotActiveChannel();
+
+        // 扫描过滤器
         this.brokerController.getFilterServerManager().scanNotActiveChannel();
     }
 
@@ -52,22 +65,43 @@ public class ClientHousekeepingService implements ChannelEventListener {
 
     @Override
     public void onChannelClose(String remoteAddr, Channel channel) {
-        this.brokerController.getProducerManager().doChannelCloseEvent(remoteAddr, channel);
-        this.brokerController.getConsumerManager().doChannelCloseEvent(remoteAddr, channel);
+        // 关闭生产者
+        ProducerManager producerManager = this.brokerController.getProducerManager();
+        producerManager.doChannelCloseEvent(remoteAddr, channel);
+
+        // 关闭消费者
+        ConsumerManager consumerManager = this.brokerController.getConsumerManager();
+        consumerManager.doChannelCloseEvent(remoteAddr, channel);
+
+        // 关闭过滤器
         this.brokerController.getFilterServerManager().doChannelCloseEvent(remoteAddr, channel);
     }
 
     @Override
     public void onChannelException(String remoteAddr, Channel channel) {
-        this.brokerController.getProducerManager().doChannelCloseEvent(remoteAddr, channel);
-        this.brokerController.getConsumerManager().doChannelCloseEvent(remoteAddr, channel);
+        // 关闭生产者
+        ProducerManager producerManager = this.brokerController.getProducerManager();
+        producerManager.doChannelCloseEvent(remoteAddr, channel);
+
+        // 关闭消费者
+        ConsumerManager consumerManager = this.brokerController.getConsumerManager();
+        consumerManager.doChannelCloseEvent(remoteAddr, channel);
+
+        // 关闭过滤器
         this.brokerController.getFilterServerManager().doChannelCloseEvent(remoteAddr, channel);
     }
 
     @Override
     public void onChannelIdle(String remoteAddr, Channel channel) {
-        this.brokerController.getProducerManager().doChannelCloseEvent(remoteAddr, channel);
-        this.brokerController.getConsumerManager().doChannelCloseEvent(remoteAddr, channel);
+        // 关闭生产者
+        ProducerManager producerManager = this.brokerController.getProducerManager();
+        producerManager.doChannelCloseEvent(remoteAddr, channel);
+
+        // 关闭消费者
+        ConsumerManager consumerManager = this.brokerController.getConsumerManager();
+        consumerManager.doChannelCloseEvent(remoteAddr, channel);
+
+        // 关闭过滤器
         this.brokerController.getFilterServerManager().doChannelCloseEvent(remoteAddr, channel);
     }
 }

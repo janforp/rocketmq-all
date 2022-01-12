@@ -57,10 +57,12 @@ public abstract class ConfigManager {
     }
 
     public synchronized void persist() {
+        // 从文件中读取字符串，并jon序列化
         String jsonString = this.encode(true);
         if (jsonString != null) {
             String fileName = this.configFilePath();
             try {
+                // 把字符串写到文件中
                 MixAll.string2File(jsonString, fileName);
             } catch (IOException e) {
                 log.error("persist file " + fileName + " exception", e);
