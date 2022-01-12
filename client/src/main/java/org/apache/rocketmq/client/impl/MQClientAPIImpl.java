@@ -1216,18 +1216,32 @@ public class MQClientAPIImpl {
         return getTopicRouteInfoFromNameServer(topic, timeoutMillis, false);
     }
 
+    /**
+     * 生产者发送消息的时候会调用该方法去 nameServer 上拿到该 主题的路由信息
+     *
+     * @param topic 主题
+     * @param timeoutMillis timeoutMillis
+     * @return 主题的路由信息
+     */
     public TopicRouteData getTopicRouteInfoFromNameServer(final String topic, final long timeoutMillis) throws RemotingException, MQClientException, InterruptedException {
         return getTopicRouteInfoFromNameServer(topic, timeoutMillis, true);
     }
 
+    /**
+     * 生产者发送消息的时候会调用该方法去 nameServer 上拿到该 主题的路由信息
+     *
+     * @param topic 主题
+     * @param timeoutMillis timeoutMillis
+     * @param allowTopicNotExist 是否允许主题不存在
+     * @return 主题的路由信息
+     */
     public TopicRouteData getTopicRouteInfoFromNameServer(final String topic, final long timeoutMillis, boolean allowTopicNotExist)
             throws MQClientException, InterruptedException, RemotingTimeoutException, RemotingSendRequestException, RemotingConnectException {
 
         GetRouteInfoRequestHeader requestHeader = new GetRouteInfoRequestHeader();
         requestHeader.setTopic(topic);
-
         RemotingCommand request = RemotingCommand.createRequestCommand(RequestCode.GET_ROUTEINTO_BY_TOPIC, requestHeader);
-
+        // 发送网络请求
         RemotingCommand response = this.remotingClient.invokeSync(null, request, timeoutMillis);
         assert response != null;
         switch (response.getCode()) {

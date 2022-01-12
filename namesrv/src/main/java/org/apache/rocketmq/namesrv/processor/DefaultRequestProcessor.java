@@ -309,11 +309,12 @@ public class DefaultRequestProcessor extends AsyncNettyRequestProcessor implemen
         final GetRouteInfoRequestHeader requestHeader = (GetRouteInfoRequestHeader) request.decodeCommandCustomHeader(GetRouteInfoRequestHeader.class);
 
         RouteInfoManager routeInfoManager = this.namesrvController.getRouteInfoManager();
-        TopicRouteData topicRouteData = routeInfoManager.pickupTopicRouteData(requestHeader.getTopic());
+        String topic = requestHeader.getTopic();
+        TopicRouteData topicRouteData = routeInfoManager.pickupTopicRouteData(topic);
 
         if (topicRouteData != null) {
             if (this.namesrvController.getNamesrvConfig().isOrderMessageEnable()) {
-                String orderTopicConf = this.namesrvController.getKvConfigManager().getKVConfig(NamesrvUtil.NAMESPACE_ORDER_TOPIC_CONFIG, requestHeader.getTopic());
+                String orderTopicConf = this.namesrvController.getKvConfigManager().getKVConfig(NamesrvUtil.NAMESPACE_ORDER_TOPIC_CONFIG, topic);
                 topicRouteData.setOrderTopicConf(orderTopicConf);
             }
 
@@ -325,7 +326,7 @@ public class DefaultRequestProcessor extends AsyncNettyRequestProcessor implemen
         }
 
         response.setCode(ResponseCode.TOPIC_NOT_EXIST);
-        response.setRemark("No topic route info in name server for the topic: " + requestHeader.getTopic() + FAQUrl.suggestTodo(FAQUrl.APPLY_TOPIC_URL));
+        response.setRemark("No topic route info in name server for the topic: " + topic + FAQUrl.suggestTodo(FAQUrl.APPLY_TOPIC_URL));
         return response;
     }
 

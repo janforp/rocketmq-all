@@ -701,6 +701,14 @@ public class MQClientInstance {
         }
     }
 
+    /**
+     * 生产者发送消息的时候会调用该方法去 nameServer 上拿到该 主题的路由信息
+     *
+     * @param topic 主题
+     * @param isDefault 是否默认
+     * @param defaultMQProducer 发送方
+     * @return 成功失败
+     */
     public boolean updateTopicRouteInfoFromNameServer(final String topic, boolean isDefault, DefaultMQProducer defaultMQProducer) {
         try {
             if (this.lockNamesrv.tryLock(LOCK_TIMEOUT_MILLIS, TimeUnit.MILLISECONDS)) {
@@ -717,13 +725,11 @@ public class MQClientInstance {
                             }
                         }
                     } else {
-
                         // 到 namesrv 上拉去最新的主题路由数据
                         topicRouteData = this.mQClientAPIImpl.getTopicRouteInfoFromNameServer(topic, 1000 * 3);
                     }
 
                     if (topicRouteData != null) {
-
                         // 获取当前客户端本地的路由数据
                         TopicRouteData old = this.topicRouteTable.get(topic);
                         // 判断路由数据是否发送变化（本地跟远程的差异）

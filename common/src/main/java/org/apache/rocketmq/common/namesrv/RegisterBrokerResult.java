@@ -10,5 +10,6 @@ public class RegisterBrokerResult {
 
     private String masterAddr;
 
+    // 里面封装了一个 hashMap
     private KVTable kvTable;
 }

@@ -595,17 +595,12 @@ public class DefaultMQProducerImpl implements MQProducerInner {
     }
 
     private SendResult sendDefaultImpl(
-
             Message msg,
-
             // 发送模式
             final CommunicationMode communicationMode,
-
             // 回调，同步发送的时候这个参数是空，只有异步的时候才有值
             final SendCallback sendCallback,
-
             final long timeout)
-
             throws MQClientException, RemotingException, MQBrokerException, InterruptedException {
 
         // 确定生产者状态是运行中，否则抛出异常
@@ -623,7 +618,8 @@ public class DefaultMQProducerImpl implements MQProducerInner {
         // 本轮发送结束时间
         long endTimestamp = beginTimestampFirst;
         // 获取当前主题的发布信息，需要依赖它里面的 MessageQueues 信息选择队列后面去发送消息使用
-        TopicPublishInfo topicPublishInfo = this.tryToFindTopicPublishInfo(msg.getTopic());
+        String topic = msg.getTopic();
+        TopicPublishInfo topicPublishInfo = this.tryToFindTopicPublishInfo(topic);
         if (topicPublishInfo != null && topicPublishInfo.ok()) {
             boolean callTimeout = false; // 是否超时
             MessageQueue mq = null; // 选中的队列
@@ -1396,9 +1392,9 @@ public class DefaultMQProducerImpl implements MQProducerInner {
      * DEFAULT SYNC -------------------------------------------------------
      */
     public SendResult send(Message msg) throws MQClientException, RemotingException, MQBrokerException, InterruptedException {
-
         // 默认3s
-        return send(msg, this.defaultMQProducer.getSendMsgTimeout());
+        int sendMsgTimeout = this.defaultMQProducer.getSendMsgTimeout();
+        return send(msg, sendMsgTimeout);
     }
 
     public void endTransaction(final SendResult sendResult, final LocalTransactionState localTransactionState, final Throwable localException) throws RemotingException, MQBrokerException, InterruptedException, UnknownHostException {

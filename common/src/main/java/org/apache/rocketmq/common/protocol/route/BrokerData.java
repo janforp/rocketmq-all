@@ -19,14 +19,14 @@ import java.util.Random;
 public class BrokerData implements Comparable<BrokerData> {
 
     /**
-     * 集群名称
+     * 集群名称，brokerClusterName=rocketmq-cluster
      */
     @Getter
     @Setter
     private String cluster;
 
     /**
-     * 节点名称
+     * 节点名称，如：broker-a
      */
     @Getter
     @Setter
