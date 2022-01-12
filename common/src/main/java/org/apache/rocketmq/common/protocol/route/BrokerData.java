@@ -7,12 +7,19 @@ import lombok.ToString;
 import org.apache.rocketmq.common.MixAll;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Random;
 
 /**
- * broker 信息
+ * broker 信息,包括主从 broker，只要 brokerName 相关的 broker 都会封装在一个对象中，其实都是有配置决定
+ *
+ * @see broker.properties
+ * #broker名字，注意此处不同的配置文件填写的不一样
+ * brokerName=broker-a
+ * #0 表示 Master，>0 表示 Slave
+ * brokerId=0
  */
 @ToString
 @NoArgsConstructor
@@ -36,10 +43,15 @@ public class BrokerData implements Comparable<BrokerData> {
      * 地址
      * key:brokerId值为0的机器节点为master,其他为slave
      * value:服务IP地址，列：192.168.0.1:210000
+     *
+     * #broker名字，注意此处不同的配置文件填写的不一样
+     * brokerName=broker-a
+     * #0 表示 Master，>0 表示 Slave
+     * brokerId=0
      */
     @Getter
     @Setter
-    private HashMap<Long/* brokerId */, String/* broker address */> brokerAddrs;
+    private HashMap<Long/* brokerId,如 0  */, String/* broker address 如 127.0.0.1:10911*/> brokerAddrs;
 
     private final Random random = new Random();
 
@@ -63,8 +75,12 @@ public class BrokerData implements Comparable<BrokerData> {
     public String selectBrokerAddr() {
         String addr = this.brokerAddrs.get(MixAll.MASTER_ID);
 
+        // master 优先，如果没有则用 slave
         if (addr == null) {
-            List<String> addrs = new ArrayList<String>(brokerAddrs.values());
+            // 如 127.0.0.1:10911
+            Collection<String> brokerAddress = brokerAddrs.values();
+            List<String> addrs = new ArrayList<String>(brokerAddress);
+            // 随机
             return addrs.get(random.nextInt(addrs.size()));
         }
 

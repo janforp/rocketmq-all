@@ -46,6 +46,7 @@ import java.io.UnsupportedEncodingException;
 import java.util.Properties;
 import java.util.concurrent.atomic.AtomicLong;
 
+@SuppressWarnings("all")
 @AllArgsConstructor
 public class DefaultRequestProcessor extends AsyncNettyRequestProcessor implements NettyRequestProcessor {
 
@@ -176,14 +177,18 @@ public class DefaultRequestProcessor extends AsyncNettyRequestProcessor implemen
             registerBrokerBody.getTopicConfigSerializeWrapper().getDataVersion().setTimestamp(0);
         }
 
-        RegisterBrokerResult result = this.namesrvController.getRouteInfoManager()
-                .registerBroker(requestHeader.getClusterName(), requestHeader.getBrokerAddr(), requestHeader.getBrokerName(), requestHeader.getBrokerId(), requestHeader.getHaServerAddr(), registerBrokerBody.getTopicConfigSerializeWrapper(),
-                        registerBrokerBody.getFilterServerList(), ctx.channel());
+        RouteInfoManager routeInfoManager = this.namesrvController.getRouteInfoManager();
+        RegisterBrokerResult result = routeInfoManager.registerBroker(
+                requestHeader.getClusterName(), requestHeader.getBrokerAddr(),
+                requestHeader.getBrokerName(), requestHeader.getBrokerId(),
+                requestHeader.getHaServerAddr(), registerBrokerBody.getTopicConfigSerializeWrapper(),
+                registerBrokerBody.getFilterServerList(), ctx.channel());
 
         responseHeader.setHaServerAddr(result.getHaServerAddr());
         responseHeader.setMasterAddr(result.getMasterAddr());
 
-        byte[] jsonValue = this.namesrvController.getKvConfigManager().getKVListByNamespace(NamesrvUtil.NAMESPACE_ORDER_TOPIC_CONFIG);
+        KVConfigManager kvConfigManager = this.namesrvController.getKvConfigManager();
+        byte[] jsonValue = kvConfigManager.getKVListByNamespace(NamesrvUtil.NAMESPACE_ORDER_TOPIC_CONFIG);
         response.setBody(jsonValue);
 
         response.setCode(ResponseCode.SUCCESS);

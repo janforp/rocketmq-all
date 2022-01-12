@@ -69,21 +69,25 @@ public class RouteInfoManager {
      * <p>
      * Broker基础信息.所在集群名称、brokerName以及主备Broker地址
      */
-    private final HashMap<String/* brokerName，如：broker-a */, BrokerData> brokerAddrTable;
+    private final HashMap<String/* brokerName，如：broker-a */, BrokerData /* broker 信息,包括主从 broker，只要 brokerName 相关的 broker 都会封装在一个对象中，其实都是有配置决定 */> brokerAddrTable;
 
     /**
      * broker的集群对应关系
      * <p>
      * Broker集群信息,存储各个集群下所有Broker的名称
+     *
+     * #broker名字，注意此处不同的配置文件填写的不一样
+     * brokerName=broker-a
      */
     private final HashMap<String/* clusterName 集群名称 */, Set<String/* brokerName */> /*某个集群下面的所有 broker 名称集合*/> clusterAddrTable;
 
     /**
      * broker最新的心跳时间和配置版本号
      * <p>
-     * Broker状态信息,心跳包会更新
+     * Broker状态信息,心跳包会更新，
+     * 每次 broker 向 namesrv 发送心跳之后，就会更新这个映射表
      */
-    private final HashMap<String/* brokerAddr */, BrokerLiveInfo> brokerLiveTable;
+    private final HashMap<String/* brokerAddr，如 127.0.0.1:10911 */, BrokerLiveInfo /*封装了该broker最近心跳的时间,broker是否存活也依赖该时间*/> brokerLiveTable;
 
     /**
      * broker和FilterServer的对应关系
@@ -152,17 +156,18 @@ public class RouteInfoManager {
             try {
                 this.lock.writeLock().lockInterruptibly();
                 // 获取当前集群上的 broker 列表
-                // HashMap<String/* clusterName */, Set<String/* brokerName */>> clusterAddrTable;
+                // HashMap<String/* clusterName 集群名称 */, Set<String/* brokerName */> /*某个集群下面的所有 broker 名称集合*/> clusterAddrTable;
                 Set<String> brokerNames = this.clusterAddrTable.computeIfAbsent(clusterName, k -> new HashSet<>() /* 如果当前 集群名称 还没有对于的 Set，则新创建一个空集合赛进去 */);
                 // 如果为空，则说明是第一次注册
                 // 添加新集群映射数据
                 // key 集群名称
                 // value 集群brokerNames
                 // 当前的broker添加到集合
+                // 某个集群下面的所有 broker 名称集合
                 brokerNames.add(brokerName);
                 // 是否首次注册？
                 boolean registerFirst = false;
-                // HashMap<String/* brokerName，如：broker-a */, BrokerData> brokerAddrTable;
+                // HashMap<String/* brokerName，如：broker-a */, BrokerData /* broker 信息,包括主从 broker，只要 brokerName 相关的 broker 都会封装在一个对象中，其实都是有配置决定 */> brokerAddrTable;
                 BrokerData brokerData = this.brokerAddrTable.get(brokerName);
                 if (null == brokerData) {
                     // 说明当前 broker 是首次注册
@@ -183,7 +188,8 @@ public class RouteInfoManager {
                 brokerAddrsMap.entrySet().removeIf(item -> null != brokerAddr && brokerAddr.equals(item.getValue()) && brokerId != item.getKey());
 
                 // 重写
-                String oldAddr = brokerData.getBrokerAddrs().put(brokerId, brokerAddr);
+                HashMap<Long, String> brokerDataBrokerAddrs = brokerData.getBrokerAddrs();
+                String oldAddr = brokerDataBrokerAddrs.put(brokerId, brokerAddr);
                 registerFirst = registerFirst || (null == oldAddr);
 
                 if (null != topicConfigWrapper && MixAll.MASTER_ID == brokerId) {
@@ -195,7 +201,8 @@ public class RouteInfoManager {
                         if (tcTable != null) {
                             // 加入 或者 更新到 namesrv中
                             for (Map.Entry<String, TopicConfig> entry : tcTable.entrySet()) {
-                                this.createAndUpdateQueueData(brokerName, entry.getValue());
+                                TopicConfig topicConfig = entry.getValue();
+                                this.createAndUpdateQueueData(brokerName, topicConfig);
                             }
                         }
                     }
@@ -205,7 +212,8 @@ public class RouteInfoManager {
 
                 // 返回上次心态时 当前 broker 节点的存活数据对象
                 DataVersion dataVersion = topicConfigWrapper.getDataVersion();
-                BrokerLiveInfo prevBrokerLiveInfo = this.brokerLiveTable.put(brokerAddr, new BrokerLiveInfo(System.currentTimeMillis(), dataVersion, channel, haServerAddr));
+                BrokerLiveInfo liveInfo = new BrokerLiveInfo(System.currentTimeMillis(), dataVersion, channel, haServerAddr);
+                BrokerLiveInfo prevBrokerLiveInfo = this.brokerLiveTable.put(brokerAddr, liveInfo);
                 if (null == prevBrokerLiveInfo) {
                     // 说明时新注册
                     log.info("new broker registered, {} HAServer: {}", brokerAddr, haServerAddr);
@@ -267,12 +275,13 @@ public class RouteInfoManager {
 
     private void createAndUpdateQueueData(final String brokerName, final TopicConfig topicConfig) {
         QueueData queueData = new QueueData();
-        queueData.setBrokerName(brokerName);
+        queueData.setBrokerName(brokerName /* 配置 broker-a*/);
         queueData.setWriteQueueNums(topicConfig.getWriteQueueNums());
         queueData.setReadQueueNums(topicConfig.getReadQueueNums());
         queueData.setPerm(topicConfig.getPerm());
         queueData.setTopicSynFlag(topicConfig.getTopicSysFlag());
         String topicName = topicConfig.getTopicName();
+        // HashMap<String/* topic */, List<QueueData> /*该主题下面的各个队列的属性*/> topicQueueTable
         List<QueueData> queueDataList = this.topicQueueTable.get(topicName);
         if (null == queueDataList) {
             queueDataList = new LinkedList<>();
