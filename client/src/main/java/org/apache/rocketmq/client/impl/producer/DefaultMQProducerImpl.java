@@ -14,6 +14,7 @@ import org.apache.rocketmq.client.hook.SendMessageContext;
 import org.apache.rocketmq.client.hook.SendMessageHook;
 import org.apache.rocketmq.client.impl.CommunicationMode;
 import org.apache.rocketmq.client.impl.MQAdminImpl;
+import org.apache.rocketmq.client.impl.MQClientAPIImpl;
 import org.apache.rocketmq.client.impl.MQClientManager;
 import org.apache.rocketmq.client.impl.factory.MQClientInstance;
 import org.apache.rocketmq.client.latency.MQFaultStrategy;
@@ -937,6 +938,7 @@ public class DefaultMQProducerImpl implements MQProducerInner {
 
                 // 发送结果
                 SendResult sendResult = null;
+                MQClientAPIImpl mqClientAPIImpl = this.mQClientFactory.getMQClientAPIImpl();
                 switch (communicationMode) {
                     case ASYNC:
                         Message tmpMessage = msg;
@@ -962,9 +964,9 @@ public class DefaultMQProducerImpl implements MQProducerInner {
                         if (timeout < costTimeAsync) {
                             throw new RemotingTooMuchRequestException("sendKernelImpl call timeout");
                         }
-                        sendResult = this.mQClientFactory.getMQClientAPIImpl()
-                                .sendMessage(brokerAddr, mq.getBrokerName(), tmpMessage, requestHeader, timeout - costTimeAsync, communicationMode, sendCallback, topicPublishInfo, this.mQClientFactory,
-                                        this.defaultMQProducer.getRetryTimesWhenSendAsyncFailed(), context, this);
+                        sendResult = mqClientAPIImpl.sendMessage(brokerAddr, mq.getBrokerName(), tmpMessage, requestHeader,
+                                timeout - costTimeAsync, communicationMode, sendCallback, topicPublishInfo,
+                                this.mQClientFactory, this.defaultMQProducer.getRetryTimesWhenSendAsyncFailed(), context, this);
                         break;
                     case ONEWAY:
                     case SYNC:
@@ -974,11 +976,8 @@ public class DefaultMQProducerImpl implements MQProducerInner {
                             // 超时了，干！
                             throw new RemotingTooMuchRequestException("sendKernelImpl call timeout");
                         }
-
-                        // ！！！！ TODO 发送了
-                        sendResult = this.mQClientFactory.getMQClientAPIImpl(). // MQClientAPIImpl
-
-                                sendMessage(brokerAddr, mq.getBrokerName(), msg, requestHeader, timeout - costTimeSync, communicationMode, context, this);
+                        // ！！！！  发送了
+                        sendResult = mqClientAPIImpl.sendMessage(brokerAddr, mq.getBrokerName(), msg, requestHeader, timeout - costTimeSync, communicationMode, context, this);
                         break;
                     default:
                         assert false;

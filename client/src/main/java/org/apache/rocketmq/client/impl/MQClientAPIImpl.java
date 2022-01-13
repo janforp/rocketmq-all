@@ -447,17 +447,9 @@ public class MQClientAPIImpl {
         return null;
     }
 
-    private SendResult sendMessageSync(
-            final String addr,
-            final String brokerName,
-            final Message msg,
-            final long timeoutMillis,
-            final RemotingCommand request
-    ) throws RemotingException, MQBrokerException, InterruptedException {
-
+    private SendResult sendMessageSync(final String addr, final String brokerName, final Message msg, final long timeoutMillis, final RemotingCommand request) throws RemotingException, MQBrokerException, InterruptedException {
         RemotingCommand response = this.remotingClient.invokeSync(addr, request, timeoutMillis);
         assert response != null;
-
         return this.processSendResponse(brokerName, msg, response);
     }
 

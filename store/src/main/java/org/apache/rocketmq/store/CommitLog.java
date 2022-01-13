@@ -662,7 +662,7 @@ public class CommitLog {
 
         final int tranType = MessageSysFlag.getTransactionValue(msg.getSysFlag());
         if (tranType == MessageSysFlag.TRANSACTION_NOT_TYPE || tranType == MessageSysFlag.TRANSACTION_COMMIT_TYPE) {
-
+            // 如果是非事务或者是提交事务消息，则进来
             // Delay Delivery
 
             // 可能是重试消息，也可能是用户指定的延迟消息
@@ -710,11 +710,7 @@ public class CommitLog {
             msg.setStoreTimestamp(beginLockTimestamp);
 
             // 获取当前顺序写的 mf
-            if (null == mappedFile // 说明 commitlog 目录是空的
-
-                    // 文件写满了
-                    || mappedFile.isFull()) {
-
+            if (null == mappedFile/*说明 commitlog 目录是空的*/ || mappedFile.isFull()/*文件写满了*/) {
                 // 传0会创建mf
                 mappedFile = this.mappedFileQueue.getLastMappedFile(0); // Mark: NewFile may be cause noise
             }
@@ -1679,6 +1675,7 @@ public class CommitLog {
         private final ByteBuffer msgIdV6Memory;
 
         // Store the message content
+        @Getter
         private final ByteBuffer msgStoreItemMemory;
 
         // The maximum length of the message
@@ -1696,10 +1693,9 @@ public class CommitLog {
             this.maxMessageSize = size;
         }
 
-        public ByteBuffer getMsgStoreItemMemory() {
-            return msgStoreItemMemory;
-        }
-
+        /**
+         * 向 commitLog 中追加消息
+         */
         public AppendMessageResult doAppend(final long fileFromOffset, final ByteBuffer byteBuffer, final int maxBlank, final MessageExtBrokerInner msgInner) {
             // STORETIMESTAMP + STOREHOSTADDRESS + OFFSET <br>
 
