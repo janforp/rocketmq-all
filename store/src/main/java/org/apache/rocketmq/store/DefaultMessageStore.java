@@ -70,7 +70,7 @@ public class DefaultMessageStore implements MessageStore {
     // 清理过去文件
     private final CleanCommitLogService cleanCommitLogService;
 
-    // 清理过去文件
+    // 清理 cq 文件
     private final CleanConsumeQueueService cleanConsumeQueueService;
 
     // 分配内存映射文件的服务
@@ -83,6 +83,7 @@ public class DefaultMessageStore implements MessageStore {
     @Getter
     private final HAService haService;
 
+    // 延迟消息
     @Getter
     private final ScheduleMessageService scheduleMessageService;
 
@@ -144,10 +145,13 @@ public class DefaultMessageStore implements MessageStore {
         this.flushConsumeQueueService = new FlushConsumeQueueService();
         // 定时清理 commigLog 文件，节省磁盘空间
         this.cleanCommitLogService = new CleanCommitLogService();
+        // 清理 cq 文件
         this.cleanConsumeQueueService = new CleanConsumeQueueService();
         this.storeStatsService = new StoreStatsService();
+        // 索引
         this.indexService = new IndexService(this);
 
+        // 主从复制相关服务
         if (!messageStoreConfig.isEnableDLegerCommitLog()) {
             this.haService = new HAService(this);
         } else {
@@ -165,6 +169,7 @@ public class DefaultMessageStore implements MessageStore {
         this.dispatcherList.addLast(new CommitLogDispatcherBuildConsumeQueue());
         this.dispatcherList.addLast(new CommitLogDispatcherBuildIndex());
         File file = new File(StorePathConfigHelper.getLockFile(messageStoreConfig.getStorePathRootDir()));
+        // 创建 lock 文件
         MappedFile.ensureDirOK(file.getParent());
         lockFile = new RandomAccessFile(file, "rw");
     }
@@ -1786,17 +1791,20 @@ public class DefaultMessageStore implements MessageStore {
 
         private void deleteExpiredFiles() {
             int deleteLogicsFilesInterval = DefaultMessageStore.this.getMessageStoreConfig().getDeleteConsumeQueueFilesInterval();
-
+            // commitLog 文件中的最小时间戳
             long minOffset = DefaultMessageStore.this.commitLog.getMinOffset();
-            if (minOffset > this.lastPhysicalMinOffset) {
+            if (minOffset/* commitLog 文件中的最小时间戳*/ > this.lastPhysicalMinOffset/*consumequeue中的最小offset*/) {
+
+                // 删除 minOffset 之前的 cq 数据
                 this.lastPhysicalMinOffset = minOffset;
+                // 各主题队列的情况
+                ConcurrentMap<String/* topic */, ConcurrentMap<Integer/* queueId */, ConsumeQueue>> tables = DefaultMessageStore.this.consumeQueueTable;
 
-                ConcurrentMap<String, ConcurrentMap<Integer, ConsumeQueue>> tables = DefaultMessageStore.this.consumeQueueTable;
+                for (ConcurrentMap<Integer/* queueId */, ConsumeQueue> maps : tables.values()) {
 
-                for (ConcurrentMap<Integer, ConsumeQueue> maps : tables.values()) {
+                    // 遍历每个 ConsumeQueue
                     for (ConsumeQueue logic : maps.values()) {
                         int deleteCount = logic.deleteExpiredFile(minOffset);
-
                         if (deleteCount > 0 && deleteLogicsFilesInterval > 0) {
                             try {
                                 Thread.sleep(deleteLogicsFilesInterval);
