@@ -16,6 +16,7 @@ import org.apache.rocketmq.store.config.BrokerRole;
 import org.apache.rocketmq.store.config.FlushDiskType;
 import org.apache.rocketmq.store.config.MessageStoreConfig;
 import org.apache.rocketmq.store.ha.HAService;
+import org.apache.rocketmq.store.ha.WaitNotifyObject;
 import org.apache.rocketmq.store.schedule.ScheduleMessageService;
 
 import java.net.Inet6Address;
@@ -29,6 +30,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import java.util.concurrent.atomic.AtomicLong;
 
 /**
  * 提交日志，顺序写入
@@ -611,19 +613,14 @@ public class CommitLog {
             return false;
         }
 
-        if (this.defaultMessageStore.getMessageStoreConfig().isMessageIndexEnable()
-                && this.defaultMessageStore.getMessageStoreConfig().isMessageIndexSafe()) {
+        if (this.defaultMessageStore.getMessageStoreConfig().isMessageIndexEnable() && this.defaultMessageStore.getMessageStoreConfig().isMessageIndexSafe()) {
             if (storeTimestamp <= this.defaultMessageStore.getStoreCheckpoint().getMinTimestampIndex()) {
-                log.info("find check timestamp, {} {}",
-                        storeTimestamp,
-                        UtilAll.timeMillisToHumanString(storeTimestamp));
+                log.info("find check timestamp, {} {}", storeTimestamp, UtilAll.timeMillisToHumanString(storeTimestamp));
                 return true;
             }
         } else {
             if (storeTimestamp <= this.defaultMessageStore.getStoreCheckpoint().getMinTimestamp()) {
-                log.info("find check timestamp, {} {}",
-                        storeTimestamp,
-                        UtilAll.timeMillisToHumanString(storeTimestamp));
+                log.info("find check timestamp, {} {}", storeTimestamp, UtilAll.timeMillisToHumanString(storeTimestamp));
                 return true;
             }
         }
@@ -649,10 +646,12 @@ public class CommitLog {
         // Set the message body BODY CRC (consider the most appropriate setting
         // on the client)
         // 计算 body 的CRC 值
-        msg.setBodyCRC(UtilAll.crc32(msg.getBody()));
+        int crc32 = UtilAll.crc32(msg.getBody());
+        msg.setBodyCRC(crc32);
         // Back to Results
         AppendMessageResult result;
 
+        // 统计
         StoreStatsService storeStatsService = this.defaultMessageStore.getStoreStatsService();
 
         // 消息的主题
@@ -663,10 +662,12 @@ public class CommitLog {
         final int tranType = MessageSysFlag.getTransactionValue(msg.getSysFlag());
         if (tranType == MessageSysFlag.TRANSACTION_NOT_TYPE || tranType == MessageSysFlag.TRANSACTION_COMMIT_TYPE) {
             // 如果是非事务或者是提交事务消息，则进来
-            // Delay Delivery
 
             // 可能是重试消息，也可能是用户指定的延迟消息
             if (msg.getDelayTimeLevel() > 0 /* 当前消息是需要延迟的 */) {
+
+                // Delay Delivery 延迟消息的特殊逻辑
+
                 if (msg.getDelayTimeLevel() > this.defaultMessageStore.getScheduleMessageService().getMaxDelayLevel()) {
                     msg.setDelayTimeLevel(this.defaultMessageStore.getScheduleMessageService().getMaxDelayLevel());
                 }
@@ -724,6 +725,7 @@ public class CommitLog {
             // 正常情况会继续往下执行
 
             result = mappedFile.appendMessage(msg, this.appendMessageCallback);
+
             switch (result.getStatus()) {
                 case PUT_OK: // 成功
                     break;
@@ -766,7 +768,7 @@ public class CommitLog {
             log.warn("[NOTIFYME]putMessage in lock cost time(ms)={}, bodyLength={} AppendMessageResult={}", elapsedTimeInLock, msg.getBody().length, result);
         }
 
-        if (null != unlockMappedFile && this.defaultMessageStore.getMessageStoreConfig().isWarmMapedFileEnable()) {
+        if (null != unlockMappedFile && this.defaultMessageStore.getMessageStoreConfig().isWarmMapedFileEnable()/*预热*/) {
             // 解锁
             this.defaultMessageStore.unlockMappedFile(unlockMappedFile);
         }
@@ -774,15 +776,26 @@ public class CommitLog {
         PutMessageResult putMessageResult = new PutMessageResult(PutMessageStatus.PUT_OK, result);
 
         // Statistics
-        storeStatsService.getSinglePutMessageTopicTimesTotal(msg.getTopic()).incrementAndGet();
-        storeStatsService.getSinglePutMessageTopicSizeTotal(topic).addAndGet(result.getWroteBytes());
+        String msgTopic = msg.getTopic();
+        AtomicLong topicTimesTotal = storeStatsService.getSinglePutMessageTopicTimesTotal(msgTopic);
+        topicTimesTotal.incrementAndGet();
+
+        AtomicLong topicSizeTotal = storeStatsService.getSinglePutMessageTopicSizeTotal(topic);
+        // 本次写入的字节数
+        int wroteBytes = result.getWroteBytes();
+        topicSizeTotal.addAndGet(wroteBytes);
 
         // 通知刷盘线程
         CompletableFuture<PutMessageStatus> flushResultFuture = submitFlushRequest(result, putMessageResult, msg);
 
-        // HA 相关的
+        // HA 相关的,提交主从复制任务
         CompletableFuture<PutMessageStatus> replicaResultFuture = submitReplicaRequest(result, putMessageResult, msg);
-        return flushResultFuture.thenCombine(replicaResultFuture, (flushStatus, replicaStatus) -> {
+
+        // 等待2个任务完成再返回
+        return flushResultFuture/*先刷盘任务*/.thenCombine(replicaResultFuture/*再主从复制任务*/, (flushStatus/*刷盘任务结果*/, replicaStatus/*主从复制任务结果*/) -> {
+
+            // 2个任务都完成之后，拿到2个结果，在这里统一处理
+
             if (flushStatus != PutMessageStatus.PUT_OK) {
                 putMessageResult.setPutMessageStatus(PutMessageStatus.FLUSH_DISK_TIMEOUT);
             }
@@ -1019,13 +1032,18 @@ public class CommitLog {
         return putMessageResult;
     }
 
-    public CompletableFuture<PutMessageStatus> submitFlushRequest(AppendMessageResult result, PutMessageResult putMessageResult,
-            MessageExt messageExt) {
+    public CompletableFuture<PutMessageStatus> submitFlushRequest(AppendMessageResult result/*写消息结果*/, PutMessageResult putMessageResult/*new PutMessageResult(PutMessageStatus.PUT_OK, result)*/, MessageExt messageExt) {
         // Synchronization flush
-        if (FlushDiskType.SYNC_FLUSH == this.defaultMessageStore.getMessageStoreConfig().getFlushDiskType()) {
+        FlushDiskType flushDiskType = this.defaultMessageStore.getMessageStoreConfig().getFlushDiskType();
+        if (FlushDiskType.SYNC_FLUSH == flushDiskType) {
             final GroupCommitService service = (GroupCommitService) this.flushCommitLogService;
             if (messageExt.isWaitStoreMsgOK()) {
-                GroupCommitRequest request = new GroupCommitRequest(result.getWroteOffset() + result.getWroteBytes(), this.defaultMessageStore.getMessageStoreConfig().getSyncFlushTimeout());
+
+                long nextOffset = result.getWroteOffset() + result.getWroteBytes();
+                int syncFlushTimeout = this.defaultMessageStore.getMessageStoreConfig().getSyncFlushTimeout();
+                GroupCommitRequest request = new GroupCommitRequest(nextOffset, syncFlushTimeout);
+
+                // 提交到刷盘服务中
                 service.putRequest(request);
                 return request.future();
             } else {
@@ -1035,6 +1053,8 @@ public class CommitLog {
         }
         // Asynchronous flush
         else {
+            // ASYNC_FLUSH 异步刷盘
+
             if (!this.defaultMessageStore.getMessageStoreConfig().isTransientStorePoolEnable()) {
                 flushCommitLogService.wakeup();
             } else {
@@ -1044,14 +1064,33 @@ public class CommitLog {
         }
     }
 
+    // 提交副本请求
     public CompletableFuture<PutMessageStatus> submitReplicaRequest(AppendMessageResult result, PutMessageResult putMessageResult, MessageExt messageExt) {
-        if (BrokerRole.SYNC_MASTER == this.defaultMessageStore.getMessageStoreConfig().getBrokerRole()) {
+        /*
+         * ASYNC_MASTER,
+         * SYNC_MASTER,
+         * SLAVE
+         */
+        BrokerRole brokerRole = this.defaultMessageStore.getMessageStoreConfig().getBrokerRole();
+
+        // 同步复制，需要等待
+        if (BrokerRole.SYNC_MASTER == brokerRole) {
             HAService service = this.defaultMessageStore.getHaService();
             if (messageExt.isWaitStoreMsgOK()) {
-                if (service.isSlaveOK(result.getWroteBytes() + result.getWroteOffset())) {
-                    GroupCommitRequest request = new GroupCommitRequest(result.getWroteOffset() + result.getWroteBytes(), this.defaultMessageStore.getMessageStoreConfig().getSyncFlushTimeout());
+
+                long nextOffset = result.getWroteBytes() + result.getWroteOffset();
+
+                if (service.isSlaveOK(nextOffset)) {
+                    int syncFlushTimeout = this.defaultMessageStore.getMessageStoreConfig().getSyncFlushTimeout();
+
+                    GroupCommitRequest request = new GroupCommitRequest(nextOffset, syncFlushTimeout);
+
+                    // 提交任务
                     service.putRequest(request);
-                    service.getWaitNotifyObject().wakeupAll();
+
+                    WaitNotifyObject waitNotifyObject = service.getWaitNotifyObject();
+                    // 唤醒
+                    waitNotifyObject.wakeupAll();
                     return request.future();
                 } else {
                     return CompletableFuture.completedFuture(PutMessageStatus.SLAVE_NOT_AVAILABLE);
@@ -1848,7 +1887,7 @@ public class CommitLog {
                 case MessageSysFlag.TRANSACTION_NOT_TYPE:
                 case MessageSysFlag.TRANSACTION_COMMIT_TYPE:
                     // The next update ConsumeQueue information
-                    CommitLog.this.topicQueueTable.put(key, ++queueOffset);
+                    CommitLog.this.topicQueueTable.put(key, ++queueOffset/*该队列添加了一条消息，则逻辑偏移量++*/);
                     break;
                 default:
                     break;

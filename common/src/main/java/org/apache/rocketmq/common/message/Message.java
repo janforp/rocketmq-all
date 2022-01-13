@@ -147,7 +147,7 @@ public class Message implements Serializable {
     }
 
     public boolean isWaitStoreMsgOK() {
-        String result = this.getProperty(MessageConst.PROPERTY_WAIT_STORE_MSG_OK);
+        String result = this.getProperty(MessageConst.PROPERTY_WAIT_STORE_MSG_OK/*WAIT*/);
         if (null == result) {
             return true;
         }

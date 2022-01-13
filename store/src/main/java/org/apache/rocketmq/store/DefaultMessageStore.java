@@ -466,7 +466,9 @@ public class DefaultMessageStore implements MessageStore {
             this.storeStatsService.setPutMessageEntireTimeMax(elapsedTime);
 
             if (null == result || !result.isOk()) {
-                this.storeStatsService.getPutMessageFailedTimes().incrementAndGet();
+                // 失败次数 +1
+                AtomicLong putMessageFailedTimes = this.storeStatsService.getPutMessageFailedTimes();
+                putMessageFailedTimes.incrementAndGet();
             }
         });
 

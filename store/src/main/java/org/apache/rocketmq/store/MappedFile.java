@@ -82,7 +82,7 @@ public class MappedFile extends ReferenceResource {
     @Getter
     private MappedByteBuffer mappedByteBuffer;
 
-    // 该文件下保存的第一条msg 的存储时间
+    // 该文件最近msg 的存储时间
     @Getter
     private volatile long storeTimestamp = 0;
 
@@ -150,8 +150,8 @@ public class MappedFile extends ReferenceResource {
     private static ByteBuffer viewed(ByteBuffer buffer) {
         String methodName = "viewedBuffer";
         Method[] methods = buffer.getClass().getMethods();
-        for (int i = 0; i < methods.length; i++) {
-            if (methods[i].getName().equals("attachment")) {
+        for (Method method : methods) {
+            if (method.getName().equals("attachment")) {
                 methodName = "attachment";
                 break;
             }

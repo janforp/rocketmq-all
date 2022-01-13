@@ -1,18 +1,19 @@
 package org.apache.rocketmq.store;
 
-import java.text.MessageFormat;
-import java.util.HashMap;
-import java.util.LinkedList;
-import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ConcurrentMap;
-import java.util.concurrent.atomic.AtomicLong;
-import java.util.concurrent.locks.ReentrantLock;
-
+import lombok.AllArgsConstructor;
+import lombok.Getter;
 import org.apache.rocketmq.common.ServiceThread;
 import org.apache.rocketmq.common.constant.LoggerName;
 import org.apache.rocketmq.logging.InternalLogger;
 import org.apache.rocketmq.logging.InternalLoggerFactory;
+
+import java.text.MessageFormat;
+import java.util.HashMap;
+import java.util.LinkedList;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.locks.ReentrantLock;
 
 public class StoreStatsService extends ServiceThread {
 
@@ -28,18 +29,22 @@ public class StoreStatsService extends ServiceThread {
 
     private static int printTPSInterval = 60 * 1;
 
+    @Getter
     private final AtomicLong putMessageFailedTimes = new AtomicLong(0);
 
-    private final ConcurrentMap<String, AtomicLong> putMessageTopicTimesTotal =
-            new ConcurrentHashMap<String, AtomicLong>(128);
+    @Getter
+    private final ConcurrentMap<String, AtomicLong> putMessageTopicTimesTotal = new ConcurrentHashMap<String, AtomicLong>(128);
 
-    private final ConcurrentMap<String, AtomicLong> putMessageTopicSizeTotal =
-            new ConcurrentHashMap<String, AtomicLong>(128);
+    @Getter
+    private final ConcurrentMap<String, AtomicLong> putMessageTopicSizeTotal = new ConcurrentHashMap<String, AtomicLong>(128);
 
+    @Getter
     private final AtomicLong getMessageTimesTotalFound = new AtomicLong(0);
 
+    @Getter
     private final AtomicLong getMessageTransferedMsgCount = new AtomicLong(0);
 
+    @Getter
     private final AtomicLong getMessageTimesTotalMiss = new AtomicLong(0);
 
     private final LinkedList<CallSnapshot> putTimesList = new LinkedList<CallSnapshot>();
@@ -529,22 +534,6 @@ public class StoreStatsService extends ServiceThread {
         }
     }
 
-    public AtomicLong getGetMessageTimesTotalFound() {
-        return getMessageTimesTotalFound;
-    }
-
-    public AtomicLong getGetMessageTimesTotalMiss() {
-        return getMessageTimesTotalMiss;
-    }
-
-    public AtomicLong getGetMessageTransferedMsgCount() {
-        return getMessageTransferedMsgCount;
-    }
-
-    public AtomicLong getPutMessageFailedTimes() {
-        return putMessageFailedTimes;
-    }
-
     public AtomicLong getSinglePutMessageTopicSizeTotal(String topic) {
         AtomicLong rs = putMessageTopicSizeTotal.get(topic);
         if (null == rs) {
@@ -569,31 +558,17 @@ public class StoreStatsService extends ServiceThread {
         return rs;
     }
 
-    public Map<String, AtomicLong> getPutMessageTopicTimesTotal() {
-        return putMessageTopicTimesTotal;
-    }
-
-    public Map<String, AtomicLong> getPutMessageTopicSizeTotal() {
-        return putMessageTopicSizeTotal;
-    }
-
+    @AllArgsConstructor
     static class CallSnapshot {
 
         public final long timestamp;
 
         public final long callTimesTotal;
 
-        public CallSnapshot(long timestamp, long callTimesTotal) {
-            this.timestamp = timestamp;
-            this.callTimesTotal = callTimesTotal;
-        }
-
         public static double getTPS(final CallSnapshot begin, final CallSnapshot end) {
             long total = end.callTimesTotal - begin.callTimesTotal;
-            Long time = end.timestamp - begin.timestamp;
-
-            double tps = total / time.doubleValue();
-
+            long time = end.timestamp - begin.timestamp;
+            double tps = total / (double) time;
             return tps * 1000;
         }
     }
