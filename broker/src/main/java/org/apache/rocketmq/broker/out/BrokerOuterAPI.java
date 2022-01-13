@@ -186,12 +186,7 @@ public class BrokerOuterAPI {
         throw new MQBrokerException(response.getCode(), response.getRemark());
     }
 
-    public void unregisterBrokerAll(
-            final String clusterName,
-            final String brokerAddr,
-            final String brokerName,
-            final long brokerId
-    ) {
+    public void unregisterBrokerAll(final String clusterName, final String brokerAddr, final String brokerName, final long brokerId) {
         List<String> nameServerAddressList = this.remotingClient.getNameServerAddressList();
         if (nameServerAddressList != null) {
             for (String namesrvAddr : nameServerAddressList) {
@@ -232,63 +227,57 @@ public class BrokerOuterAPI {
         throw new MQBrokerException(response.getCode(), response.getRemark());
     }
 
-    public List<Boolean> needRegister(
-            final String clusterName,
-            final String brokerAddr,
-            final String brokerName,
-            final long brokerId,
-            final TopicConfigSerializeWrapper topicConfigWrapper,
-            final int timeoutMills) {
+    public List<Boolean> needRegister(final String clusterName, final String brokerAddr, final String brokerName, final long brokerId, final TopicConfigSerializeWrapper topicConfigWrapper, final int timeoutMills) {
         final List<Boolean> changedList = new CopyOnWriteArrayList<>();
+        // 拿到本地配置的 namesrv 地址
         List<String> nameServerAddressList = this.remotingClient.getNameServerAddressList();
         if (nameServerAddressList != null && nameServerAddressList.size() > 0) {
             final CountDownLatch countDownLatch = new CountDownLatch(nameServerAddressList.size());
             for (final String namesrvAddr : nameServerAddressList) {
-                brokerOuterExecutor.execute(new Runnable() {
-                    @Override
-                    public void run() {
-                        try {
-                            QueryDataVersionRequestHeader requestHeader = new QueryDataVersionRequestHeader();
-                            requestHeader.setBrokerAddr(brokerAddr);
-                            requestHeader.setBrokerId(brokerId);
-                            requestHeader.setBrokerName(brokerName);
-                            requestHeader.setClusterName(clusterName);
-                            RemotingCommand request = RemotingCommand.createRequestCommand(RequestCode.QUERY_DATA_VERSION, requestHeader);
-                            request.setBody(topicConfigWrapper.getDataVersion().encode());
-                            RemotingCommand response = remotingClient.invokeSync(namesrvAddr, request, timeoutMills);
-                            DataVersion nameServerDataVersion = null;
-                            Boolean changed = false;
-                            switch (response.getCode()) {
-                                case ResponseCode.SUCCESS: {
-                                    QueryDataVersionResponseHeader queryDataVersionResponseHeader =
-                                            (QueryDataVersionResponseHeader) response.decodeCommandCustomHeader(QueryDataVersionResponseHeader.class);
-                                    changed = queryDataVersionResponseHeader.getChanged();
-                                    byte[] body = response.getBody();
-                                    if (body != null) {
-                                        nameServerDataVersion = DataVersion.decode(body, DataVersion.class);
-                                        if (!topicConfigWrapper.getDataVersion().equals(nameServerDataVersion)) {
-                                            changed = true;
-                                        }
-                                    }
-                                    if (changed == null || changed) {
-                                        changedList.add(Boolean.TRUE);
-                                    }
+                // 遍历每个 namesrv
+
+                brokerOuterExecutor.execute(() -> {
+                    try {
+                        QueryDataVersionRequestHeader requestHeader = new QueryDataVersionRequestHeader();
+                        requestHeader.setBrokerAddr(brokerAddr);
+                        requestHeader.setBrokerId(brokerId);
+                        requestHeader.setBrokerName(brokerName);
+                        requestHeader.setClusterName(clusterName);
+                        RemotingCommand request = RemotingCommand.createRequestCommand(RequestCode.QUERY_DATA_VERSION, requestHeader);
+                        request.setBody(topicConfigWrapper.getDataVersion().encode());
+                        RemotingCommand response = remotingClient.invokeSync(namesrvAddr, request, timeoutMills);
+                        DataVersion nameServerDataVersion = null;
+                        Boolean changed = false;
+                        if (response.getCode() == ResponseCode.SUCCESS) {
+                            QueryDataVersionResponseHeader queryDataVersionResponseHeader = (QueryDataVersionResponseHeader) response.decodeCommandCustomHeader(QueryDataVersionResponseHeader.class);
+                            changed = queryDataVersionResponseHeader.getChanged();
+                            byte[] body = response.getBody();
+                            if (body != null) {
+                                nameServerDataVersion = DataVersion.decode(body, DataVersion.class);
+                                if (!topicConfigWrapper.getDataVersion().equals(nameServerDataVersion)) {
+                                    // 本地跟远程的宝贝不同了
+                                    changed = true;
                                 }
-                                default:
-                                    break;
                             }
-                            log.warn("Query data version from name server {} OK,changed {}, broker {},name server {}", namesrvAddr, changed, topicConfigWrapper.getDataVersion(), nameServerDataVersion == null ? "" : nameServerDataVersion);
-                        } catch (Exception e) {
-                            changedList.add(Boolean.TRUE);
-                            log.error("Query data version from name server {}  Exception, {}", namesrvAddr, e);
-                        } finally {
-                            countDownLatch.countDown();
+                            if (changed == null || changed) {
+                                changedList.add(Boolean.TRUE);
+                            }
                         }
+                        log.warn("Query data version from name server {} OK,changed {}, broker {},name server {}", namesrvAddr, changed, topicConfigWrapper.getDataVersion(), nameServerDataVersion == null ? "" : nameServerDataVersion);
+                    } catch (Exception e) {
+                        changedList.add(Boolean.TRUE);
+                        log.error("Query data version from name server {}  Exception, {}", namesrvAddr, e);
+                    } finally {
+
+                        // 完成一个则递减一个
+                        countDownLatch.countDown();
                     }
                 });
 
             }
             try {
+
+                // 等待所有 namesrv 的 QUERY_DATA_VERSION 接口返回
                 countDownLatch.await(timeoutMills, TimeUnit.MILLISECONDS);
             } catch (InterruptedException e) {
                 log.error("query dataversion from nameserver countDownLatch await Exception", e);

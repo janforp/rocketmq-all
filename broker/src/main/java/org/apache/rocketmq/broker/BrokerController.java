@@ -909,6 +909,8 @@ public class BrokerController {
         if (!messageStoreConfig.isEnableDLegerCommitLog()) {
             startProcessorByHa(messageStoreConfig.getBrokerRole());
             handleSlaveSynchronize(messageStoreConfig.getBrokerRole());
+
+            // 把当前 broker 注册到 namesrv 服务
             this.registerBrokerAll(true, false, true);
         }
 
@@ -949,8 +951,9 @@ public class BrokerController {
         doRegisterBrokerAll(true, false, topicConfigSerializeWrapper);
     }
 
-    public synchronized void registerBrokerAll(final boolean checkOrderConfig, boolean oneway, boolean forceRegister) {
-        TopicConfigSerializeWrapper topicConfigWrapper = this.getTopicConfigManager().buildTopicConfigSerializeWrapper();
+    public synchronized void registerBrokerAll(final boolean checkOrderConfig /*true*/, boolean oneway/*false*/, boolean forceRegister/*true*/) {
+        TopicConfigManager topicConfigManager = this.getTopicConfigManager();
+        TopicConfigSerializeWrapper topicConfigWrapper = topicConfigManager.buildTopicConfigSerializeWrapper();
 
         if (!PermName.isWriteable(this.getBrokerConfig().getBrokerPermission()) || !PermName.isReadable(this.getBrokerConfig().getBrokerPermission())) {
             ConcurrentHashMap<String, TopicConfig> topicConfigTable = new ConcurrentHashMap<>();
@@ -985,8 +988,9 @@ public class BrokerController {
                 if (this.updateMasterHAServerAddrPeriodically && registerBrokerResult.getHaServerAddr() != null) {
                     this.messageStore.updateHaMasterAddress(registerBrokerResult.getHaServerAddr());
                 }
-
-                this.slaveSynchronize.setMasterAddr(registerBrokerResult.getMasterAddr());
+                String masterAddr = registerBrokerResult.getMasterAddr();
+                // 用于 slave 节点从 master 上同步数据
+                this.slaveSynchronize.setMasterAddr(masterAddr);
 
                 if (checkOrderConfig) {
                     this.getTopicConfigManager().updateOrderTopicConfig(registerBrokerResult.getKvTable());

@@ -209,18 +209,23 @@ public class DefaultRequestProcessor extends AsyncNettyRequestProcessor implemen
         return true;
     }
 
+    /**
+     * broker 在注册到 namesrv 之前，发起请求询问 namesrv 是否发送变化
+     */
     private RemotingCommand queryBrokerTopicConfig(ChannelHandlerContext ctx, RemotingCommand request) throws RemotingCommandException {
         final RemotingCommand response = RemotingCommand.createResponseCommand(QueryDataVersionResponseHeader.class);
         final QueryDataVersionResponseHeader responseHeader = (QueryDataVersionResponseHeader) response.readCustomHeader();
         final QueryDataVersionRequestHeader requestHeader = (QueryDataVersionRequestHeader) request.decodeCommandCustomHeader(QueryDataVersionRequestHeader.class);
         DataVersion dataVersion = DataVersion.decode(request.getBody(), DataVersion.class);
 
-        Boolean changed = this.namesrvController.getRouteInfoManager().isBrokerTopicConfigChanged(requestHeader.getBrokerAddr(), dataVersion);
+        RouteInfoManager routeInfoManager = this.namesrvController.getRouteInfoManager();
+        String brokerAddr = requestHeader.getBrokerAddr();
+        Boolean changed = routeInfoManager.isBrokerTopicConfigChanged(brokerAddr, dataVersion);
         if (!changed) {
-            this.namesrvController.getRouteInfoManager().updateBrokerInfoUpdateTimestamp(requestHeader.getBrokerAddr());
+            routeInfoManager.updateBrokerInfoUpdateTimestamp(brokerAddr);
         }
 
-        DataVersion nameSeverDataVersion = this.namesrvController.getRouteInfoManager().queryBrokerTopicConfig(requestHeader.getBrokerAddr());
+        DataVersion nameSeverDataVersion = routeInfoManager.queryBrokerTopicConfig(brokerAddr);
         response.setCode(ResponseCode.SUCCESS);
         response.setRemark(null);
 

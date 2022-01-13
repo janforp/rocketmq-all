@@ -246,6 +246,10 @@ public class RequestCode {
 
     public static final int QUERY_CONSUME_QUEUE = 321;
 
+    /**
+     * @see org.apache.rocketmq.broker.out.BrokerOuterAPI#needRegister(java.lang.String, java.lang.String, java.lang.String, long, org.apache.rocketmq.common.protocol.body.TopicConfigSerializeWrapper, int)
+     * @see org.apache.rocketmq.namesrv.processor.DefaultRequestProcessor#queryBrokerTopicConfig(io.netty.channel.ChannelHandlerContext, org.apache.rocketmq.remoting.protocol.RemotingCommand)
+     */
     public static final int QUERY_DATA_VERSION = 322;
 
     /**
