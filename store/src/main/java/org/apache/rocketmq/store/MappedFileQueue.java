@@ -405,6 +405,7 @@ public class MappedFileQueue {
      * @param cleanImmediately true:强制删除不考虑过期时间这个条件
      * @return 删除的数量
      */
+    @SuppressWarnings("all")
     public int deleteExpiredFileByTime(final long expiredTime, final int deleteFilesInterval, final long intervalForcibly, final boolean cleanImmediately) {
 
         // 复制
@@ -427,17 +428,12 @@ public class MappedFileQueue {
                 // 上次修改时间 + 过期时间 = 当前文件存活时间截止点
                 long liveMaxTimestamp = mappedFile.getLastModifiedTimestamp() + expiredTime;
 
-                if (System.currentTimeMillis() >= liveMaxTimestamp // 文件存活时间达到上限
-
-                        // 目录 disk 占用率达到上限的时候会设置该参数为 true ，强制删除
-                        || cleanImmediately) {
+                if (System.currentTimeMillis() >= liveMaxTimestamp/*文件存活时间达到上限*/ || cleanImmediately /*目录 disk 占用率达到上限的时候会设置该参数为 true ，强制删除*/) {
                     // 如果当前文件已经很久没修改了，或者要求立即删除，则进入该分支
-
                     if (mappedFile.destroy(intervalForcibly)) {
                         // 成功，加入删除列表
                         files.add(mappedFile);
                         deleteCount++;
-
                         if (files.size() >= DELETE_FILES_BATCH_MAX) {
                             // 如果超过了每次删除的最大数量，则停止了
                             break;
@@ -445,7 +441,6 @@ public class MappedFileQueue {
 
                         if (deleteFilesInterval > 0 && (i + 1) < mfsLength) {
                             try {
-
                                 // 间隔一段时间
                                 Thread.sleep(deleteFilesInterval);
                             } catch (InterruptedException e) {
@@ -692,7 +687,6 @@ public class MappedFileQueue {
                 return result;
             }
         }
-
         return false;
     }
 

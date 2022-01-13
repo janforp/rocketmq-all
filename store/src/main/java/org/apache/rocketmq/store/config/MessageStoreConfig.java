@@ -4,6 +4,7 @@ import lombok.Getter;
 import lombok.Setter;
 import org.apache.rocketmq.common.annotation.ImportantField;
 import org.apache.rocketmq.store.ConsumeQueue;
+import org.apache.rocketmq.store.DefaultMessageStore;
 
 import java.io.File;
 
@@ -259,6 +260,9 @@ public class MessageStoreConfig {
     @Setter
     private long flushDelayOffsetInterval = 1000 * 10;
 
+    /**
+     * @see DefaultMessageStore.CleanCommitLogService#deleteExpiredFiles()
+     */
     @ImportantField
     @Getter
     @Setter

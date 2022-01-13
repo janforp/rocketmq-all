@@ -142,6 +142,7 @@ public class DefaultMessageStore implements MessageStore {
 
         // 刷新 ConsumeQueue 队列的服务
         this.flushConsumeQueueService = new FlushConsumeQueueService();
+        // 定时清理 commigLog 文件，节省磁盘空间
         this.cleanCommitLogService = new CleanCommitLogService();
         this.cleanConsumeQueueService = new CleanConsumeQueueService();
         this.storeStatsService = new StoreStatsService();
@@ -1616,6 +1617,7 @@ public class DefaultMessageStore implements MessageStore {
 
         private final double diskSpaceCleanForciblyRatio = Double.parseDouble(System.getProperty("rocketmq.broker.diskSpaceCleanForciblyRatio", "0.85"));
 
+        // redeleteHangedFile
         private long lastRedeleteTimestamp = 0;
 
         @Getter
@@ -1640,33 +1642,36 @@ public class DefaultMessageStore implements MessageStore {
 
         private void deleteExpiredFiles() {
             int deleteCount = 0;
+            // 在删除之前保留日志文件的小时数（以小时为单位），默认 72 h 也就是 3天
             long fileReservedTime = DefaultMessageStore.this.getMessageStoreConfig().getFileReservedTime();
+            // 默认100
             int deletePhysicFilesInterval = DefaultMessageStore.this.getMessageStoreConfig().getDeleteCommitLogFilesInterval();
+            // 默认120s
             int destroyMapedFileIntervalForcibly = DefaultMessageStore.this.getMessageStoreConfig().getDestroyMapedFileIntervalForcibly();
 
+            // 是否到了时间
             boolean timeup = this.isTimeToDelete();
+            // 空间是否快满了？
             boolean spacefull = this.isSpaceToDelete();
+            // 是否人员手动删除？
             boolean manualDelete = this.manualDeleteFileSeveralTimes > 0;
 
             if (timeup || spacefull || manualDelete) {
+                // 满足任意条件就进入
 
                 if (manualDelete) {
                     this.manualDeleteFileSeveralTimes--;
                 }
 
+                // 是否立即删除？
                 boolean cleanAtOnce = DefaultMessageStore.this.getMessageStoreConfig().isCleanFileForciblyEnable() && this.cleanImmediately;
 
-                log.info("begin to delete before {} hours file. timeup: {} spacefull: {} manualDeleteFileSeveralTimes: {} cleanAtOnce: {}",
-                        fileReservedTime,
-                        timeup,
-                        spacefull,
-                        manualDeleteFileSeveralTimes,
-                        cleanAtOnce);
+                log.info("begin to delete before {} hours file. timeup: {} spacefull: {} manualDeleteFileSeveralTimes: {} cleanAtOnce: {}", fileReservedTime, timeup, spacefull, manualDeleteFileSeveralTimes, cleanAtOnce);
 
                 fileReservedTime *= 60 * 60 * 1000;
 
-                deleteCount = DefaultMessageStore.this.commitLog.deleteExpiredFile(fileReservedTime, deletePhysicFilesInterval,
-                        destroyMapedFileIntervalForcibly, cleanAtOnce);
+                // 删除
+                deleteCount = DefaultMessageStore.this.commitLog.deleteExpiredFile(fileReservedTime, deletePhysicFilesInterval, destroyMapedFileIntervalForcibly, cleanAtOnce);
                 if (deleteCount > 0) {
                     // empty
                 } else if (spacefull) {
@@ -1676,12 +1681,12 @@ public class DefaultMessageStore implements MessageStore {
         }
 
         private void redeleteHangedFile() {
+            // 删除 hang 住的文件的间隔时间
             int interval = DefaultMessageStore.this.getMessageStoreConfig().getRedeleteHangedFileInterval();
             long currentTimestamp = System.currentTimeMillis();
             if ((currentTimestamp - this.lastRedeleteTimestamp) > interval) {
                 this.lastRedeleteTimestamp = currentTimestamp;
-                int destroyMapedFileIntervalForcibly =
-                        DefaultMessageStore.this.getMessageStoreConfig().getDestroyMapedFileIntervalForcibly();
+                int destroyMapedFileIntervalForcibly = DefaultMessageStore.this.getMessageStoreConfig().getDestroyMapedFileIntervalForcibly();
                 if (DefaultMessageStore.this.commitLog.retryDeleteFirstFile(destroyMapedFileIntervalForcibly)) {
                     // empty
                 }
