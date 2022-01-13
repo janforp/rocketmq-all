@@ -8,6 +8,7 @@ import org.apache.rocketmq.common.constant.LoggerName;
 import org.apache.rocketmq.logging.InternalLogger;
 import org.apache.rocketmq.logging.InternalLoggerFactory;
 import org.apache.rocketmq.store.config.BrokerRole;
+import org.apache.rocketmq.store.config.FlushDiskType;
 
 import java.io.File;
 import java.io.IOException;
@@ -187,7 +188,10 @@ public class AllocateMappedFileService extends ServiceThread {
                 // pre write mappedFile
                 if (mappedFile.getFileSize() >= this.messageStore.getMessageStoreConfig().getMappedFileSizeCommitLog() && this.messageStore.getMessageStoreConfig().isWarmMapedFileEnable()) {
                     // 预热
-                    mappedFile.warmMappedFile(this.messageStore.getMessageStoreConfig().getFlushDiskType(), this.messageStore.getMessageStoreConfig().getFlushLeastPagesWhenWarmMapedFile());
+                    FlushDiskType flushDiskType = this.messageStore.getMessageStoreConfig().getFlushDiskType();
+                    // 1024 / 4 * 16 = 16
+                    int flushLeastPagesWhenWarmMapedFile = this.messageStore.getMessageStoreConfig().getFlushLeastPagesWhenWarmMapedFile();
+                    mappedFile.warmMappedFile(flushDiskType, flushLeastPagesWhenWarmMapedFile);
                 }
 
                 req.setMappedFile(mappedFile);

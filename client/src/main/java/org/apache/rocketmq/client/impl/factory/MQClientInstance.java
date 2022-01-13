@@ -71,6 +71,9 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 
+/**
+ * https://blog.csdn.net/prestigeding/article/details/91476328
+ */
 @SuppressWarnings("all")
 public class MQClientInstance {
 
@@ -741,9 +744,7 @@ public class MQClientInstance {
                         } else {
                             log.info("the topic[{}] route info changed, old[{}] ,new[{}]", topic, old, topicRouteData);
                         }
-
                         if (changed) {
-
                             // 克隆
                             TopicRouteData cloneTopicRouteData = topicRouteData.cloneTopicRouteData();
 

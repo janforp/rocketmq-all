@@ -582,10 +582,15 @@ public class MappedFile extends ReferenceResource {
     }
 
     /**
-     * 内存映射文件预热
+     * 内存映射文件预热，
      *
-     * @param type
-     * @param pages
+     * 既然空文件和写入1G字节虚拟内存映射都是1G大小，写入1G大小的意义呢？
+     *
+     * 使用mmap()内存分配时，只是建立了进程虚拟地址空间，并没有分配虚拟内存对应的物理内存。当进程访问这些没有建立映射关系的虚拟内存时，处理器自动触发一个缺页异常，进而进入内核空间分配物理内存、更新进程缓存表，最后返回用户空间，回复进程运行。
+     *
+     * 小结：写入这些假值的意义在于实际分配物理内存，在消息写入时防止缺页异常
+     *
+     * @see <a href="https://yongliangcode.github.io/posts/708c22d7/">MQ25# RocketMQ存储--映射文件预热</a>
      */
     public void warmMappedFile(FlushDiskType type, int pages) {
         long beginTime = System.currentTimeMillis();
@@ -607,6 +612,11 @@ public class MappedFile extends ReferenceResource {
                 log.info("j={}, costTime={}", j, System.currentTimeMillis() - time);
                 time = System.currentTimeMillis();
                 try {
+                    /*
+                     * 每当写入1000个字节的额时候，执行
+                     * 当前线程放弃CPU进入就绪状态，重新竞争CPU
+                     * 防止一直独占CPU
+                     */
                     Thread.sleep(0);
                 } catch (InterruptedException e) {
                     log.error("Interrupted", e);
@@ -616,13 +626,14 @@ public class MappedFile extends ReferenceResource {
 
         // force flush when prepare load finished
         if (type == FlushDiskType.SYNC_FLUSH) {
-            log.info("mapped file warm-up done, force to disk, mappedFile={}, costTime={}",
-                    this.getFileName(), System.currentTimeMillis() - beginTime);
+            log.info("mapped file warm-up done, force to disk, mappedFile={}, costTime={}", this.getFileName(), System.currentTimeMillis() - beginTime);
+
+            // 同步刷盘时将未落盘的数据写入磁盘
             mappedByteBuffer.force();
         }
-        log.info("mapped file warm-up done. mappedFile={}, costTime={}", this.getFileName(),
-                System.currentTimeMillis() - beginTime);
+        log.info("mapped file warm-up done. mappedFile={}, costTime={}", this.getFileName(), System.currentTimeMillis() - beginTime);
 
+        // 内存锁定
         this.mlock();
     }
 
@@ -630,6 +641,9 @@ public class MappedFile extends ReferenceResource {
         return this.mappedByteBuffer.slice();
     }
 
+    /**
+     * 内存锁定
+     */
     public void mlock() {
         final long beginTime = System.currentTimeMillis();
         final long address = ((DirectBuffer) (this.mappedByteBuffer)).address();

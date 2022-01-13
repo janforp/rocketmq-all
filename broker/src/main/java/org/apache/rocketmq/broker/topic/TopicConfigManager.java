@@ -151,7 +151,7 @@ public class TopicConfigManager extends ConfigManager {
 
     //key是topicName，value是主题对应的配置
     @Getter
-    private final ConcurrentMap<String/*主题，如：order*/, TopicConfig/*主题配置*/> topicConfigTable = new ConcurrentHashMap<String, TopicConfig>(1024);
+    private final ConcurrentMap<String/*主题，如：order*/, TopicConfig/*主题配置*/> topicConfigTable = new ConcurrentHashMap<>(1024);
 
     //配置的版本
     @Getter
@@ -186,7 +186,7 @@ public class TopicConfigManager extends ConfigManager {
                 String topic = MixAll.AUTO_CREATE_TOPIC_KEY_TOPIC;
                 TopicConfig topicConfig = new TopicConfig(topic);
                 this.systemTopicList.add(topic);
-                topicConfig.setReadQueueNums(brokerConfig.getDefaultTopicQueueNums());
+                topicConfig.setReadQueueNums(brokerConfig.getDefaultTopicQueueNums()/*8*/);
                 topicConfig.setWriteQueueNums(brokerConfig.getDefaultTopicQueueNums());
                 int perm = PermName.PERM_INHERIT | PermName.PERM_READ | PermName.PERM_WRITE;
                 topicConfig.setPerm(perm);
