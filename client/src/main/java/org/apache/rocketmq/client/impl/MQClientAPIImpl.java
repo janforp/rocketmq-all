@@ -236,16 +236,13 @@ public class MQClientAPIImpl {
         this.remotingClient.shutdown();
     }
 
-    public void createSubscriptionGroup(final String addr, final SubscriptionGroupConfig config,
-            final long timeoutMillis)
-            throws RemotingException, MQBrokerException, InterruptedException, MQClientException {
+    public void createSubscriptionGroup(final String addr, final SubscriptionGroupConfig config, final long timeoutMillis) throws RemotingException, MQBrokerException, InterruptedException, MQClientException {
         RemotingCommand request = RemotingCommand.createRequestCommand(RequestCode.UPDATE_AND_CREATE_SUBSCRIPTIONGROUP, null);
 
         byte[] body = RemotingSerializable.encode(config);
         request.setBody(body);
 
-        RemotingCommand response = this.remotingClient.invokeSync(MixAll.brokerVIPChannel(this.clientConfig.isVipChannelEnabled(), addr),
-                request, timeoutMillis);
+        RemotingCommand response = this.remotingClient.invokeSync(MixAll.brokerVIPChannel(this.clientConfig.isVipChannelEnabled(), addr), request, timeoutMillis);
         assert response != null;
         if (response.getCode() == ResponseCode.SUCCESS) {
             return;

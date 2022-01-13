@@ -574,7 +574,7 @@ public class UtilAll {
         if (list == null || list.size() == 0) {
             return null;
         }
-        StringBuffer str = new StringBuffer();
+        StringBuilder str = new StringBuilder();
         for (int i = 0; i < list.size(); i++) {
             str.append(list.get(i));
             if (i == list.size() - 1) {
