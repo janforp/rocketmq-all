@@ -99,44 +99,26 @@ public class CommitLog {
     protected final PutMessageLock putMessageLock;
 
     public CommitLog(final DefaultMessageStore defaultMessageStore) {
+        MessageStoreConfig messageStoreConfig = defaultMessageStore.getMessageStoreConfig();
+
         this.mappedFileQueue = new MappedFileQueue(
-
-                /**
-                 * ystem.getProperty("user.home") + File.separator + "store" + File.separator + "commitlog";
-                 * @see MessageStoreConfig#storePathCommitLog
-                 */
-                defaultMessageStore.getMessageStoreConfig().getStorePathCommitLog(),
-
-                /**
-                 * 1024 * 1024 *1024 = 1G
-                 * @see MessageStoreConfig#mappedFileSizeCommitLog
-                 */
-                defaultMessageStore.getMessageStoreConfig().getMappedFileSizeCommitLog(),
-
-                /**
-                 * 里面有自己的线程，创建文件的时候可以通过该对象实现
-                 */
-                defaultMessageStore.getAllocateMappedFileService());
-
+                messageStoreConfig.getStorePathCommitLog(),/*commitlog目录*/messageStoreConfig.getMappedFileSizeCommitLog(),/*1G*/defaultMessageStore.getAllocateMappedFileService()/*里面有自己的线程，创建文件的时候可以通过该对象实现*/);
         this.defaultMessageStore = defaultMessageStore;
-
-        if (FlushDiskType.SYNC_FLUSH == defaultMessageStore.getMessageStoreConfig().getFlushDiskType()) {
+        if (FlushDiskType.SYNC_FLUSH == messageStoreConfig.getFlushDiskType()) {
             this.flushCommitLogService = new GroupCommitService();
         } else {
             //默认异步刷盘
             this.flushCommitLogService = new FlushRealTimeService();
         }
-
         this.commitLogService = new CommitRealTimeService();
-
-        this.appendMessageCallback = new DefaultAppendMessageCallback(defaultMessageStore.getMessageStoreConfig().getMaxMessageSize());
-        batchEncoderThreadLocal = ThreadLocal.withInitial(() -> new MessageExtBatchEncoder(defaultMessageStore.getMessageStoreConfig().getMaxMessageSize()));
+        this.appendMessageCallback = new DefaultAppendMessageCallback(messageStoreConfig.getMaxMessageSize());
+        batchEncoderThreadLocal = ThreadLocal.withInitial(() -> new MessageExtBatchEncoder(messageStoreConfig.getMaxMessageSize()));
 
         /**
          * 创建写锁
          * @see MessageStoreConfig#useReentrantLockWhenPutMessage 默认是自旋锁
          */
-        this.putMessageLock = defaultMessageStore.getMessageStoreConfig().isUseReentrantLockWhenPutMessage() ? new PutMessageReentrantLock() : new PutMessageSpinLock();
+        this.putMessageLock = messageStoreConfig.isUseReentrantLockWhenPutMessage() ? new PutMessageReentrantLock() : new PutMessageSpinLock();
 
     }
 
@@ -1405,20 +1387,12 @@ public class CommitLog {
         private long lastCommitTimestamp = 0;
 
         @Override
-        public String getServiceName() {
-            return CommitRealTimeService.class.getSimpleName();
-        }
-
-        @Override
         public void run() {
             CommitLog.log.info(this.getServiceName() + " service started");
             while (!this.isStopped()) {
                 int interval = CommitLog.this.defaultMessageStore.getMessageStoreConfig().getCommitIntervalCommitLog();
-
                 int commitDataLeastPages = CommitLog.this.defaultMessageStore.getMessageStoreConfig().getCommitCommitLogLeastPages();
-
-                int commitDataThoroughInterval =
-                        CommitLog.this.defaultMessageStore.getMessageStoreConfig().getCommitCommitLogThoroughInterval();
+                int commitDataThoroughInterval = CommitLog.this.defaultMessageStore.getMessageStoreConfig().getCommitCommitLogThoroughInterval();
 
                 long begin = System.currentTimeMillis();
                 if (begin >= (this.lastCommitTimestamp + commitDataThoroughInterval)) {
