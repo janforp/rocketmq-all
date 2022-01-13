@@ -1632,7 +1632,6 @@ public class DefaultMessageStore implements MessageStore {
         public void run() {
             try {
                 this.deleteExpiredFiles();
-
                 this.redeleteHangedFile();
             } catch (Throwable e) {
                 DefaultMessageStore.log.warn(this.getServiceName() + " service has exception. ", e);
@@ -1704,16 +1703,21 @@ public class DefaultMessageStore implements MessageStore {
         }
 
         private boolean isSpaceToDelete() {
+            // 默认0.75
             double ratio = DefaultMessageStore.this.getMessageStoreConfig().getDiskMaxUsedSpaceRatio() / 100.0;
 
             cleanImmediately = false;
 
             {
+                // /Users/zhuchenjian/Documents/code/learn/rocketmq/rocketmq-all/conf/home/broker/store/commitlog 目录
                 String storePathPhysic = DefaultMessageStore.this.getMessageStoreConfig().getStorePathCommitLog();
+
+                // 目录使用比例
                 double physicRatio = UtilAll.getDiskPartitionSpaceUsedPercent(storePathPhysic);
                 if (physicRatio > diskSpaceWarningLevelRatio) {
                     boolean diskok = DefaultMessageStore.this.runningFlags.getAndMakeDiskFull();
                     if (diskok) {
+                        // 达到了报警阈值
                         DefaultMessageStore.log.error("physic disk maybe full soon " + physicRatio + ", so mark disk full");
                     }
 
@@ -1734,8 +1738,8 @@ public class DefaultMessageStore implements MessageStore {
             }
 
             {
-                String storePathLogics = StorePathConfigHelper
-                        .getStorePathConsumeQueue(DefaultMessageStore.this.getMessageStoreConfig().getStorePathRootDir());
+                // /Users/zhuchenjian/Documents/code/learn/rocketmq/rocketmq-all/conf/home/broker/store/consumequeue 目录
+                String storePathLogics = StorePathConfigHelper.getStorePathConsumeQueue(DefaultMessageStore.this.getMessageStoreConfig().getStorePathRootDir());
                 double logicsRatio = UtilAll.getDiskPartitionSpaceUsedPercent(storePathLogics);
                 if (logicsRatio > diskSpaceWarningLevelRatio) {
                     boolean diskok = DefaultMessageStore.this.runningFlags.getAndMakeDiskFull();
