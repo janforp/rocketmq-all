@@ -94,6 +94,7 @@ public class BrokerConfig {
     @ImportantField
     private boolean fetchNamesrvAddrByAddressServer = false;
 
+    // Broker 服务器处理的排队队列，默认为 10000，如果队列中积压了 10000 个请求，则会抛出 RejectExecutionException。
     private int sendThreadPoolQueueCapacity = 10000;
 
     private int pullThreadPoolQueueCapacity = 100000;
@@ -144,6 +145,9 @@ public class BrokerConfig {
 
     private long consumerFallbehindThreshold = 1024L * 1024 * 1024 * 16;
 
+    /**
+     * @see org.apache.rocketmq.broker.latency.BrokerFastFailure
+     */
     private boolean brokerFastFailureEnable = true;
 
     private long waitTimeMillsInSendQueue = 200;

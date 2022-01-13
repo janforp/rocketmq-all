@@ -19,6 +19,7 @@ import org.apache.rocketmq.store.config.StorePathConfigHelper;
 import java.io.IOException;
 import java.util.concurrent.ConcurrentMap;
 
+// 负责各个配置的主从复制
 public class SlaveSynchronize {
 
     private static final InternalLogger log = InternalLoggerFactory.getLogger(LoggerName.BROKER_LOGGER_NAME);

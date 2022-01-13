@@ -1,5 +1,6 @@
 package org.apache.rocketmq.common.stats;
 
+import lombok.AllArgsConstructor;
 import lombok.Getter;
 import org.apache.rocketmq.common.UtilAll;
 import org.apache.rocketmq.logging.InternalLogger;
@@ -21,6 +22,7 @@ public class StatsItem {
 
     private final LinkedList<CallSnapshot> csListDay = new LinkedList<CallSnapshot>();
 
+    // 统计名称
     private final String statsName;
 
     private final String statsKey;
@@ -29,8 +31,7 @@ public class StatsItem {
 
     private final InternalLogger log;
 
-    public StatsItem(String statsName, String statsKey, ScheduledExecutorService scheduledExecutorService,
-            InternalLogger log) {
+    public StatsItem(String statsName, String statsKey, ScheduledExecutorService scheduledExecutorService, InternalLogger log) {
         this.statsName = statsName;
         this.statsKey = statsKey;
         this.scheduledExecutorService = scheduledExecutorService;
@@ -224,7 +225,9 @@ public class StatsItem {
     }
 }
 
+// 通话快照
 @Getter
+@AllArgsConstructor
 class CallSnapshot {
 
     private final long timestamp;
@@ -232,11 +235,4 @@ class CallSnapshot {
     private final long times;
 
     private final long value;
-
-    public CallSnapshot(long timestamp, long times, long value) {
-        super();
-        this.timestamp = timestamp;
-        this.times = times;
-        this.value = value;
-    }
 }

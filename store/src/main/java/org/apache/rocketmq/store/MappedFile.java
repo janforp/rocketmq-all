@@ -2,6 +2,17 @@ package org.apache.rocketmq.store;
 
 import com.sun.jna.NativeLong;
 import com.sun.jna.Pointer;
+import lombok.Getter;
+import lombok.Setter;
+import org.apache.rocketmq.common.UtilAll;
+import org.apache.rocketmq.common.constant.LoggerName;
+import org.apache.rocketmq.common.message.MessageExt;
+import org.apache.rocketmq.common.message.MessageExtBatch;
+import org.apache.rocketmq.logging.InternalLogger;
+import org.apache.rocketmq.logging.InternalLoggerFactory;
+import org.apache.rocketmq.store.config.FlushDiskType;
+import org.apache.rocketmq.store.util.LibC;
+import sun.nio.ch.DirectBuffer;
 
 import java.io.File;
 import java.io.FileNotFoundException;
@@ -16,16 +27,6 @@ import java.security.AccessController;
 import java.security.PrivilegedAction;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
-
-import org.apache.rocketmq.common.UtilAll;
-import org.apache.rocketmq.common.constant.LoggerName;
-import org.apache.rocketmq.logging.InternalLogger;
-import org.apache.rocketmq.logging.InternalLoggerFactory;
-import org.apache.rocketmq.common.message.MessageExt;
-import org.apache.rocketmq.common.message.MessageExtBatch;
-import org.apache.rocketmq.store.config.FlushDiskType;
-import org.apache.rocketmq.store.util.LibC;
-import sun.nio.ch.DirectBuffer;
 
 /**
  * commitLog 顺序写的文件
@@ -68,6 +69,7 @@ public class MappedFile extends ReferenceResource {
     protected TransientStorePool transientStorePool = null;
 
     // 文件名称(commitLog:文件名就是第一条消息的物理偏移量，consumerQueue：文件名也是第一条消息的偏移量，indexFile:文件名就是 年月日时分秒)
+    @Getter
     private String fileName;
 
     // 文件名称转long 偏移量
@@ -77,12 +79,16 @@ public class MappedFile extends ReferenceResource {
     private File file;
 
     // 内存映射缓冲区，访问虚拟内存
+    @Getter
     private MappedByteBuffer mappedByteBuffer;
 
     // 该文件下保存的第一条msg 的存储时间
+    @Getter
     private volatile long storeTimestamp = 0;
 
     // 当前对象在组内是否是第一个文件，则为true
+    @Getter
+    @Setter
     private boolean firstCreateInQueue = false;
 
     public MappedFile() {
@@ -542,7 +548,8 @@ public class MappedFile extends ReferenceResource {
 
                 // 删除
                 boolean result = this.file.delete();
-                log.info("delete file[REF:" + this.getRefCount() + "] " + this.fileName + (result ? " OK, " : " Failed, ") + "W:" + this.getWrotePosition() + " M:" + this.getFlushedPosition() + ", " + UtilAll.computeElapsedTimeMilliseconds(beginTime));
+                log.info("delete file[REF:" + this.getRefCount() + "] " + this.fileName + (result ? " OK, " : " Failed, ") + "W:" + this.getWrotePosition() + " M:" + this.getFlushedPosition() + ", " + UtilAll
+                        .computeElapsedTimeMilliseconds(beginTime));
             } catch (Exception e) {
                 log.warn("close file channel " + this.fileName + " Failed. ", e);
             }
@@ -619,28 +626,8 @@ public class MappedFile extends ReferenceResource {
         this.mlock();
     }
 
-    public String getFileName() {
-        return fileName;
-    }
-
-    public MappedByteBuffer getMappedByteBuffer() {
-        return mappedByteBuffer;
-    }
-
     public ByteBuffer sliceByteBuffer() {
         return this.mappedByteBuffer.slice();
-    }
-
-    public long getStoreTimestamp() {
-        return storeTimestamp;
-    }
-
-    public boolean isFirstCreateInQueue() {
-        return firstCreateInQueue;
-    }
-
-    public void setFirstCreateInQueue(boolean firstCreateInQueue) {
-        this.firstCreateInQueue = firstCreateInQueue;
     }
 
     public void mlock() {

@@ -54,6 +54,7 @@ public class DefaultMessageStore implements MessageStore {
 
     private static final InternalLogger log = InternalLoggerFactory.getLogger(LoggerName.STORE_LOGGER_NAME);
 
+    @Getter
     private final MessageStoreConfig messageStoreConfig;
 
     // CommitLog
@@ -63,6 +64,7 @@ public class DefaultMessageStore implements MessageStore {
 
     private final ConcurrentMap<String/* topic */, ConcurrentMap<Integer/* queueId */, ConsumeQueue>> consumeQueueTable;
 
+    // 刷新 ConsumeQueue 队列的服务
     private final FlushConsumeQueueService flushConsumeQueueService;
 
     // 清理过去文件
@@ -87,6 +89,7 @@ public class DefaultMessageStore implements MessageStore {
     @Getter
     private final StoreStatsService storeStatsService;
 
+    @Getter
     private final TransientStorePool transientStorePool;
 
     @Getter
@@ -99,6 +102,9 @@ public class DefaultMessageStore implements MessageStore {
     @Getter
     private final BrokerStatsManager brokerStatsManager;
 
+    /**
+     * @see org.apache.rocketmq.broker.longpolling.NotifyMessageArrivingListener
+     */
     private final MessageArrivingListener messageArrivingListener;
 
     private final BrokerConfig brokerConfig;
@@ -124,6 +130,8 @@ public class DefaultMessageStore implements MessageStore {
         this.brokerConfig = brokerConfig;
         this.messageStoreConfig = messageStoreConfig;
         this.brokerStatsManager = brokerStatsManager;
+
+        // 预先分配内存的线程服务
         this.allocateMappedFileService = new AllocateMappedFileService(this);
         if (messageStoreConfig.isEnableDLegerCommitLog()) {
             this.commitLog = new DLedgerCommitLog(this);
@@ -132,6 +140,7 @@ public class DefaultMessageStore implements MessageStore {
         }
         this.consumeQueueTable = new ConcurrentHashMap<>(32);
 
+        // 刷新 ConsumeQueue 队列的服务
         this.flushConsumeQueueService = new FlushConsumeQueueService();
         this.cleanCommitLogService = new CleanCommitLogService();
         this.cleanConsumeQueueService = new CleanConsumeQueueService();
@@ -1475,14 +1484,6 @@ public class DefaultMessageStore implements MessageStore {
         this.recoverTopicQueueTable();
     }
 
-    public MessageStoreConfig getMessageStoreConfig() {
-        return messageStoreConfig;
-    }
-
-    public TransientStorePool getTransientStorePool() {
-        return transientStorePool;
-    }
-
     private void putConsumeQueue(final String topic, final int queueId, final ConsumeQueue consumeQueue) {
         ConcurrentMap<Integer/* queueId */, ConsumeQueue> map = this.consumeQueueTable.get(topic);
         if (null == map) {
@@ -1805,6 +1806,9 @@ public class DefaultMessageStore implements MessageStore {
         }
     }
 
+    /**
+     * 刷新 ConsumeQueue 队列的服务
+     */
     class FlushConsumeQueueService extends ServiceThread {
 
         private static final int RETRY_TIMES_OVER = 3;
@@ -1813,7 +1817,7 @@ public class DefaultMessageStore implements MessageStore {
         private long lastFlushTimestamp = 0;
 
         private void doFlush(int retryTimes) {
-            int flushConsumeQueueLeastPages = DefaultMessageStore.this.getMessageStoreConfig().getFlushConsumeQueueLeastPages();
+            int flushConsumeQueueLeastPages = DefaultMessageStore.this.getMessageStoreConfig().getFlushConsumeQueueLeastPages()/*默认2*/;
 
             if (retryTimes == RETRY_TIMES_OVER) {
                 flushConsumeQueueLeastPages = 0;
@@ -1821,19 +1825,22 @@ public class DefaultMessageStore implements MessageStore {
 
             long logicsMsgTimestamp = 0;
 
-            int flushConsumeQueueThoroughInterval = DefaultMessageStore.this.getMessageStoreConfig().getFlushConsumeQueueThoroughInterval();
+            int flushConsumeQueueThoroughInterval = DefaultMessageStore.this.getMessageStoreConfig().getFlushConsumeQueueThoroughInterval()/*默认60s*/;
             long currentTimeMillis = System.currentTimeMillis();
             if (currentTimeMillis >= (this.lastFlushTimestamp + flushConsumeQueueThoroughInterval)) {
                 this.lastFlushTimestamp = currentTimeMillis;
 
                 // 满足了强制刷盘的条件
                 flushConsumeQueueLeastPages = 0;
-                logicsMsgTimestamp = DefaultMessageStore.this.getStoreCheckpoint().getLogicsMsgTimestamp();
+                StoreCheckpoint storeCheckpoint = DefaultMessageStore.this.getStoreCheckpoint();
+                logicsMsgTimestamp = storeCheckpoint.getLogicsMsgTimestamp();
             }
 
-            ConcurrentMap<String, ConcurrentMap<Integer, ConsumeQueue>> tables = DefaultMessageStore.this.consumeQueueTable;
+            ConcurrentMap<String/* topic */, ConcurrentMap<Integer/* queueId */, ConsumeQueue>> tables = DefaultMessageStore.this.consumeQueueTable;
 
-            for (ConcurrentMap<Integer, ConsumeQueue> maps : tables.values()) {
+            for (ConcurrentMap<Integer/* queueId */, ConsumeQueue> maps : tables.values()) {
+
+                // 遍历每个 cq
                 for (ConsumeQueue cq : maps.values()) {
                     boolean result = false;
                     for (int i = 0; i < retryTimes && !result; i++) {
@@ -1844,19 +1851,22 @@ public class DefaultMessageStore implements MessageStore {
 
             if (0 == flushConsumeQueueLeastPages) {
                 if (logicsMsgTimestamp > 0) {
-
-                    DefaultMessageStore.this.getStoreCheckpoint().setLogicsMsgTimestamp(logicsMsgTimestamp);
+                    StoreCheckpoint storeCheckpoint = DefaultMessageStore.this.getStoreCheckpoint();
+                    storeCheckpoint.setLogicsMsgTimestamp(logicsMsgTimestamp);
                 }
                 // checkPoint 刷盘
                 DefaultMessageStore.this.getStoreCheckpoint().flush();
             }
         }
 
+        @Override
         public void run() {
             DefaultMessageStore.log.info(this.getServiceName() + " service started");
 
             while (!this.isStopped()) {
                 try {
+
+                    // 配置文件中的刷新 CQ 的间隔时间
                     int interval = DefaultMessageStore.this.getMessageStoreConfig().getFlushIntervalConsumeQueue();
                     this.waitForRunning(interval);
                     this.doFlush(1);
@@ -1868,11 +1878,6 @@ public class DefaultMessageStore implements MessageStore {
             this.doFlush(RETRY_TIMES_OVER);
 
             DefaultMessageStore.log.info(this.getServiceName() + " service end");
-        }
-
-        @Override
-        public String getServiceName() {
-            return FlushConsumeQueueService.class.getSimpleName();
         }
 
         @Override

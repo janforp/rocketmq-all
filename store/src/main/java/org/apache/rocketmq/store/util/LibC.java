@@ -6,9 +6,12 @@ import com.sun.jna.NativeLong;
 import com.sun.jna.Platform;
 import com.sun.jna.Pointer;
 
+// TODO 啥东西？
 public interface LibC extends Library {
 
-    LibC INSTANCE = (LibC) Native.loadLibrary(Platform.isWindows() ? "msvcrt" : "c", LibC.class);
+    String name = (Platform.isWindows() ? "msvcrt" : "c");
+
+    LibC INSTANCE = (LibC) Native.loadLibrary(name, LibC.class);
 
     int MADV_WILLNEED = 3;
     int MADV_DONTNEED = 4;

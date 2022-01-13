@@ -1,17 +1,18 @@
 package org.apache.rocketmq.store.stats;
 
+import org.apache.rocketmq.common.ThreadFactoryImpl;
+import org.apache.rocketmq.common.constant.LoggerName;
+import org.apache.rocketmq.common.stats.MomentStatsItemSet;
+import org.apache.rocketmq.common.stats.StatsItem;
+import org.apache.rocketmq.common.stats.StatsItemSet;
+import org.apache.rocketmq.logging.InternalLogger;
+import org.apache.rocketmq.logging.InternalLoggerFactory;
+
 import java.util.HashMap;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 
-import org.apache.rocketmq.common.ThreadFactoryImpl;
-import org.apache.rocketmq.common.constant.LoggerName;
-import org.apache.rocketmq.logging.InternalLogger;
-import org.apache.rocketmq.logging.InternalLoggerFactory;
-import org.apache.rocketmq.common.stats.MomentStatsItemSet;
-import org.apache.rocketmq.common.stats.StatsItem;
-import org.apache.rocketmq.common.stats.StatsItemSet;
-
+// 统计相关
 public class BrokerStatsManager {
 
     public static final String TOPIC_PUT_NUMS = "TOPIC_PUT_NUMS";
@@ -36,7 +37,7 @@ public class BrokerStatsManager {
 
     public static final String BROKER_GET_FROM_DISK_SIZE = "BROKER_GET_FROM_DISK_SIZE";
 
-    // For commercial
+    // For commercial（商业？）
     public static final String COMMERCIAL_SEND_TIMES = "COMMERCIAL_SEND_TIMES";
 
     public static final String COMMERCIAL_SNDBCK_TIMES = "COMMERCIAL_SNDBCK_TIMES";
@@ -70,13 +71,11 @@ public class BrokerStatsManager {
 
     private static final InternalLogger COMMERCIAL_LOG = InternalLoggerFactory.getLogger(LoggerName.COMMERCIAL_LOGGER_NAME);
 
-    private final ScheduledExecutorService scheduledExecutorService = Executors.newSingleThreadScheduledExecutor(new ThreadFactoryImpl(
-            "BrokerStatsThread"));
+    private final ScheduledExecutorService scheduledExecutorService = Executors.newSingleThreadScheduledExecutor(new ThreadFactoryImpl("BrokerStatsThread"));
 
-    private final ScheduledExecutorService commercialExecutor = Executors.newSingleThreadScheduledExecutor(new ThreadFactoryImpl(
-            "CommercialStatsThread"));
+    private final ScheduledExecutorService commercialExecutor = Executors.newSingleThreadScheduledExecutor(new ThreadFactoryImpl("CommercialStatsThread"));
 
-    private final HashMap<String, StatsItemSet> statsTable = new HashMap<String, StatsItemSet>();
+    private final HashMap<String, StatsItemSet> statsTable = new HashMap<>();
 
     private final String clusterName;
 

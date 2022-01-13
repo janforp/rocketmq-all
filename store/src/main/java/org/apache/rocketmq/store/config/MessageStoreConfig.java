@@ -296,6 +296,7 @@ public class MessageStoreConfig {
     @Setter
     private boolean transientStorePoolEnable = false;
 
+    // 临时存储池大小
     @Getter
     @Setter
     private int transientStorePoolSize = 5;
@@ -350,6 +351,11 @@ public class MessageStoreConfig {
     /**
      * Enable transient commitLog store pool only if transientStorePoolEnable is true and the FlushDiskType is
      * ASYNC_FLUSH
+     *
+     * 仅当 transientStorePoolEnable 为 true 且 FlushDiskType 为 ASYNC_FLUSH 时才启用瞬态 commitLog 存储池
+     *
+     * Java NIO 的内存映射机制，提供了将文件系统中的文件映射到内存机制，实现对文件的操作转换对内存地址的操作，极大的提高了 IO 特性，但这部分内存并不是常驻内存，可以被置换到交换内存(虚拟内存)，RocketMQ 为了提高消息发送的性能，引入了内存锁定机制，
+     * 即将最近需要操作的 commitlog 文件映射到内存，并提供内存锁定功能，确保这些文件始终存在内存中，该机制的控制参数就是 transientStorePoolEnable。答复内容摘自《Apache RocketMQ 从入门到实战》，这本电子书收录开发者藏经阁 下载连接：https://developer.aliyun.com/topic/download?id=1139
      *
      * @return <tt>true</tt> or <tt>false</tt>
      */

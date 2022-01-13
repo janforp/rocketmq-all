@@ -283,10 +283,10 @@ public class BrokerController {
         this.subscriptionGroupManager = new SubscriptionGroupManager(this);
         this.brokerOuterAPI = new BrokerOuterAPI(nettyClientConfig);
         this.filterServerManager = new FilterServerManager(this);
-
+        //负责各个配置的主从复制
         this.slaveSynchronize = new SlaveSynchronize(this);
 
-        this.sendThreadPoolQueue = new LinkedBlockingQueue<Runnable>(this.brokerConfig.getSendThreadPoolQueueCapacity());
+        this.sendThreadPoolQueue = new LinkedBlockingQueue<Runnable>(this.brokerConfig.getSendThreadPoolQueueCapacity()/*10000*/);
         this.pullThreadPoolQueue = new LinkedBlockingQueue<Runnable>(this.brokerConfig.getPullThreadPoolQueueCapacity());
         this.replyThreadPoolQueue = new LinkedBlockingQueue<Runnable>(this.brokerConfig.getReplyThreadPoolQueueCapacity());
         this.queryThreadPoolQueue = new LinkedBlockingQueue<Runnable>(this.brokerConfig.getQueryThreadPoolQueueCapacity());
@@ -295,22 +295,37 @@ public class BrokerController {
         this.heartbeatThreadPoolQueue = new LinkedBlockingQueue<Runnable>(this.brokerConfig.getHeartbeatThreadPoolQueueCapacity());
         this.endTransactionThreadPoolQueue = new LinkedBlockingQueue<Runnable>(this.brokerConfig.getEndTransactionPoolQueueCapacity());
 
-        this.brokerStatsManager = new BrokerStatsManager(this.brokerConfig.getBrokerClusterName());
-        this.setStoreHost(new InetSocketAddress(this.getBrokerConfig().getBrokerIP1(), this.getNettyServerConfig().getListenPort()));
+        // 集群名称，配置brokerClusterName=rocketmq-cluster
+        String brokerClusterName = this.brokerConfig.getBrokerClusterName();
+        // 统计相关
+        this.brokerStatsManager = new BrokerStatsManager(brokerClusterName);
+        // ip
+        String brokerIP1 = this.getBrokerConfig().getBrokerIP1();
+        // 端口
+        int listenPort = this.getNettyServerConfig().getListenPort();
+        // IP 端口
+        InetSocketAddress inetSocketAddress = new InetSocketAddress(brokerIP1, listenPort);
+        this.setStoreHost(inetSocketAddress);
 
+        // broker的快速失败机制是为了防止请求过载，导致broker处理请求效率变低，从而影响消息的消费
         this.brokerFastFailure = new BrokerFastFailure(this);
         this.configuration = new Configuration(log, BrokerPathConfigHelper.getBrokerConfigPath(), this.brokerConfig, this.nettyServerConfig, nettyClientConfig, this.messageStoreConfig);
     }
 
     public boolean initialize() throws CloneNotSupportedException {
 
-        boolean result = this.topicConfigManager.load();// /Users/zhuchenjian/Documents/code/learn/rocketmq/rocketmq-all/conf/home/broker/store/config/topics.json
+        // /Users/zhuchenjian/Documents/code/learn/rocketmq/rocketmq-all/conf/home/broker/store/config/topics.json
+        boolean result = this.topicConfigManager.load();
 
+        // /Users/zhuchenjian/Documents/code/learn/rocketmq/rocketmq-all/conf/home/broker/store/config/consumerOffset.json
         result = result && this.consumerOffsetManager.load();
+        // /Users/zhuchenjian/Documents/code/learn/rocketmq/rocketmq-all/conf/home/broker/store/config/subscriptionGroup.json
         result = result && this.subscriptionGroupManager.load();
         result = result && this.consumerFilterManager.load();
 
         if (result) {
+            // 如果上面的几个文件加载没有问题之后
+
             try {
                 this.messageStore = new DefaultMessageStore(this.messageStoreConfig, this.brokerStatsManager, this.messageArrivingListener, this.brokerConfig);
                 if (messageStoreConfig.isEnableDLegerCommitLog()) {

@@ -1,14 +1,14 @@
 package org.apache.rocketmq.store;
 
+import lombok.Getter;
+import lombok.Setter;
+
 import java.io.File;
 import java.io.IOException;
 import java.io.RandomAccessFile;
 import java.nio.MappedByteBuffer;
 import java.nio.channels.FileChannel;
 import java.nio.channels.FileChannel.MapMode;
-
-import lombok.Getter;
-import lombok.Setter;
 
 public class StoreCheckpoint {
 
@@ -20,6 +20,9 @@ public class StoreCheckpoint {
     @Setter
     private volatile long physicMsgTimestamp = 0;
 
+    /**
+     * @see DefaultMessageStore.FlushConsumeQueueService
+     */
     @Getter
     @Setter
     private volatile long logicsMsgTimestamp = 0;
