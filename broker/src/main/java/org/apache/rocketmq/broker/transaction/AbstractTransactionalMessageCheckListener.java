@@ -64,14 +64,11 @@ public abstract class AbstractTransactionalMessageCheckListener {
     }
 
     public void resolveHalfMsg(final MessageExt msgExt) {
-        executorService.execute(new Runnable() {
-            @Override
-            public void run() {
-                try {
-                    sendCheckMessage(msgExt);
-                } catch (Exception e) {
-                    LOGGER.error("Send check message error!", e);
-                }
+        executorService.execute(() -> {
+            try {
+                sendCheckMessage(msgExt);
+            } catch (Exception e) {
+                LOGGER.error("Send check message error!", e);
             }
         });
     }

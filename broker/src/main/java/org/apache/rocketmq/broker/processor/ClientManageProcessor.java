@@ -25,8 +25,8 @@ import org.apache.rocketmq.logging.InternalLogger;
 import org.apache.rocketmq.logging.InternalLoggerFactory;
 import org.apache.rocketmq.remoting.common.RemotingHelper;
 import org.apache.rocketmq.remoting.exception.RemotingCommandException;
-import org.apache.rocketmq.remoting.netty.NettyRequestProcessor;
 import org.apache.rocketmq.remoting.netty.AsyncNettyRequestProcessor;
+import org.apache.rocketmq.remoting.netty.NettyRequestProcessor;
 import org.apache.rocketmq.remoting.protocol.RemotingCommand;
 
 import java.util.Set;
@@ -41,6 +41,13 @@ public class ClientManageProcessor extends AsyncNettyRequestProcessor implements
         this.brokerController = brokerController;
     }
 
+    /**
+     * @param ctx 上下文
+     * @param request 请求
+     * @return
+     * @throws RemotingCommandException
+     * @see BrokerController#registerProcessor()
+     */
     @Override
     public RemotingCommand processRequest(ChannelHandlerContext ctx, RemotingCommand request)
             throws RemotingCommandException {

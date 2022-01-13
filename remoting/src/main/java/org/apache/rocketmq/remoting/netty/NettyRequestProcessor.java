@@ -15,6 +15,7 @@ public interface NettyRequestProcessor {
      * @param request 请求
      * @return 结果
      * @throws Exception 异常
+     * @see org.apache.rocketmq.broker.BrokerController#registerProcessor() 注册处理器的地方
      */
     RemotingCommand processRequest(ChannelHandlerContext ctx, RemotingCommand request) throws Exception;
 

@@ -1,20 +1,3 @@
-/*
- * Licensed to the Apache Software Foundation (ASF) under one or more
- * contributor license agreements.  See the NOTICE file distributed with
- * this work for additional information regarding copyright ownership.
- * The ASF licenses this file to You under the Apache License, Version 2.0
- * (the "License"); you may not use this file except in compliance with
- * the License.  You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
 package org.apache.rocketmq.broker.processor;
 
 import io.netty.channel.Channel;
@@ -46,6 +29,7 @@ import org.apache.rocketmq.store.PutMessageResult;
 import org.apache.rocketmq.store.stats.BrokerStatsManager;
 
 public class ReplyMessageProcessor extends AbstractSendMessageProcessor implements NettyRequestProcessor {
+
     private static final InternalLogger log = InternalLoggerFactory.getLogger(LoggerName.BROKER_LOGGER_NAME);
 
     public ReplyMessageProcessor(final BrokerController brokerController) {
@@ -53,9 +37,8 @@ public class ReplyMessageProcessor extends AbstractSendMessageProcessor implemen
     }
 
     @Override
-    public RemotingCommand processRequest(ChannelHandlerContext ctx,
-        RemotingCommand request) throws RemotingCommandException {
-        SendMessageContext mqtraceContext = null;
+    public RemotingCommand processRequest(ChannelHandlerContext ctx, RemotingCommand request) throws RemotingCommandException {
+        SendMessageContext mqtraceContext;
         SendMessageRequestHeader requestHeader = parseRequestHeader(request);
         if (requestHeader == null) {
             return null;
@@ -77,13 +60,13 @@ public class ReplyMessageProcessor extends AbstractSendMessageProcessor implemen
         switch (request.getCode()) {
             case RequestCode.SEND_REPLY_MESSAGE_V2:
                 requestHeaderV2 =
-                    (SendMessageRequestHeaderV2) request
-                        .decodeCommandCustomHeader(SendMessageRequestHeaderV2.class);
+                        (SendMessageRequestHeaderV2) request
+                                .decodeCommandCustomHeader(SendMessageRequestHeaderV2.class);
             case RequestCode.SEND_REPLY_MESSAGE:
                 if (null == requestHeaderV2) {
                     requestHeader =
-                        (SendMessageRequestHeader) request
-                            .decodeCommandCustomHeader(SendMessageRequestHeader.class);
+                            (SendMessageRequestHeader) request
+                                    .decodeCommandCustomHeader(SendMessageRequestHeader.class);
                 } else {
                     requestHeader = SendMessageRequestHeaderV2.createSendMessageRequestHeaderV1(requestHeaderV2);
                 }
@@ -93,10 +76,7 @@ public class ReplyMessageProcessor extends AbstractSendMessageProcessor implemen
         return requestHeader;
     }
 
-    private RemotingCommand processReplyMessageRequest(final ChannelHandlerContext ctx,
-        final RemotingCommand request,
-        final SendMessageContext sendMessageContext,
-        final SendMessageRequestHeader requestHeader) {
+    private RemotingCommand processReplyMessageRequest(final ChannelHandlerContext ctx, final RemotingCommand request, final SendMessageContext sendMessageContext, final SendMessageRequestHeader requestHeader) {
         final RemotingCommand response = RemotingCommand.createResponseCommand(SendMessageResponseHeader.class);
         final SendMessageResponseHeader responseHeader = (SendMessageResponseHeader) response.readCustomHeader();
 
@@ -152,8 +132,8 @@ public class ReplyMessageProcessor extends AbstractSendMessageProcessor implemen
     }
 
     private PushReplyResult pushReplyMessage(final ChannelHandlerContext ctx,
-        final SendMessageRequestHeader requestHeader,
-        final Message msg) {
+            final SendMessageRequestHeader requestHeader,
+            final Message msg) {
         ReplyMessageRequestHeader replyMessageRequestHeader = new ReplyMessageRequestHeader();
         replyMessageRequestHeader.setBornHost(ctx.channel().remoteAddress().toString());
         replyMessageRequestHeader.setStoreHost(this.getStoreHost().toString());
@@ -215,7 +195,7 @@ public class ReplyMessageProcessor extends AbstractSendMessageProcessor implemen
     }
 
     private void handlePushReplyResult(PushReplyResult pushReplyResult, final RemotingCommand response,
-        final SendMessageResponseHeader responseHeader, int queueIdInt) {
+            final SendMessageResponseHeader responseHeader, int queueIdInt) {
 
         if (!pushReplyResult.isPushOk()) {
             response.setCode(ResponseCode.SYSTEM_ERROR);
@@ -231,9 +211,9 @@ public class ReplyMessageProcessor extends AbstractSendMessageProcessor implemen
     }
 
     private void handlePutMessageResult(PutMessageResult putMessageResult,
-        final RemotingCommand request, final MessageExt msg,
-        final SendMessageResponseHeader responseHeader, SendMessageContext sendMessageContext,
-        int queueIdInt) {
+            final RemotingCommand request, final MessageExt msg,
+            final SendMessageResponseHeader responseHeader, SendMessageContext sendMessageContext,
+            int queueIdInt) {
         if (putMessageResult == null) {
             log.warn("process reply message, store putMessage return null");
             return;
@@ -255,15 +235,15 @@ public class ReplyMessageProcessor extends AbstractSendMessageProcessor implemen
                 break;
             case MESSAGE_ILLEGAL:
                 log.info(
-                    "the message is illegal, maybe msg properties length limit 32k.");
+                        "the message is illegal, maybe msg properties length limit 32k.");
                 break;
             case PROPERTIES_SIZE_EXCEEDED:
                 log.info(
-                    "the message is illegal, maybe msg body or properties length not matched. msg body length limit 128k.");
+                        "the message is illegal, maybe msg body or properties length not matched. msg body length limit 128k.");
                 break;
             case SERVICE_NOT_AVAILABLE:
                 log.info(
-                    "service not available now, maybe disk full, maybe your broker machine memory too small.");
+                        "service not available now, maybe disk full, maybe your broker machine memory too small.");
                 break;
             case OS_PAGECACHE_BUSY:
                 log.info("[PC_SYNCHRONIZED]broker busy, start flow control for a while");
@@ -280,7 +260,7 @@ public class ReplyMessageProcessor extends AbstractSendMessageProcessor implemen
         if (putOk) {
             this.brokerController.getBrokerStatsManager().incTopicPutNums(msg.getTopic(), putMessageResult.getAppendMessageResult().getMsgNum(), 1);
             this.brokerController.getBrokerStatsManager().incTopicPutSize(msg.getTopic(),
-                putMessageResult.getAppendMessageResult().getWroteBytes());
+                    putMessageResult.getAppendMessageResult().getWroteBytes());
             this.brokerController.getBrokerStatsManager().incBrokerPutNums(putMessageResult.getAppendMessageResult().getMsgNum());
 
             responseHeader.setMsgId(putMessageResult.getAppendMessageResult().getMsgId());
@@ -315,7 +295,9 @@ public class ReplyMessageProcessor extends AbstractSendMessageProcessor implemen
     }
 
     class PushReplyResult {
+
         boolean pushOk;
+
         String remark;
 
         public PushReplyResult(boolean pushOk) {
