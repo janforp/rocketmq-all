@@ -66,6 +66,7 @@ public class ResponseFuture {
     @Setter
     private volatile boolean sendRequestOK = true;
 
+    // 失败原因
     @Getter
     @Setter
     private volatile Throwable cause;
@@ -107,7 +108,7 @@ public class ResponseFuture {
 
     @SuppressWarnings("all")
     public RemotingCommand waitResponse(final long timeoutMillis) throws InterruptedException {
-        // 线程挂起原理！
+        // 线程挂起原理！业务线程阻塞在这里
         this.countDownLatch.await(timeoutMillis, TimeUnit.MILLISECONDS);
         return this.responseCommand;
     }

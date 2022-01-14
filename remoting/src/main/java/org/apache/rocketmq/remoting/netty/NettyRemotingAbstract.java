@@ -67,6 +67,8 @@ public abstract class NettyRemotingAbstract {
      * 因为发起请求跟得到响应，两个步骤之间是有一定时间间隔的！
      *
      * @see RemotingCommand#requestId
+     * @see NettyRemotingAbstract#processResponseCommand(io.netty.channel.ChannelHandlerContext, org.apache.rocketmq.remoting.protocol.RemotingCommand)
+     * @see NettyRemotingAbstract#invokeSyncImpl(io.netty.channel.Channel, org.apache.rocketmq.remoting.protocol.RemotingCommand, long)
      */
     protected final ConcurrentMap<Integer /* opaque */, ResponseFuture> responseTable = new ConcurrentHashMap<Integer, ResponseFuture>(256);
 
@@ -492,7 +494,7 @@ public abstract class NettyRemotingAbstract {
             });
             // 服务器业务线程需要在这里等待Client返回结果之后整个调用才完毕
             // 业务线程在这里进入挂起状态
-            RemotingCommand responseCommand = responseFuture.waitResponse(timeoutMillis);
+            RemotingCommand responseCommand = responseFuture.waitResponse/*业务线程阻塞在这里*/(timeoutMillis);
             // 线程执行到这里
             // 1.正常情况：客户端返回数据了，IO线程将业务线程唤醒
             // 2.非正常全情况：超时了
