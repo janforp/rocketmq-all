@@ -548,7 +548,10 @@ public abstract class NettyRemotingAbstract {
             try {
                 // 1.业务线程将数据交给 netty，netty IO 线程接管写 和 刷 数据的操作
                 // 2.注册 写刷 操作监听器，监听器由 IO 线程回调
-                channel.writeAndFlush(request).addListener(new ChannelFutureListener() {
+                ChannelFuture writeAndFlushFuture = channel.writeAndFlush(request);
+
+                // 上面的操作返回之后会回调这个监听器
+                writeAndFlushFuture.addListener(new ChannelFutureListener() {
                     @Override
                     public void operationComplete(ChannelFuture f) {
                         if (f.isSuccess()) {
@@ -626,7 +629,8 @@ public abstract class NettyRemotingAbstract {
             // 传递引用，响应拿到的时候需要是否信号量
             final SemaphoreReleaseOnlyOnce once = new SemaphoreReleaseOnlyOnce(this.semaphoreOneway);
             try {
-                channel.writeAndFlush(request).addListener(new ChannelFutureListener() {
+                ChannelFuture writeAndFlush = channel.writeAndFlush(request);
+                writeAndFlush.addListener(new ChannelFutureListener() {
                     @Override
                     public void operationComplete(ChannelFuture f) {
                         // 操作完成，不管成功失败，都释放信号量

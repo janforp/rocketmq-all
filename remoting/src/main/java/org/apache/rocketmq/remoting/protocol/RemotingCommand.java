@@ -12,6 +12,7 @@ import org.apache.rocketmq.remoting.common.RemotingHelper;
 import org.apache.rocketmq.remoting.exception.RemotingCommandException;
 import org.apache.rocketmq.remoting.netty.NettyDecoder;
 import org.apache.rocketmq.remoting.netty.NettyEncoder;
+import org.apache.rocketmq.remoting.netty.NettyRemotingAbstract;
 import org.apache.rocketmq.remoting.netty.ResponseFuture;
 
 import java.lang.annotation.Annotation;
@@ -141,6 +142,8 @@ public class RemotingCommand {
     /**
      * TODO 标记是响应还是请求？？
      * 区分是普通RPC还是onewayRPC得标志，服务器会根据该标记决定是否返回数据
+     *
+     * @see NettyRemotingAbstract#invokeOnewayImpl(io.netty.channel.Channel, org.apache.rocketmq.remoting.protocol.RemotingCommand, long)
      */
     @Setter
     @Getter
