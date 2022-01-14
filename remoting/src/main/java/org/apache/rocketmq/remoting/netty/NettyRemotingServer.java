@@ -83,6 +83,7 @@ public class NettyRemotingServer extends NettyRemotingAbstract implements Remoti
      * 定时任务，支持 scanResponseFuture 任务，负责清理过期的 ResponseFuture
      *
      * @see NettyRemotingAbstract#scanResponseTable()
+     * @see NettyRemotingAbstract#responseTable 清理过期的数据
      */
     private final Timer timer = new Timer("ServerHouseKeepingService", true);
 
@@ -164,6 +165,7 @@ public class NettyRemotingServer extends NettyRemotingAbstract implements Remoti
             }
         });
 
+        // 创建 boss,work 线程组
         if (useEpoll()) {
             this.eventLoopGroupBoss = new EpollEventLoopGroup(1, new ThreadFactory() {
                 private final AtomicInteger threadIndex = new AtomicInteger(0);
@@ -257,13 +259,13 @@ public class NettyRemotingServer extends NettyRemotingAbstract implements Remoti
                 this.serverBootstrap.group(this.eventLoopGroupBoss, this.eventLoopGroupSelector)
                         .channel(useEpoll() ? EpollServerSocketChannel.class : NioServerSocketChannel.class)
 
-                        // 服务端
+                        // 服务端通道选项
                         .option(ChannelOption.SO_BACKLOG, 1024)
                         .option(ChannelOption.SO_REUSEADDR, true)
                         .option(ChannelOption.SO_KEEPALIVE, false)
                         .childOption(ChannelOption.TCP_NODELAY, true)
 
-                        // 客户端
+                        // 客户端通道选项
                         .childOption(ChannelOption.SO_SNDBUF, nettyServerConfig.getServerSocketSndBufSize())
                         .childOption(ChannelOption.SO_RCVBUF, nettyServerConfig.getServerSocketRcvBufSize())
                         .localAddress(new InetSocketAddress(this.nettyServerConfig.getListenPort()))
@@ -272,7 +274,7 @@ public class NettyRemotingServer extends NettyRemotingAbstract implements Remoti
                             public void initChannel(SocketChannel ch) {
                                 ch.pipeline()
                                         // ChannelPipeline addLast(EventExecutorGroup group, String name, ChannelHandler handler);
-                                        .addLast(defaultEventExecutorGroup, HANDSHAKE_HANDLER_NAME, handshakeHandler/*数字证书相关，安全*/) // 指定名称的处理器，该处理器工作在指定的线程中
+                                        .addLast(defaultEventExecutorGroup/*指定该handler使用的线程组*/, HANDSHAKE_HANDLER_NAME, handshakeHandler/*数字证书相关，安全*/) // 指定名称的处理器，该处理器工作在指定的线程中
                                         // ChannelPipeline addLast(EventExecutorGroup group, ChannelHandler... handlers);
                                         .addLast(defaultEventExecutorGroup,// 这些理器工作在指定的线程中
                                                 encoder, // 编码 RemotingCommand
@@ -295,13 +297,13 @@ public class NettyRemotingServer extends NettyRemotingAbstract implements Remoti
 
         try {
             // 启动服务器
-            ChannelFuture sync = this.serverBootstrap.bind().sync();
+            ChannelFuture channelFuture = this.serverBootstrap.bind();
+            ChannelFuture sync = channelFuture.sync();
             InetSocketAddress addr = (InetSocketAddress) sync.channel().localAddress();
             this.port = addr.getPort();
         } catch (InterruptedException e1) {
             throw new RuntimeException("this.serverBootstrap.bind().sync() InterruptedException", e1);
         }
-
 
         /*
          * @see org.apache.rocketmq.namesrv.routeinfo.BrokerHousekeepingService namesrv使用
@@ -317,6 +319,7 @@ public class NettyRemotingServer extends NettyRemotingAbstract implements Remoti
             @Override
             public void run() {
                 try {
+                    // 扫描过期请求
                     NettyRemotingServer.this.scanResponseTable();
                 } catch (Throwable e) {
                     log.error("scanResponseTable exception", e);
