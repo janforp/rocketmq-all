@@ -188,7 +188,11 @@ public class NamesrvStartup {
             controller.shutdown();
             System.exit(-3);
         }
-        Runtime.getRuntime().addShutdownHook(new ShutdownHookThread(log, (Callable<Void>) () -> {
+
+        Runtime runtime = Runtime.getRuntime();
+        runtime.addShutdownHook(new ShutdownHookThread(log, (Callable<Void>) () -> {
+
+            // 钩子
             controller.shutdown();
             return null;
         }));

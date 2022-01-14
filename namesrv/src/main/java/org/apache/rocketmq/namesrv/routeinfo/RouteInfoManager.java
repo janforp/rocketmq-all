@@ -58,6 +58,8 @@ public class RouteInfoManager {
     private final ReadWriteLock lock = new ReentrantReadWriteLock();
 
     /**
+     * 主题分布
+     * <p>
      * Topic和broker的Map，保存了topic在每个broker上的读写Queue的个数以及读写权限
      * <p>
      * 消息队列路由消息,消息发送会根据路由表负责均衡
@@ -65,6 +67,10 @@ public class RouteInfoManager {
     private final HashMap<String/* topic */, List<QueueData> /*该主题下面的各个队列的属性*/> topicQueueTable;
 
     /**
+     * broker 地址 映射表
+     *
+     * 通过 brokerName ,通过这个映射表可以查询到该 brokerName 对应的主节点的地址，进行网络通信
+     *
      * 注册到nameserv上的所有Broker，按照brokername分组
      * <p>
      * Broker基础信息.所在集群名称、brokerName以及主备Broker地址
@@ -82,12 +88,13 @@ public class RouteInfoManager {
     private final HashMap<String/* clusterName 集群名称 */, Set<String/* brokerName */> /*某个集群下面的所有 broker 名称集合*/> clusterAddrTable;
 
     /**
+     * broker 存活状态！！！！
      * broker最新的心跳时间和配置版本号
      * <p>
      * Broker状态信息,心跳包会更新，
      * 每次 broker 向 namesrv 发送心跳之后，就会更新这个映射表
      */
-    private final HashMap<String/* brokerAddr，如 127.0.0.1:10911 */, BrokerLiveInfo /*封装了该broker最近心跳的时间,broker是否存活也依赖该时间*/> brokerLiveTable;
+    private final HashMap<String/* brokerAddr，如 127.0.0.1:10911 在整个集群中是唯一的 */, BrokerLiveInfo /*封装了该broker最近心跳的时间,broker是否存活也依赖该时间*/> brokerLiveTable;
 
     /**
      * broker和FilterServer的对应关系
@@ -760,7 +767,7 @@ public class RouteInfoManager {
 class BrokerLiveInfo {
 
     /**
-     * 上次心态时间
+     * 上次心态时间，通过这个判断broker是否存活，如果是两分钟之前，则认为对应的 broker 节点掉线了
      */
     @Setter
     @Getter

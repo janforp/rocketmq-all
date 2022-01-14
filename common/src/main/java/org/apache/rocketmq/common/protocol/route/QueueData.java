@@ -11,7 +11,7 @@ import lombok.ToString;
 public class QueueData implements Comparable<QueueData> {
 
     /**
-     * 节点名称
+     * 该队列所在的 broker 名称
      */
     @Setter
     @Getter

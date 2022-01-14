@@ -51,7 +51,7 @@ public class BrokerData implements Comparable<BrokerData> {
      */
     @Getter
     @Setter
-    private HashMap<Long/* brokerId,如 0  */, String/* broker address 如 127.0.0.1:10911*/> brokerAddrs;
+    private HashMap<Long/* brokerId,如 0为master，其他为 slave节点  */, String/* broker address 如 127.0.0.1:10911*/> brokerAddrs;
 
     private final Random random = new Random();
 
