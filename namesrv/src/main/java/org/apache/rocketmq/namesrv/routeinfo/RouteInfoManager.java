@@ -486,15 +486,31 @@ public class RouteInfoManager {
         }
     }
 
+    /**
+     * 既然找到了一个已经宕机的 broker,自然这个 broker 的所有 路由信息都要移除掉，包括：
+     * topicQueueTable
+     * brokerAddrTable
+     * clusterAddrTable
+     * brokerLiveTable
+     * 等
+     *
+     * 其实就是一个 CRUD
+     *
+     * @param remoteAddr 移除的 broker 地址
+     * @param channel 可能存在的连接
+     */
     public void onChannelDestroy(String remoteAddr, Channel channel) {
+        // 127.0.0.1:10911
         String brokerAddrFound = null;
         if (channel != null) {
             try {
                 try {
                     this.lock.readLock().lockInterruptibly();
+                    // HashMap<String/* brokerAddr，如 127.0.0.1:10911 在整个集群中是唯一的 */, BrokerLiveInfo /*封装了该broker最近心跳的时间,broker是否存活也依赖该时间*/> brokerLiveTable;
                     for (Entry<String, BrokerLiveInfo> entry : this.brokerLiveTable.entrySet()) {
-                        if (entry.getValue().getChannel() == channel) {
-                            brokerAddrFound = entry.getKey();
+                        BrokerLiveInfo brokerLiveInfo = entry.getValue();
+                        if (brokerLiveInfo.getChannel() == channel) {
+                            brokerAddrFound = entry.getKey(); // 127.0.0.1:10911
                             break;
                         }
                     }
@@ -511,52 +527,85 @@ public class RouteInfoManager {
         } else {
             log.info("the broker's channel destroyed, {}, clean it's data structure at once", brokerAddrFound);
         }
+        /**
+         * brokerAddrFound ：
+         * 优先根据 channle 从存活broker映射表中匹配，匹配不到则使用 传入的 remoteAddr
+         */
 
         if (brokerAddrFound != null && brokerAddrFound.length() > 0) {
-
+            /**
+             * 既然找到了一个已经宕机的 broker,自然这个 broker 的所有 路由信息都要移除掉，包括：
+             * topicQueueTable
+             * brokerAddrTable
+             * clusterAddrTable
+             * brokerLiveTable
+             * 等
+             */
             try {
                 try {
                     this.lock.writeLock().lockInterruptibly();
+
+                    // HashMap<String/* brokerAddr，如 127.0.0.1:10911 在整个集群中是唯一的 */, BrokerLiveInfo /*封装了该broker最近心跳的时间,broker是否存活也依赖该时间*/> brokerLiveTable;
+                    // 从 broker 存活表中根据 broker 地址移除
                     this.brokerLiveTable.remove(brokerAddrFound);
                     this.filterServerTable.remove(brokerAddrFound);
-                    String brokerNameFound = null;
-                    boolean removeBrokerName = false;
-                    Iterator<Entry<String, BrokerData>> itBrokerAddrTable = this.brokerAddrTable.entrySet().iterator();
-                    while (itBrokerAddrTable.hasNext() && (null == brokerNameFound)) {
-                        BrokerData brokerData = itBrokerAddrTable.next().getValue();
 
-                        Iterator<Entry<Long, String>> it = brokerData.getBrokerAddrs().entrySet().iterator();
+                    // 该宕机 broker 的名称
+                    String brokerNameFound = null;
+                    // 是否需要移除该broker？只有当该 broker 下面的所有 master，slave节点都不在的时候才移除
+                    boolean removeBrokerName = false;
+
+                    // HashMap<String/* brokerName，如：broker-a */, BrokerData /* broker 信息,包括主从 broker，只要 brokerName 相关的 broker 都会封装在一个对象中，其实都是有配置决定 */> brokerAddrTable;
+                    Iterator<Entry<String/* brokerName，如：broker-a */, BrokerData/* broker 信息,包括主从 broker，只要 brokerName 相关的 broker 都会封装在一个对象中，其实都是有配置决定 */>> itBrokerAddrTable = this.brokerAddrTable.entrySet().iterator();
+                    while (itBrokerAddrTable.hasNext() && (null == brokerNameFound/*循环中找到了名称就可以跳出循环了，没必要进行无谓的循环*/)) {
+
+                        Entry<String/* brokerName，如：broker-a */, BrokerData/*该brokerName相同的所有broker集合都在这个对象*/> brokerDataEntry = itBrokerAddrTable.next();
+
+                        // 该brokerName相同的所有broker集合都在这个对象
+                        BrokerData brokerData = brokerDataEntry.getValue();
+
+                        // HashMap<Long/* brokerId,如 0为master，其他为 slave节点  */, String/* broker address 如 127.0.0.1:10911*/> brokerAddrs;
+                        HashMap<Long/* brokerId,如 0为master，其他为 slave节点  */, String/* broker address 如 127.0.0.1:10911*/> brokerAddrs = brokerData.getBrokerAddrs();
+                        Iterator<Entry<Long/* brokerId,如 0为master，其他为 slave节点  */, String/* broker address 如 127.0.0.1:10911*/>> it = brokerAddrs.entrySet().iterator();
                         while (it.hasNext()) {
-                            Entry<Long, String> entry = it.next();
-                            Long brokerId = entry.getKey();
-                            String brokerAddr = entry.getValue();
-                            if (brokerAddr.equals(brokerAddrFound)) {
+                            Entry<Long/* brokerId,如 0为master，其他为 slave节点  */, String/* broker address 如 127.0.0.1:10911*/> entry = it.next();
+                            Long brokerId = entry.getKey(); // brokerId,如 0为master，其他为 slave节点
+                            String brokerAddr = entry.getValue(); // /* broker address 如 127.0.0.1:10911*/
+                            if (brokerAddr.equals(brokerAddrFound/*要移除的 broker 地址*/)) {
+                                // 找到了
                                 brokerNameFound = brokerData.getBrokerName();
+                                // 移除
                                 it.remove();
                                 log.info("remove brokerAddr[{}, {}] from brokerAddrTable, because channel destroyed", brokerId, brokerAddr);
                                 break;
                             }
                         }
 
-                        if (brokerData.getBrokerAddrs().isEmpty()) {
+                        if (brokerData.getBrokerAddrs().isEmpty()/*如果移除这个 broker 之后该 broker名称下面没有其他 broker 了*/) {
+                            // 移除这个 broker 之后该 broker名称下面没有其他 broker 了，则这个 broker 名称对应的所有数据都要初一
                             removeBrokerName = true;
                             itBrokerAddrTable.remove();
                             log.info("remove brokerName[{}] from brokerAddrTable, because channel destroyed", brokerData.getBrokerName());
                         }
                     }
 
-                    if (brokerNameFound != null && removeBrokerName) {
-                        Iterator<Entry<String, Set<String>>> it = this.clusterAddrTable.entrySet().iterator();
+                    if (brokerNameFound/*宕机的broker对应的 brokerName*/ != null && removeBrokerName/*该brokerName 下面已经没有其他 broker 了*/) {
+
+                        // HashMap<String/* clusterName 集群名称 */, Set<String/* brokerName */> /*某个集群下面的所有 broker 名称集合*/> clusterAddrTable;
+                        Iterator<Entry<String/* clusterName 集群名称 */, Set<String/* brokerName */>/*某个集群下面的所有 broker 名称集合*/>> it = this.clusterAddrTable.entrySet().iterator();
                         while (it.hasNext()) {
+                            // 循环的目的就是要把 brokerNameFound 相关的数据移除
+
                             Entry<String, Set<String>> entry = it.next();
                             String clusterName = entry.getKey();
                             Set<String> brokerNames = entry.getValue();
                             boolean removed = brokerNames.remove(brokerNameFound);
                             if (removed) {
                                 log.info("remove brokerName[{}], clusterName[{}] from clusterAddrTable, because channel destroyed", brokerNameFound, clusterName);
-
                                 if (brokerNames.isEmpty()) {
                                     log.info("remove the clusterName[{}] from clusterAddrTable, because channel destroyed and no broker in this cluster", clusterName);
+
+                                    // 如果该集群下面没有其他 brokerName了，则这个集群都移除
                                     it.remove();
                                 }
 
@@ -566,10 +615,12 @@ public class RouteInfoManager {
                     }
 
                     if (removeBrokerName) {
-                        Iterator<Entry<String, List<QueueData>>> itTopicQueueTable = this.topicQueueTable.entrySet().iterator();
+                        // HashMap<String/* topic */, List<QueueData> /*该主题下面的各个队列的属性*/> topicQueueTable;
+                        Iterator<Entry<String/* topic */, List<QueueData>/*该主题下面的各个队列的属性*/>> itTopicQueueTable = this.topicQueueTable.entrySet().iterator();
                         while (itTopicQueueTable.hasNext()) {
-                            Entry<String, List<QueueData>> entry = itTopicQueueTable.next();
+                            Entry<String/* topic */, List<QueueData>/*该主题下面的各个队列的属性*/> entry = itTopicQueueTable.next();
                             String topic = entry.getKey();
+                            // 该主题下面的队列信息
                             List<QueueData> queueDataList = entry.getValue();
 
                             Iterator<QueueData> itQueueData = queueDataList.iterator();

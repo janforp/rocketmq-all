@@ -75,6 +75,7 @@ public class NamesrvController {
      * 一个org.apache.rocketmq.remoting.ChannelEventListener实例
      * 用于监听 channel 状态，当 channel 状态发生变化时，如 close, idle ... 会向事件队列
      * 发送事件，事件最终由该 service 处理
+     * @see RouteInfoManager#onChannelDestroy(java.lang.String, io.netty.channel.Channel) 最终还是调用这个方法
      */
     private final BrokerHousekeepingService brokerHousekeepingService;
 
