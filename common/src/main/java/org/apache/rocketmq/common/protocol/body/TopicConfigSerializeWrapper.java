@@ -22,7 +22,7 @@ public class TopicConfigSerializeWrapper extends RemotingSerializable {
      */
     @Setter
     @Getter
-    private ConcurrentMap<String, TopicConfig> topicConfigTable = new ConcurrentHashMap<String, TopicConfig>();
+    private ConcurrentMap<String/*topic*/, TopicConfig> topicConfigTable = new ConcurrentHashMap<String, TopicConfig>();
 
     @Setter
     @Getter

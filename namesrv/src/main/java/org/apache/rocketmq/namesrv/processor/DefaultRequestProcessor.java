@@ -46,6 +46,9 @@ import java.io.UnsupportedEncodingException;
 import java.util.Properties;
 import java.util.concurrent.atomic.AtomicLong;
 
+/**
+ * 封装了 namesrv 能处理的所有业务
+ */
 @SuppressWarnings("all")
 @AllArgsConstructor
 public class DefaultRequestProcessor extends AsyncNettyRequestProcessor implements NettyRequestProcessor {
@@ -199,9 +202,10 @@ public class DefaultRequestProcessor extends AsyncNettyRequestProcessor implemen
     private boolean checksum(ChannelHandlerContext ctx, RemotingCommand request, RegisterBrokerRequestHeader requestHeader) {
 
         // 拿到客户端写入的签名校验一下
-        if (requestHeader.getBodyCrc32() != 0) {
-            final int crc32 = UtilAll.crc32(request.getBody());
-            if (crc32 != requestHeader.getBodyCrc32()) {
+        Integer bodyCrc32FromClient = requestHeader.getBodyCrc32();
+        if (bodyCrc32FromClient != 0) {
+            final int crc32InServer = UtilAll.crc32(request.getBody());
+            if (crc32InServer != bodyCrc32FromClient) {
                 log.warn(String.format("receive registerBroker request,crc32 not match,from %s", RemotingHelper.parseChannelRemoteAddr(ctx.channel())));
                 return false;
             }
@@ -239,7 +243,7 @@ public class DefaultRequestProcessor extends AsyncNettyRequestProcessor implemen
     private RemotingCommand registerBroker(ChannelHandlerContext ctx, RemotingCommand request) throws RemotingCommandException {
         // response 中包含了 RegisterBrokerResponseHeader 对象
         final RemotingCommand response = RemotingCommand.createResponseCommand(RegisterBrokerResponseHeader.class);
-        // 拿到刚刚反射创建的用户自定义header对象
+        // 拿到刚刚反射创建的用户自定义header对象,一个空对象！！！
         final RegisterBrokerResponseHeader responseHeader = (RegisterBrokerResponseHeader) response.readCustomHeader();
 
         // 解码出来请求的 header
@@ -250,18 +254,19 @@ public class DefaultRequestProcessor extends AsyncNettyRequestProcessor implemen
         if (!checksum(ctx, request, requestHeader)) {
             // 校验crc不通过，直接返回
             // 系统错误
-            response.setCode(ResponseCode.SYSTEM_ERROR);
+            response.setCode(ResponseCode.SYSTEM_ERROR/*1*/);
             // 错误原因
             response.setRemark("crc32 not match");
 
-            // 返回的 response 由 回调函数处理
+            // 返回的 response 由 回调函数 callback 处理
             return response;
         }
 
         TopicConfigSerializeWrapper topicConfigWrapper;
-        if (request.getBody() != null) {
+        byte[] requestBody = request.getBody();
+        if (requestBody != null) {
             // 解码 body，解码出来的数据就是当前机器的主题信息
-            topicConfigWrapper = TopicConfigSerializeWrapper.decode(request.getBody(), TopicConfigSerializeWrapper.class);
+            topicConfigWrapper = TopicConfigSerializeWrapper.decode(requestBody, TopicConfigSerializeWrapper.class);
         } else {
             topicConfigWrapper = new TopicConfigSerializeWrapper();
             topicConfigWrapper.getDataVersion().setCounter(new AtomicLong(0));
@@ -269,11 +274,13 @@ public class DefaultRequestProcessor extends AsyncNettyRequestProcessor implemen
         }
 
         RouteInfoManager routeInfoManager = this.namesrvController.getRouteInfoManager();
+
+        // 通过路由数据过滤器操作注册 broker
         RegisterBrokerResult result = routeInfoManager.registerBroker(
                 requestHeader.getClusterName(),//集群名称
                 requestHeader.getBrokerAddr(),// 节点ip地址
                 requestHeader.getBrokerName(),// 节点名称
-                requestHeader.getBrokerId(), // 节点id:0为主节点
+                requestHeader.getBrokerId(), // 节点id:0为主节点，主节点有特殊的一些逻辑哦
                 requestHeader.getHaServerAddr(), // ha节点地址
                 topicConfigWrapper, // 当前节点的主题信息
                 null, // 过滤服务器列表
@@ -296,7 +303,7 @@ public class DefaultRequestProcessor extends AsyncNettyRequestProcessor implemen
         response.setBody(jsonValue);
 
         // 返回code成功
-        response.setCode(ResponseCode.SUCCESS);
+        response.setCode(ResponseCode.SUCCESS/*0*/);
         response.setRemark(null);
         return response;
     }

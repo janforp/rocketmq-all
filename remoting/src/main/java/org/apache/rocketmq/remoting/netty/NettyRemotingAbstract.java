@@ -199,7 +199,10 @@ public abstract class NettyRemotingAbstract {
         // 根据业务代码找到合适的处理器和线程池资源---pair
         final Pair<NettyRequestProcessor, ExecutorService> matched = this.processorTable.get(cmd.getCode());
         // 如果没找到，则使用默认的
-        final Pair<NettyRequestProcessor, ExecutorService> pair = (null == matched) ? this.defaultRequestProcessor : matched;
+        /*
+         * @see org.apache.rocketmq.namesrv.processor.DefaultRequestProcessor namesrv使用这个处理器
+         */
+        final Pair<NettyRequestProcessor, ExecutorService> pair = (null == matched) ? this.defaultRequestProcessor/*未注册处理器，则使用默认处理器，namesrv就是使用默认处理器*/ : matched;
         // 拿到请求id
         final int opaque = cmd.getOpaque();
         if (pair == null) {
@@ -247,16 +250,22 @@ public abstract class NettyRemotingAbstract {
                         }
                     };
 
-                    if (pair.getObject1() instanceof AsyncNettyRequestProcessor) {
+                    // 获取到处理器
+                    final NettyRequestProcessor requestProcessor = pair.getObject1();
+                    if (requestProcessor instanceof AsyncNettyRequestProcessor) {
                         // namesrv 进入这里
-                        AsyncNettyRequestProcessor processor = (AsyncNettyRequestProcessor) pair.getObject1();
-                        // 执行任务，不返回响应，而是通过异步的方式
+                        AsyncNettyRequestProcessor processor = (AsyncNettyRequestProcessor) requestProcessor;
+                        /**
+                         * 执行任务，不返回响应，而是通过异步的方式
+                         * @see org.apache.rocketmq.namesrv.processor.DefaultRequestProcessor namesrv 使用的处理器
+                         * @see AsyncNettyRequestProcessor#asyncProcessRequest(io.netty.channel.ChannelHandlerContext, org.apache.rocketmq.remoting.protocol.RemotingCommand, org.apache.rocketmq.remoting.netty.RemotingResponseCallback) namesrv首先调用这个方法
+                         * @see org.apache.rocketmq.namesrv.processor.DefaultRequestProcessor#processRequest(io.netty.channel.ChannelHandlerContext, org.apache.rocketmq.remoting.protocol.RemotingCommand) namesrv然后调用这个方法
+                         */
                         processor.asyncProcessRequest(ctx, cmd, callback);
                     } else {
                         // 如果是同步的，则执行这个分支
-                        NettyRequestProcessor processor = pair.getObject1();
                         // 执行任务，拿到响应
-                        RemotingCommand response = processor.processRequest(ctx, cmd);
+                        RemotingCommand response = requestProcessor.processRequest(ctx, cmd);
                         // 执行rpc调用后的钩子函数
                         doAfterRpcHooks(RemotingHelper.parseChannelRemoteAddr(ctx.channel())/* 通过channel解析出远程的地址 */, cmd, response);
                         // 同步的任务，当前线程自己主动调用 callback，把结果写到对端

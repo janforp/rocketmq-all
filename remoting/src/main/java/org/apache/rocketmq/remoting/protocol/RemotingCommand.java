@@ -149,7 +149,7 @@ public class RemotingCommand {
     @Getter
     private int flag = 0;
 
-    // 传输自定义文本信息
+    // 传输自定义文本信息，一般失败的时候传失败原因
     @Setter
     @Getter
     private String remark;
@@ -337,6 +337,13 @@ public class RemotingCommand {
 
     }
 
+    /**
+     * 把该对象中的 {@link org.apache.rocketmq.remoting.protocol.RemotingCommand#extFields} 数据解码，得到一个 classHeader 类型的对象
+     *
+     * @param classHeader 解码之后得到的类型
+     * @return 把该对象中的数据解码，得到一个 classHeader 类型的对象
+     * @see org.apache.rocketmq.namesrv.processor.DefaultRequestProcessor#registerBroker(io.netty.channel.ChannelHandlerContext, org.apache.rocketmq.remoting.protocol.RemotingCommand)
+     */
     public CommandCustomHeader decodeCommandCustomHeader(Class<? extends CommandCustomHeader> classHeader) throws RemotingCommandException {
         CommandCustomHeader objectHeader;
         try {

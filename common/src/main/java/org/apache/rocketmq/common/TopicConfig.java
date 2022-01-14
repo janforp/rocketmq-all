@@ -5,6 +5,11 @@ import lombok.NoArgsConstructor;
 import lombok.Setter;
 import org.apache.rocketmq.common.constant.PermName;
 
+/**
+ * 当前主题信息
+ *
+ * 主题队列数量
+ */
 @NoArgsConstructor
 public class TopicConfig {
 
