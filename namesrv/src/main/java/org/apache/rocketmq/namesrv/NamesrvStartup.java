@@ -112,6 +112,7 @@ public class NamesrvStartup {
 
         // 先实例话，后面通过配置文件向里面设置属性
         final NamesrvConfig namesrvConfig = new NamesrvConfig();
+        // 服务器配置
         final NettyServerConfig nettyServerConfig = new NettyServerConfig();
         //namesrv服务端启动监听端口
         nettyServerConfig.setListenPort(9876);
@@ -127,7 +128,7 @@ public class NamesrvStartup {
                 properties = new Properties();
                 properties.load(in);
 
-                // 如果 config 配置文件内的配置涉及到 namesrvConfig 或者 nettyServerConfig 的字段，则进行赋值
+                // 如果 config 配置文件内的配置涉及到 namesrvConfig 或者 nettyServerConfig 的字段，则进行覆盖
                 MixAll.properties2Object(properties, namesrvConfig);
                 MixAll.properties2Object(properties, nettyServerConfig);
 

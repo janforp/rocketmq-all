@@ -3,6 +3,7 @@ package org.apache.rocketmq.common;
 import org.apache.rocketmq.common.annotation.ImportantField;
 import org.apache.rocketmq.common.constant.LoggerName;
 import org.apache.rocketmq.common.help.FAQUrl;
+import org.apache.rocketmq.common.namesrv.NamesrvConfig;
 import org.apache.rocketmq.logging.InternalLogger;
 import org.apache.rocketmq.logging.InternalLoggerFactory;
 
@@ -171,6 +172,7 @@ public class MixAll {
         }
     }
 
+    // 71258
     public static long getPID() {
         String processName = java.lang.management.ManagementFactory.getRuntimeMXBean().getName();
         if (processName != null && processName.length() > 0) {
@@ -186,9 +188,8 @@ public class MixAll {
 
     public static void main(String[] args) {
         System.out.println(getPID());
-        System.out.println(getPID());
-        System.out.println(getPID());
-        System.out.println(getPID());
+        System.out.println("setServerChannelMaxIdleTimeSeconds".substring(4));
+        System.out.println("setServerChannelMaxIdleTimeSeconds".substring(3, 4));
     }
 
     public static void string2File(final String str, final String fileName) throws IOException {
@@ -366,22 +367,37 @@ public class MixAll {
         return properties;
     }
 
-    public static void properties2Object(final Properties p, final Object object) {
+    /**
+     * @param p 配置文件中的键值对
+     * @param object 一般是一个配置对象
+     * @see NamesrvConfig
+     * @see org.apache.rocketmq.remoting.netty.NettyServerConfig
+     */
+    public static void properties2Object(final Properties p/*namesrv.properties*/, final Object object/*NamesrvConfig*/) {
         Method[] methods = object.getClass().getMethods();
         for (Method method : methods) {
+
+            // 如 setServerChannelMaxIdleTimeSeconds 方法
             String mn = method.getName();
             if (mn.startsWith("set")) {
                 try {
-                    String tmp = mn.substring(4);
-                    String first = mn.substring(3, 4);
+                    String tmp = mn.substring(4); // erverChannelMaxIdleTimeSeconds
+                    String first = mn.substring(3, 4); // S
 
-                    String key = first.toLowerCase() + tmp;
-                    String property = p.getProperty(key);
+                    String key = first.toLowerCase() + tmp; // ServerChannelMaxIdleTimeSeconds
+                    String property = p.getProperty(key); // 120
                     if (property != null) {
-                        Class<?>[] pt = method.getParameterTypes();
-                        if (pt != null && pt.length > 0) {
+
+                        // 如果方法没有参数，则返回一个空数组，永远不会为null
+                        Class<?>[] pt = method.getParameterTypes(); // int.class
+                        if (pt.length > 0) {
+                            // 说明该方法有参数
+
                             String cn = pt[0].getSimpleName();
-                            Object arg = null;
+                            Object arg;
+
+                            // 只支持 int,long,double,boolean,float,String 几种类型，配置文件也就这几种，不可能配置一个对象吧？
+
                             if (cn.equals("int") || cn.equals("Integer")) {
                                 arg = Integer.parseInt(property);
                             } else if (cn.equals("long") || cn.equals("Long")) {
@@ -397,6 +413,8 @@ public class MixAll {
                             } else {
                                 continue;
                             }
+
+                            // 调用 set 方法 赋值即可
                             method.invoke(object, arg);
                         }
                     }

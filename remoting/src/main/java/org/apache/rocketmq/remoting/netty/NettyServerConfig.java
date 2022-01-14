@@ -6,7 +6,7 @@ import lombok.Setter;
 public class NettyServerConfig implements Cloneable {
 
     /**
-     * 服务端启动监听端口
+     * 服务端启动监听端口，会修改为 9876
      */
     @Getter
     @Setter
@@ -44,14 +44,17 @@ public class NettyServerConfig implements Cloneable {
     @Setter
     private int serverChannelMaxIdleTimeSeconds = 120;
 
+    // 65535
     @Getter
     @Setter
     private int serverSocketSndBufSize = NettySystemConfig.socketSndbufSize;
 
+    // 65535
     @Getter
     @Setter
     private int serverSocketRcvBufSize = NettySystemConfig.socketRcvbufSize;
 
+    // 是否开启 netty 内存池
     @Getter
     @Setter
     private boolean serverPooledByteBufAllocatorEnable = true;
@@ -69,6 +72,6 @@ public class NettyServerConfig implements Cloneable {
 
     @Override
     public Object clone() throws CloneNotSupportedException {
-        return (NettyServerConfig) super.clone();
+        return super.clone();
     }
 }
