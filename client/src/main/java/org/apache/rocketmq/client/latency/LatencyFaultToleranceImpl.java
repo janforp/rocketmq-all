@@ -1,5 +1,8 @@
 package org.apache.rocketmq.client.latency;
 
+import lombok.Getter;
+import lombok.Setter;
+import lombok.ToString;
 import org.apache.rocketmq.client.common.ThreadLocalIndex;
 
 import java.util.Collections;
@@ -8,6 +11,7 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.concurrent.ConcurrentHashMap;
 
+@ToString
 public class LatencyFaultToleranceImpl implements LatencyFaultTolerance<String> {
 
     private final ConcurrentHashMap<String, FaultItem> faultItemTable = new ConcurrentHashMap<String, FaultItem>(16);
@@ -73,20 +77,16 @@ public class LatencyFaultToleranceImpl implements LatencyFaultTolerance<String> 
         return null;
     }
 
-    @Override
-    public String toString() {
-        return "LatencyFaultToleranceImpl{" +
-                "faultItemTable=" + faultItemTable +
-                ", whichItemWorst=" + whichItemWorst +
-                '}';
-    }
-
-    class FaultItem implements Comparable<FaultItem> {
+    @Getter
+    @ToString
+    static class FaultItem implements Comparable<FaultItem> {
 
         private final String name;
 
+        @Setter
         private volatile long currentLatency;
 
+        @Setter
         private volatile long startTimestamp;
 
         public FaultItem(final String name) {
@@ -152,35 +152,5 @@ public class LatencyFaultToleranceImpl implements LatencyFaultTolerance<String> 
             return getName() != null ? getName().equals(faultItem.getName()) : faultItem.getName() == null;
 
         }
-
-        @Override
-        public String toString() {
-            return "FaultItem{" +
-                    "name='" + name + '\'' +
-                    ", currentLatency=" + currentLatency +
-                    ", startTimestamp=" + startTimestamp +
-                    '}';
-        }
-
-        public String getName() {
-            return name;
-        }
-
-        public long getCurrentLatency() {
-            return currentLatency;
-        }
-
-        public void setCurrentLatency(final long currentLatency) {
-            this.currentLatency = currentLatency;
-        }
-
-        public long getStartTimestamp() {
-            return startTimestamp;
-        }
-
-        public void setStartTimestamp(final long startTimestamp) {
-            this.startTimestamp = startTimestamp;
-        }
-
     }
 }

@@ -88,7 +88,6 @@ public class MQFaultStrategy {
                 return this.notAvailableDuration[i];
             }
         }
-
         return 0;
     }
 }

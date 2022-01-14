@@ -1,21 +1,19 @@
-/*
- * Licensed to the Apache Software Foundation (ASF) under one or more
- * contributor license agreements.  See the NOTICE file distributed with
- * this work for additional information regarding copyright ownership.
- * The ASF licenses this file to You under the Apache License, Version 2.0
- * (the "License"); you may not use this file except in compliance with
- * the License.  You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
 package org.apache.rocketmq.example.benchmark;
+
+import org.apache.commons.cli.CommandLine;
+import org.apache.commons.cli.Option;
+import org.apache.commons.cli.Options;
+import org.apache.commons.cli.PosixParser;
+import org.apache.rocketmq.client.exception.MQClientException;
+import org.apache.rocketmq.client.producer.LocalTransactionState;
+import org.apache.rocketmq.client.producer.SendResult;
+import org.apache.rocketmq.client.producer.SendStatus;
+import org.apache.rocketmq.client.producer.TransactionListener;
+import org.apache.rocketmq.client.producer.TransactionMQProducer;
+import org.apache.rocketmq.common.message.Message;
+import org.apache.rocketmq.common.message.MessageConst;
+import org.apache.rocketmq.common.message.MessageExt;
+import org.apache.rocketmq.srvutil.ServerUtil;
 
 import java.io.UnsupportedEncodingException;
 import java.nio.ByteBuffer;
@@ -33,23 +31,10 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.atomic.AtomicLong;
 
-import org.apache.commons.cli.CommandLine;
-import org.apache.commons.cli.Option;
-import org.apache.commons.cli.Options;
-import org.apache.commons.cli.PosixParser;
-import org.apache.rocketmq.client.exception.MQClientException;
-import org.apache.rocketmq.client.producer.LocalTransactionState;
-import org.apache.rocketmq.client.producer.SendResult;
-import org.apache.rocketmq.client.producer.SendStatus;
-import org.apache.rocketmq.client.producer.TransactionListener;
-import org.apache.rocketmq.client.producer.TransactionMQProducer;
-import org.apache.rocketmq.common.message.Message;
-import org.apache.rocketmq.common.message.MessageConst;
-import org.apache.rocketmq.common.message.MessageExt;
-import org.apache.rocketmq.srvutil.ServerUtil;
-
 public class TransactionProducer {
+
     private static final long START_TIME = System.currentTimeMillis();
+
     private static final AtomicLong MSG_COUNT = new AtomicLong(0);
 
     //broker max check times should less than this value
@@ -104,7 +89,7 @@ public class TransactionProducer {
                     final long dupCheck = end.duplicatedCheck - begin.duplicatedCheck;
 
                     System.out.printf(
-                        "Send TPS:%5d Max RT:%5d AVG RT:%3.1f Send Failed: %d check: %d unexpectedCheck: %d duplicatedCheck: %d %n",
+                            "Send TPS:%5d Max RT:%5d AVG RT:%3.1f Send Failed: %d check: %d unexpectedCheck: %d duplicatedCheck: %d %n",
                             sendTps, statsBenchmark.getSendMessageMaxRT().get(), averageRT, failCount, checkCount,
                             unexpectedCheck, dupCheck);
                     statsBenchmark.getSendMessageMaxRT().set(0);
@@ -152,8 +137,9 @@ public class TransactionProducer {
                             while (currentRT > prevMaxRT) {
                                 boolean updated = statsBenchmark.getSendMessageMaxRT()
                                         .compareAndSet(prevMaxRT, currentRT);
-                                if (updated)
+                                if (updated) {
                                     break;
+                                }
 
                                 prevMaxRT = statsBenchmark.getSendMessageMaxRT().get();
                             }
@@ -255,14 +241,21 @@ public class TransactionProducer {
 }
 
 class TransactionListenerImpl implements TransactionListener {
+
     private StatsBenchmarkTProducer statBenchmark;
+
     private TxSendConfig sendConfig;
+
     private final LRUMap<Long, Integer> cache = new LRUMap<>(200000);
 
     private class MsgMeta {
+
         long batchId;
+
         long msgId;
+
         LocalTransactionState sendResult;
+
         List<LocalTransactionState> checkResult;
     }
 
@@ -348,6 +341,7 @@ class TransactionListenerImpl implements TransactionListener {
 }
 
 class Snapshot {
+
     long endTime;
 
     long sendRequestSuccessCount;
@@ -366,6 +360,7 @@ class Snapshot {
 }
 
 class StatsBenchmarkTProducer {
+
     private final AtomicLong sendRequestSuccessCount = new AtomicLong(0L);
 
     private final AtomicLong sendRequestFailedCount = new AtomicLong(0L);
@@ -423,14 +418,23 @@ class StatsBenchmarkTProducer {
 }
 
 class TxSendConfig {
+
     String topic;
+
     int threadCount;
+
     int messageSize;
+
     double sendRollbackRate;
+
     double sendUnknownRate;
+
     double checkRollbackRate;
+
     double checkUnknownRate;
+
     long batchId;
+
     int sendInterval;
 }
 

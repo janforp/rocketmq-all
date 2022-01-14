@@ -70,16 +70,21 @@ public class TopicPublishInfo {
      */
     public MessageQueue selectOneMessageQueue() {
         int index = this.sendWhichQueue.getAndIncrement();
+
+        // 取模
         int pos = Math.abs(index) % this.messageQueueList.size();
         if (pos < 0) {
             pos = 0;
         }
+
+        // 正常情况就是按顺序拿
         return this.messageQueueList.get(pos);
     }
 
     public int getQueueIdByBroker(final String brokerName) {
-        for (int i = 0; i < topicRouteData.getQueueDatas().size(); i++) {
-            final QueueData queueData = this.topicRouteData.getQueueDatas().get(i);
+        // 队列列表
+        List<QueueData> queueDataList = topicRouteData.getQueueDatas();
+        for (final QueueData queueData : queueDataList) {
             if (queueData.getBrokerName().equals(brokerName)) {
                 return queueData.getWriteQueueNums();
             }
