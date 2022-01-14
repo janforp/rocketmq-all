@@ -256,6 +256,7 @@ public abstract class NettyRemotingAbstract {
                         // namesrv 进入这里
                         AsyncNettyRequestProcessor processor = (AsyncNettyRequestProcessor) requestProcessor;
                         /**
+                         * 以 namesrv 注册 broker 为例
                          * 执行任务，不返回响应，而是通过异步的方式
                          * @see org.apache.rocketmq.namesrv.processor.DefaultRequestProcessor namesrv 使用的处理器
                          * @see AsyncNettyRequestProcessor#asyncProcessRequest(io.netty.channel.ChannelHandlerContext, org.apache.rocketmq.remoting.protocol.RemotingCommand, org.apache.rocketmq.remoting.netty.RemotingResponseCallback) namesrv首先调用这个方法

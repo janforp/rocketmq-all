@@ -206,7 +206,7 @@ public class RouteInfoManager {
                     boolean brokerTopicConfigChanged = this.isBrokerTopicConfigChanged(brokerAddr, dataVersion);
                     if (brokerTopicConfigChanged || registerFirst) {
                         // 获取主题映射表，从 broker 注册数据中获取
-                        ConcurrentMap<String, TopicConfig> tcTable = topicConfigWrapper.getTopicConfigTable();
+                        ConcurrentMap<String/*topic*/ , TopicConfig/*主题信息*/> tcTable = topicConfigWrapper.getTopicConfigTable();
                         if (tcTable != null) {
                             // 加入 或者 更新到 namesrv中
                             for (Map.Entry<String, TopicConfig> entry : tcTable.entrySet()) {
@@ -221,7 +221,7 @@ public class RouteInfoManager {
 
                 // 返回上次心态时 当前 broker 节点的存活数据对象
                 DataVersion dataVersion = topicConfigWrapper.getDataVersion();
-                BrokerLiveInfo liveInfo = new BrokerLiveInfo(System.currentTimeMillis(), dataVersion, channel, haServerAddr);
+                BrokerLiveInfo liveInfo = new BrokerLiveInfo(System.currentTimeMillis()/*时间设置为现在*/, dataVersion, channel, haServerAddr);
                 BrokerLiveInfo prevBrokerLiveInfo = this.brokerLiveTable.put(brokerAddr, liveInfo);
                 if (null == prevBrokerLiveInfo) {
                     // 说明时新注册
