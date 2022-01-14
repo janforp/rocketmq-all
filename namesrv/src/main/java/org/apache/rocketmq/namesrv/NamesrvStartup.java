@@ -201,11 +201,12 @@ public class NamesrvStartup {
         return controller;
     }
 
+    // 没有被调用
     public static void shutdown(final NamesrvController controller) {
         controller.shutdown();
     }
 
-    public static Options buildCommandlineOptions(final Options options) {
+    private static Options buildCommandlineOptions(final Options options) {
         Option opt = new Option("c", "configFile", true, "Name server config properties file");
         opt.setRequired(false);
         options.addOption(opt);
