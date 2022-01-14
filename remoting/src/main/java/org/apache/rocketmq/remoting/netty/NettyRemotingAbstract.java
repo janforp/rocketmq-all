@@ -121,6 +121,7 @@ public abstract class NettyRemotingAbstract {
      * Put a netty event to the executor.
      *
      * @param event Netty event instance.
+     * @see NettyRemotingServer.NettyConnectManageHandler 事件分发的地方
      */
     public void putNettyEvent(final NettyEvent event) {
         // 添加到 netty 事件队列中
@@ -406,12 +407,12 @@ public abstract class NettyRemotingAbstract {
         // ConcurrentMap<Integer /* opaque */, ResponseFuture> responseTable
         // key:opaque,value:ResponseFuture
         // ConcurrentMap<Integer /* opaque */, ResponseFuture> responseTable
-        Iterator<Entry<Integer, ResponseFuture>> iterator = this.responseTable.entrySet().iterator();
+        Iterator<Entry<Integer/* opaque */, ResponseFuture>> iterator = this.responseTable.entrySet().iterator();
         while (iterator.hasNext()) {
             // key:opaque,value:ResponseFuture
-            Entry<Integer, ResponseFuture> next = iterator.next();
+            Entry<Integer/* opaque */, ResponseFuture> next = iterator.next();
             ResponseFuture responseFuture = next.getValue();
-            if ((responseFuture.getBeginTimestamp() + responseFuture.getTimeoutMillis() + 1000) <= System.currentTimeMillis()) {
+            if ((responseFuture.getBeginTimestamp() + responseFuture.getTimeoutMillis() + 1000) <= System.currentTimeMillis() /*超时的请求*/) {
                 // 超时的需要定时清理
                 responseFuture.release();
                 // 从列表中移除
@@ -647,9 +648,16 @@ public abstract class NettyRemotingAbstract {
         }
     }
 
+    /**
+     * @see org.apache.rocketmq.namesrv.routeinfo.BrokerHousekeepingService namesrv使用
+     * @see org.apache.rocketmq.broker.client.ClientHousekeepingService broker 使用,监听客户端的连接状态
+     */
     class NettyEventExecutor extends ServiceThread {
 
-        // 子类的成员变量
+        /**
+         * 子类的成员变量
+         * 任务队列
+         */
         private final LinkedBlockingQueue<NettyEvent> eventQueue = new LinkedBlockingQueue<NettyEvent>();
 
         public void putNettyEvent(final NettyEvent event) {
@@ -664,10 +672,10 @@ public abstract class NettyRemotingAbstract {
         @Override
         public void run() {
             log.info(this.getServiceName() + " service started");
-
             final ChannelEventListener listener = NettyRemotingAbstract.this.getChannelEventListener();
             while (!this.isStopped()) {
                 try {
+                    // 拿到一个 netty 事件！！！
                     NettyEvent event = this.eventQueue.poll(3000, TimeUnit.MILLISECONDS);
                     if (event != null && listener != null) {
                         switch (event.getType()) {
@@ -685,7 +693,6 @@ public abstract class NettyRemotingAbstract {
                                 break;
                             default:
                                 break;
-
                         }
                     }
                 } catch (Exception e) {

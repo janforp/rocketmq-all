@@ -116,7 +116,7 @@ public class NamesrvController {
         // 注册协议处理器
         this.registerProcessor();
         // 定时任务1，每10s检查 broker 存活状态，将 idle 状态的 Broker 移除
-        // //定时扫面不活跃Broker
+        // 定时扫面不活跃Broker
         this.scheduledExecutorService.scheduleAtFixedRate(NamesrvController.this.routeInfoManager::scanNotActiveBroker/*检查存活状态*/, 5, 10, TimeUnit.SECONDS);
         // //定时打印KV值
         this.scheduledExecutorService.scheduleAtFixedRate(NamesrvController.this.kvConfigManager::printAllPeriodically/*打印配置*/, 1, 10, TimeUnit.MINUTES);
@@ -186,6 +186,7 @@ public class NamesrvController {
     public void start() throws Exception {
         //服务器 网络层 启动
         //获取netty的remoteServer
+        // 启动 netty 服务端
         this.remotingServer.start();
         if (this.fileWatchService != null) {
             //文件监视服务开启

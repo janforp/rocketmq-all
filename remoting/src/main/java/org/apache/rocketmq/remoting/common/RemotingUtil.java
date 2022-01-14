@@ -195,7 +195,7 @@ public class RemotingUtil {
         //just log
         channel.close().addListener(new ChannelFutureListener() {
             @Override
-            public void operationComplete(ChannelFuture future) throws Exception {
+            public void operationComplete(ChannelFuture future) {
                 boolean futureSuccess = future.isSuccess();
                 log.info("closeChannel: close the connection to remote address[{}] result: {}", addrRemote, futureSuccess);
             }

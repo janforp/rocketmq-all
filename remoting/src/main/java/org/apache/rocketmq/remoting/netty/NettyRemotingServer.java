@@ -49,6 +49,10 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.atomic.AtomicInteger;
 
+/**
+ * 主要负责网络层的调用
+ * 报文的编解码
+ */
 public class NettyRemotingServer extends NettyRemotingAbstract implements RemotingServer {
 
     private static final InternalLogger log = InternalLoggerFactory.getLogger(RemotingHelper.ROCKETMQ_REMOTING);
@@ -97,21 +101,40 @@ public class NettyRemotingServer extends NettyRemotingAbstract implements Remoti
     // sharable handlers
     private HandshakeHandler handshakeHandler;
 
+    /**
+     * 通用解码器
+     *
+     * @see RemotingCommand
+     */
     private NettyEncoder encoder;
 
+    // 连接管理处理器
     private NettyConnectManageHandler connectionManageHandler;
 
+    /**
+     * 真正的业务逻辑处理器
+     *
+     * 当 broker 或者 namesrv 服务器收到消息的时候，会经过这个处理器
+     *
+     * @see NettyRemotingAbstract#processMessageReceived(io.netty.channel.ChannelHandlerContext, org.apache.rocketmq.remoting.protocol.RemotingCommand)
+     */
     private NettyServerHandler serverHandler;
 
     public NettyRemotingServer(final NettyServerConfig nettyServerConfig) {
         this(nettyServerConfig, null);
     }
 
+    /**
+     * broker 跟 namesrv 都会给自实例话一个 NettyRemotingServer 对象
+     *
+     * @param nettyServerConfig 配置
+     * @param channelEventListener 监听器
+     * @see org.apache.rocketmq.namesrv.routeinfo.BrokerHousekeepingService
+     * @see org.apache.rocketmq.broker.client.ClientHousekeepingService
+     */
     public NettyRemotingServer(final NettyServerConfig nettyServerConfig, final ChannelEventListener channelEventListener) {
         // 服务器向 客户端主动发起请求时的并发限制
-        //1.单向请求的并发限制
-        //2.异步请求的并发限制
-        super(nettyServerConfig.getServerOnewaySemaphoreValue(), nettyServerConfig.getServerAsyncSemaphoreValue());
+        super(nettyServerConfig.getServerOnewaySemaphoreValue()/*单向请求的并发限制*/, nettyServerConfig.getServerAsyncSemaphoreValue()/*异步请求的并发限制*/);
         this.serverBootstrap = new ServerBootstrap();
         this.nettyServerConfig = nettyServerConfig;
         this.channelEventListener = channelEventListener;
@@ -208,6 +231,10 @@ public class NettyRemotingServer extends NettyRemotingAbstract implements Remoti
                 && Epoll.isAvailable();
     }
 
+    /**
+     * 启动 netty 服务端
+     * 最后会开一个定时器定时扫描超时的请求.扫描的原理就是就是根据请求开始时间与目前时间的间隔差,如果超过最大阀值就通过线程池去异步销毁.
+     */
     @Override
     public void start() {
         // 当向 channel pipeline 添加 handler 时，制定了 GROUp时候，网络事件传播到当前 handler 时，事件处理器由分配给 handler 的线程执行
@@ -222,7 +249,7 @@ public class NettyRemotingServer extends NettyRemotingAbstract implements Remoti
                     }
                 });
 
-        // 创建handler对象
+        // 创建handler对象，下面需要使用
         prepareSharableHandlers();
 
         // 配置服务端启动对象
@@ -245,23 +272,25 @@ public class NettyRemotingServer extends NettyRemotingAbstract implements Remoti
                             public void initChannel(SocketChannel ch) {
                                 ch.pipeline()
                                         // ChannelPipeline addLast(EventExecutorGroup group, String name, ChannelHandler handler);
-                                        .addLast(defaultEventExecutorGroup, HANDSHAKE_HANDLER_NAME, handshakeHandler)
+                                        .addLast(defaultEventExecutorGroup, HANDSHAKE_HANDLER_NAME, handshakeHandler) // 指定名称的处理器，该处理器工作在指定的线程中
                                         // ChannelPipeline addLast(EventExecutorGroup group, ChannelHandler... handlers);
-                                        .addLast(defaultEventExecutorGroup,
-                                                encoder,
-                                                new NettyDecoder(),
+                                        .addLast(defaultEventExecutorGroup,// 这些理器工作在指定的线程中
+                                                encoder, // 编码
+                                                new NettyDecoder(), // 解码
                                                 new IdleStateHandler(0, 0, nettyServerConfig.getServerChannelMaxIdleTimeSeconds()),
-                                                connectionManageHandler,
-                                                serverHandler
+                                                connectionManageHandler, // 连接管理处理器
+                                                serverHandler // 真正的业务逻辑处理器
                                         );
                             }
                         });
 
         if (nettyServerConfig.isServerPooledByteBufAllocatorEnable()) {
+            // 开启 netty 内存池
             childHandler.childOption(ChannelOption.ALLOCATOR, PooledByteBufAllocator.DEFAULT);
         }
 
         try {
+            // 启动服务器
             ChannelFuture sync = this.serverBootstrap.bind().sync();
             InetSocketAddress addr = (InetSocketAddress) sync.channel().localAddress();
             this.port = addr.getPort();
@@ -269,7 +298,13 @@ public class NettyRemotingServer extends NettyRemotingAbstract implements Remoti
             throw new RuntimeException("this.serverBootstrap.bind().sync() InterruptedException", e1);
         }
 
+
+        /*
+         * @see org.apache.rocketmq.namesrv.routeinfo.BrokerHousekeepingService namesrv使用
+         * @see org.apache.rocketmq.broker.client.ClientHousekeepingService broker 使用,监听客户端的连接状态
+         */
         if (this.channelEventListener != null) {
+            // 这个任务中会真正的使用这个监听器
             this.nettyEventExecutor.start();
         }
 
@@ -286,15 +321,16 @@ public class NettyRemotingServer extends NettyRemotingAbstract implements Remoti
         }, 1000 * 3, 1000);
     }
 
+    @SuppressWarnings("all")
     @Override
     public void shutdown() {
         try {
             if (this.timer != null) {
+                // 取消任务
                 this.timer.cancel();
             }
 
             this.eventLoopGroupBoss.shutdownGracefully();
-
             this.eventLoopGroupSelector.shutdownGracefully();
 
             if (this.nettyEventExecutor != null) {
@@ -359,9 +395,7 @@ public class NettyRemotingServer extends NettyRemotingAbstract implements Remoti
      * @return 请求？
      */
     @Override
-    public RemotingCommand invokeSync(final Channel channel, final RemotingCommand request, final long timeoutMillis)
-            throws InterruptedException, RemotingSendRequestException, RemotingTimeoutException {
-
+    public RemotingCommand invokeSync(final Channel channel, final RemotingCommand request, final long timeoutMillis) throws InterruptedException, RemotingSendRequestException, RemotingTimeoutException {
         return this.invokeSyncImpl(channel, request, timeoutMillis);
     }
 
@@ -374,16 +408,12 @@ public class NettyRemotingServer extends NettyRemotingAbstract implements Remoti
      * @param invokeCallback 请求回调处理对象
      */
     @Override
-    public void invokeAsync(Channel channel, RemotingCommand request, long timeoutMillis, InvokeCallback invokeCallback)
-            throws InterruptedException, RemotingTooMuchRequestException, RemotingTimeoutException, RemotingSendRequestException {
-
+    public void invokeAsync(Channel channel, RemotingCommand request, long timeoutMillis, InvokeCallback invokeCallback) throws InterruptedException, RemotingTooMuchRequestException, RemotingTimeoutException, RemotingSendRequestException {
         this.invokeAsyncImpl(channel, request, timeoutMillis, invokeCallback);
     }
 
     @Override
-    public void invokeOneway(Channel channel, RemotingCommand request, long timeoutMillis) throws InterruptedException,
-            RemotingTooMuchRequestException, RemotingTimeoutException, RemotingSendRequestException {
-
+    public void invokeOneway(Channel channel, RemotingCommand request, long timeoutMillis) throws InterruptedException, RemotingTooMuchRequestException, RemotingTimeoutException, RemotingSendRequestException {
         // 请求发送完成即可，不关心结果
         this.invokeOnewayImpl(channel, request, timeoutMillis);
     }
@@ -472,6 +502,9 @@ public class NettyRemotingServer extends NettyRemotingAbstract implements Remoti
         }
     }
 
+    /**
+     * 双向通道
+     */
     @ChannelHandler.Sharable
     class NettyConnectManageHandler extends ChannelDuplexHandler {
 
@@ -520,12 +553,10 @@ public class NettyRemotingServer extends NettyRemotingAbstract implements Remoti
                     log.warn("NETTY SERVER PIPELINE: IDLE exception [{}]", remoteAddress);
                     RemotingUtil.closeChannel(ctx.channel());
                     if (NettyRemotingServer.this.channelEventListener != null) {
-                        NettyRemotingServer.this
-                                .putNettyEvent(new NettyEvent(NettyEventType.IDLE, remoteAddress, ctx.channel()));
+                        NettyRemotingServer.this.putNettyEvent(new NettyEvent(NettyEventType.IDLE, remoteAddress, ctx.channel()));
                     }
                 }
             }
-
             ctx.fireUserEventTriggered(evt);
         }
 

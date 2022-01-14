@@ -52,7 +52,7 @@ public class RouteInfoManager {
 
     private static final InternalLogger log = InternalLoggerFactory.getLogger(LoggerName.NAMESRV_LOGGER_NAME);
 
-    // 2 分钟
+    // broker 超时事件：2 分钟
     private final static long BROKER_CHANNEL_EXPIRED_TIME = 1000 * 60 * 2;
 
     private final ReadWriteLock lock = new ReentrantReadWriteLock();
@@ -93,6 +93,8 @@ public class RouteInfoManager {
      * <p>
      * Broker状态信息,心跳包会更新，
      * 每次 broker 向 namesrv 发送心跳之后，就会更新这个映射表
+     *
+     * @see RouteInfoManager#scanNotActiveBroker()
      */
     private final HashMap<String/* brokerAddr，如 127.0.0.1:10911 在整个集群中是唯一的 */, BrokerLiveInfo /*封装了该broker最近心跳的时间,broker是否存活也依赖该时间*/> brokerLiveTable;
 
@@ -471,16 +473,19 @@ public class RouteInfoManager {
      */
     public void scanNotActiveBroker() {
         // HashMap<String/* brokerAddr */, BrokerLiveInfo> brokerLiveTable;
-        Iterator<Entry<String, BrokerLiveInfo>> it = this.brokerLiveTable.entrySet().iterator();
+        Iterator<Entry<String/* brokerAddr */, BrokerLiveInfo/*存活情况*/>> it = this.brokerLiveTable.entrySet().iterator();
         while (it.hasNext()) {
-            Entry<String, BrokerLiveInfo> next = it.next();
+            Entry<String/* brokerAddr */, BrokerLiveInfo/*存活情况*/> next = it.next();
+
+            // 该 broker 上次向 namesrv 心跳成功的事件！
             long last = next.getValue().getLastUpdateTimestamp();
-            if ((last + BROKER_CHANNEL_EXPIRED_TIME) < System.currentTimeMillis()) {
+            if ((last + BROKER_CHANNEL_EXPIRED_TIME) < System.currentTimeMillis()/*该 broker 超过2分钟没发心跳给 namesrv，则认为出问题了*/) {
                 BrokerLiveInfo brokerLiveInfo = next.getValue();
                 Channel channel = brokerLiveInfo.getChannel();
                 RemotingUtil.closeChannel(channel);
                 it.remove();
                 log.warn("The broker channel expired, {} {}ms", next.getKey(), BROKER_CHANNEL_EXPIRED_TIME);
+                // 针对该 broker 的路由信息进行删除
                 this.onChannelDestroy(next.getKey(), channel);
             }
         }
