@@ -58,7 +58,7 @@ public abstract class NettyRemotingAbstract {
 
     /**
      * This map caches all on-going requests.
-     * 响应映射表
+     * 请求响应映射表
      *
      * @see RemotingCommand#requestId
      */
@@ -281,7 +281,8 @@ public abstract class NettyRemotingAbstract {
             // 将 runnable 和 ch 以及 请求 cmd 封装起来
             final RequestTask requestTask = new RequestTask(run, ctx.channel(), cmd);
             // 提交到线程池，里面会执行上面封装的 run 方法
-            pair.getObject2().submit(requestTask);
+            ExecutorService executorService = pair.getObject2();
+            executorService.submit(requestTask);
         } catch (RejectedExecutionException e) {
             if ((System.currentTimeMillis() % 10000) == 0) {
                 log.warn(RemotingHelper.parseChannelRemoteAddr(ctx.channel()) + ", too many requests and system thread pool busy, RejectedExecutionException " + pair.getObject2().toString() + " request code: " + cmd.getCode());
@@ -528,15 +529,8 @@ public abstract class NettyRemotingAbstract {
                 once.release();
                 throw new RemotingTimeoutException("invokeAsyncImpl call timeout");
             }
-
-            final ResponseFuture responseFuture = new ResponseFuture(
-                    channel, //客户端ch
-                    opaque,  // 请求id
-                    timeoutMillis - costTime, // 剩余的超时时间
-                    invokeCallback, //  回调处理对象
-                    once // 信号量释放对象
-            );
-
+            // 创建响应对象
+            final ResponseFuture responseFuture = new ResponseFuture(channel,/*客户端ch*/opaque,/*请求id*/timeoutMillis - costTime,/*剩余的超时时间*/invokeCallback,/*回调处理对象*/once/*信号量释放对象*/);
             // 加入映射表中
             this.responseTable.put(opaque, responseFuture);
             try {
