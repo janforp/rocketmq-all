@@ -10,6 +10,9 @@ import org.apache.rocketmq.remoting.CommandCustomHeader;
 import org.apache.rocketmq.remoting.annotation.CFNotNull;
 import org.apache.rocketmq.remoting.common.RemotingHelper;
 import org.apache.rocketmq.remoting.exception.RemotingCommandException;
+import org.apache.rocketmq.remoting.netty.NettyDecoder;
+import org.apache.rocketmq.remoting.netty.NettyEncoder;
+import org.apache.rocketmq.remoting.netty.ResponseFuture;
 
 import java.lang.annotation.Annotation;
 import java.lang.reflect.Field;
@@ -19,6 +22,9 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 
+/**
+ * 远程命令，远程请求/响应对象
+ */
 @ToString
 public class RemotingCommand {
 
@@ -123,6 +129,10 @@ public class RemotingCommand {
     /**
      * request:相当于requestId，在同一个连接上的不同请求标识码，与响应消息中的相对应
      * response:应答不做修改直接返回
+     *
+     * 同一个 JVM 下是唯一的
+     *
+     * @see ResponseFuture#opaque 跟这个字段一一对应
      */
     @Setter
     @Getter
@@ -130,7 +140,7 @@ public class RemotingCommand {
 
     /**
      * TODO 标记是响应还是请求？？
-     * 区分是普通RPC还是onewayRPC得标志
+     * 区分是普通RPC还是onewayRPC得标志，服务器会根据该标记决定是否返回数据
      */
     @Setter
     @Getter
@@ -144,14 +154,16 @@ public class RemotingCommand {
     /**
      * 字段的名称跟值的映射表
      *
-     * 请求自定义扩展信息 或者 响应自定义扩展信息
+     * 请求自定义扩展信息 或者 响应自定义扩展信息！！！！！！！
      */
     @Setter
     @Getter
     private HashMap<String, String> extFields;
 
+    // 不参与序列化，通过extFields传递
     private transient CommandCustomHeader customHeader;
 
+    // 不参与序列化
     @Setter
     @Getter
     private transient byte[] body;
@@ -159,7 +171,7 @@ public class RemotingCommand {
     protected RemotingCommand() {
     }
 
-    public static RemotingCommand createRequestCommand(int code, CommandCustomHeader customHeader) {
+    public static RemotingCommand createRequestCommand(int code/*业务类型*/, CommandCustomHeader customHeader/*有具体请求参数的对象*/) {
         RemotingCommand cmd = new RemotingCommand();
         cmd.setCode(code);
         // 请求
@@ -217,8 +229,16 @@ public class RemotingCommand {
         return decode(byteBuffer);
     }
 
+    /**
+     * 解码
+     *
+     * @param byteBuffer 收到的数据
+     * @return 解码之后的对象
+     * @see NettyDecoder#decode(io.netty.channel.ChannelHandlerContext, io.netty.buffer.ByteBuf)
+     */
     public static RemotingCommand decode(final ByteBuffer byteBuffer) {
         int length = byteBuffer.limit();
+        // 读取头
         int oriHeaderLen = byteBuffer.getInt();
         int headerLength = getHeaderLength(oriHeaderLen);
 
@@ -232,6 +252,7 @@ public class RemotingCommand {
         byte[] bodyData = null;
         if (bodyLength > 0) {
             bodyData = new byte[bodyLength];
+            // 读取 body 的内容
             byteBuffer.get(bodyData);
         }
         assert cmd != null;
@@ -507,6 +528,10 @@ public class RemotingCommand {
         }
     }
 
+    /**
+     * @return 编码之后的字节数组
+     * @see NettyEncoder#encode(io.netty.channel.ChannelHandlerContext, org.apache.rocketmq.remoting.protocol.RemotingCommand, io.netty.buffer.ByteBuf)
+     */
     public ByteBuffer encodeHeader() {
         return encodeHeader(this.body != null ? this.body.length : 0);
     }

@@ -59,6 +59,11 @@ public abstract class NettyRemotingAbstract {
     /**
      * This map caches all on-going requests.
      * 请求响应映射表
+     * 如果服务端发起请求到客户端，则服务端会有这样一个映射表
+     * 如果客户端发起请求到服务端，则客户端会有这样一个映射表
+     * 主要目的是待对端响应的时候跟唯一opaque能够找到响应到哪个对象
+     *
+     * 因为发起请求跟得到响应，两个步骤之间是有一定时间间隔的！
      *
      * @see RemotingCommand#requestId
      */
@@ -147,6 +152,8 @@ public abstract class NettyRemotingAbstract {
      */
     public void processMessageReceived(ChannelHandlerContext ctx, RemotingCommand msg) {
         if (msg != null) {
+
+            // 消息类型是请求还是响应
             RemotingCommandType type = msg.getType();
             switch (type) {
                 case REQUEST_COMMAND: // 客户端发起的请求
@@ -308,6 +315,8 @@ public abstract class NettyRemotingAbstract {
      */
     public void processResponseCommand(ChannelHandlerContext ctx, RemotingCommand cmd) {
         final int opaque = cmd.getOpaque();
+
+        // 远端返回的响应，则需要根据 opaque 找到发起请求时候的 future
         final ResponseFuture responseFuture = responseTable.get(opaque);
         if (responseFuture == null) {
             log.warn("receive response, but not matched any request, " + RemotingHelper.parseChannelRemoteAddr(ctx.channel()));

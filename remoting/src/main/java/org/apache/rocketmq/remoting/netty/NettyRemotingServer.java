@@ -272,13 +272,17 @@ public class NettyRemotingServer extends NettyRemotingAbstract implements Remoti
                             public void initChannel(SocketChannel ch) {
                                 ch.pipeline()
                                         // ChannelPipeline addLast(EventExecutorGroup group, String name, ChannelHandler handler);
-                                        .addLast(defaultEventExecutorGroup, HANDSHAKE_HANDLER_NAME, handshakeHandler) // 指定名称的处理器，该处理器工作在指定的线程中
+                                        .addLast(defaultEventExecutorGroup, HANDSHAKE_HANDLER_NAME, handshakeHandler/*数字证书相关，安全*/) // 指定名称的处理器，该处理器工作在指定的线程中
                                         // ChannelPipeline addLast(EventExecutorGroup group, ChannelHandler... handlers);
                                         .addLast(defaultEventExecutorGroup,// 这些理器工作在指定的线程中
-                                                encoder, // 编码
-                                                new NettyDecoder(), // 解码
-                                                new IdleStateHandler(0, 0, nettyServerConfig.getServerChannelMaxIdleTimeSeconds()),
-                                                connectionManageHandler, // 连接管理处理器
+                                                encoder, // 编码 RemotingCommand
+                                                new NettyDecoder(), // 解码 RemotingCommand
+                                                new IdleStateHandler(0, 0, nettyServerConfig.getServerChannelMaxIdleTimeSeconds()),// 监听当前通道的空闲时间
+                                                /*
+                                                 * 连接管理处理器，监听通道状态发送改变
+                                                 * @see NettyRemotingAbstract#nettyEventExecutor
+                                                 */
+                                                connectionManageHandler,
                                                 serverHandler // 真正的业务逻辑处理器
                                         );
                             }
@@ -430,6 +434,9 @@ public class NettyRemotingServer extends NettyRemotingAbstract implements Remoti
         serverHandler = new NettyServerHandler();
     }
 
+    /**
+     * 数字证书相关，安全
+     */
     @ChannelHandler.Sharable
     class HandshakeHandler extends SimpleChannelInboundHandler<ByteBuf> {
 

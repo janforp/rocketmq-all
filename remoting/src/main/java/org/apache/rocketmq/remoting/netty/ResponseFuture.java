@@ -15,9 +15,15 @@ import java.util.concurrent.atomic.AtomicBoolean;
 @ToString
 public class ResponseFuture {
 
+    /**
+     * 发送请求的时候生成的唯一编号
+     */
     @Getter
     private final int opaque;
 
+    /**
+     * 发送请求的时候与服务端建立的连接
+     */
     @Getter
     private final Channel processChannel;
 
@@ -35,6 +41,11 @@ public class ResponseFuture {
     @Getter
     private final long beginTimestamp = System.currentTimeMillis();
 
+    /**
+     * 在这个对象上等待服务器响应
+     *
+     * 发起请求的线程在这个对象等待
+     */
     private final CountDownLatch countDownLatch = new CountDownLatch(1);
 
     private final SemaphoreReleaseOnlyOnce once;
@@ -44,6 +55,9 @@ public class ResponseFuture {
      */
     private final AtomicBoolean executeCallbackOnlyOnce = new AtomicBoolean(false);
 
+    /**
+     * 该请求收到的响应
+     */
     @Getter
     @Setter
     private volatile RemotingCommand responseCommand;
