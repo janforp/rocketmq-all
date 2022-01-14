@@ -46,7 +46,7 @@ public class NamesrvController {
 
     /**
      * 执行定时任务
-     * 1.检查broker存活状态
+     * 1.检查broker存活状态，移除已经掉线的 broker
      * 2.打印配置
      */
     private final ScheduledExecutorService scheduledExecutorService = Executors.newSingleThreadScheduledExecutor(new ThreadFactoryImpl("NSScheduledThread"));
@@ -107,23 +107,18 @@ public class NamesrvController {
      * 启动FileWatchService,用于SSL/TLS
      */
     public boolean initialize() {
-
         // 开始加载对应的参数
         this.kvConfigManager.load();
-
         // RemotingServer是负责接受来自Broker的注册网络通信
-        this.remotingServer = new NettyRemotingServer(this.nettyServerConfig, this.brokerHousekeepingService);
-
-        this.remotingExecutor = Executors.newFixedThreadPool(nettyServerConfig.getServerWorkerThreads(), new ThreadFactoryImpl("RemotingExecutorThread_"));
-
+        this.remotingServer = new NettyRemotingServer(this.nettyServerConfig, this.brokerHousekeepingService/*连接销毁，断开的时候的回调方法*/);
+        this.remotingExecutor = Executors.newFixedThreadPool(nettyServerConfig.getServerWorkerThreads()/*默认8，可以配置*/, new ThreadFactoryImpl("RemotingExecutorThread_"));
+        // 注册协议处理器
         this.registerProcessor();
-
         // 定时任务1，每10s检查 broker 存活状态，将 idle 状态的 Broker 移除
         // //定时扫面不活跃Broker
-        this.scheduledExecutorService.scheduleAtFixedRate(NamesrvController.this.routeInfoManager::scanNotActiveBroker, 5, 10, TimeUnit.SECONDS);
-
+        this.scheduledExecutorService.scheduleAtFixedRate(NamesrvController.this.routeInfoManager::scanNotActiveBroker/*检查存活状态*/, 5, 10, TimeUnit.SECONDS);
         // //定时打印KV值
-        this.scheduledExecutorService.scheduleAtFixedRate(NamesrvController.this.kvConfigManager::printAllPeriodically, 1, 10, TimeUnit.MINUTES);
+        this.scheduledExecutorService.scheduleAtFixedRate(NamesrvController.this.kvConfigManager::printAllPeriodically/*打印配置*/, 1, 10, TimeUnit.MINUTES);
 
         // 最后就是处理关于SSL/TLS的事情.说明一下,RocketMQ需要定义路径:CertPath、KeyPath和TrustCertPath的地址,是为了写入文件.如果没有权限会报错的.
         if (TlsSystemConfig.tlsMode != TlsMode.DISABLED) {
@@ -180,6 +175,8 @@ public class NamesrvController {
             ClusterTestRequestProcessor clusterTestRequestProcessor = new ClusterTestRequestProcessor(this, productEnvName);
             this.remotingServer.registerDefaultProcessor(clusterTestRequestProcessor, this.remotingExecutor);
         } else {
+
+            // 注册一个默认的请求处理器
             DefaultRequestProcessor defaultRequestProcessor = new DefaultRequestProcessor(this);
             this.remotingServer.registerDefaultProcessor(defaultRequestProcessor, this.remotingExecutor);
         }

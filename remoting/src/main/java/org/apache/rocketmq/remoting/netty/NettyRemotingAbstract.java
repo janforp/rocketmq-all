@@ -78,7 +78,7 @@ public abstract class NettyRemotingAbstract {
     /**
      * The default request processor to use in case there is no exact match in {@link #processorTable} per request code.
      */
-    protected Pair<NettyRequestProcessor, ExecutorService> defaultRequestProcessor;
+    protected Pair<NettyRequestProcessor, ExecutorService/*处理器处理业务的时候使用的线程池*/> defaultRequestProcessor;
 
     /**
      * SSL context via which to create {@link SslHandler}.

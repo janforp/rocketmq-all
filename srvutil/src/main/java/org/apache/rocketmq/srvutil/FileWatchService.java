@@ -44,11 +44,6 @@ public class FileWatchService extends ServiceThread {
     }
 
     @Override
-    public String getServiceName() {
-        return "FileWatchService";
-    }
-
-    @Override
     public void run() {
         log.info(this.getServiceName() + " service started");
 

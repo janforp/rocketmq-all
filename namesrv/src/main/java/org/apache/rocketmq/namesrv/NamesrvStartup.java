@@ -183,20 +183,22 @@ public class NamesrvStartup {
         if (null == controller) {
             throw new IllegalArgumentException("NamesrvController is null");
         }
+
+        // 先初始化
         boolean initResult = controller.initialize();
         if (!initResult) {
             // namesrv 初始化失败！！
             controller.shutdown();
             System.exit(-3);
         }
-
         Runtime runtime = Runtime.getRuntime();
+        // 平滑关机的钩子
         runtime.addShutdownHook(new ShutdownHookThread(log, (Callable<Void>) () -> {
-
             // 钩子
             controller.shutdown();
             return null;
         }));
+        // 再启动
         controller.start();
         return controller;
     }

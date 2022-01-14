@@ -211,8 +211,7 @@ public class NettyRemotingServer extends NettyRemotingAbstract implements Remoti
     @Override
     public void start() {
         // 当向 channel pipeline 添加 handler 时，制定了 GROUp时候，网络事件传播到当前 handler 时，事件处理器由分配给 handler 的线程执行
-        this.defaultEventExecutorGroup = new DefaultEventExecutorGroup(
-                nettyServerConfig.getServerWorkerThreads(),// 配置的线程数量
+        this.defaultEventExecutorGroup = new DefaultEventExecutorGroup(nettyServerConfig.getServerWorkerThreads(),/*配置的线程数量*/
                 // 线程工厂
                 new ThreadFactory() {
                     private final AtomicInteger threadIndex = new AtomicInteger(0);
@@ -222,6 +221,7 @@ public class NettyRemotingServer extends NettyRemotingAbstract implements Remoti
                         return new Thread(r, "NettyServerCodecThread_" + this.threadIndex.incrementAndGet());
                     }
                 });
+
         // 创建handler对象
         prepareSharableHandlers();
 

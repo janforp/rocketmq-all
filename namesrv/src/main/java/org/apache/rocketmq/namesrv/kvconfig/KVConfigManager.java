@@ -62,11 +62,9 @@ public class KVConfigManager {
 
                 final String prev = kvTable.put(key, value);
                 if (null != prev) {
-                    log.info("putKVConfig update config item, Namespace: {} Key: {} Value: {}",
-                            namespace, key, value);
+                    log.info("putKVConfig update config item, Namespace: {} Key: {} Value: {}", namespace, key, value);
                 } else {
-                    log.info("putKVConfig create new config item, Namespace: {} Key: {} Value: {}",
-                            namespace, key, value);
+                    log.info("putKVConfig create new config item, Namespace: {} Key: {} Value: {}", namespace, key, value);
                 }
             } finally {
                 this.lock.writeLock().unlock();
