@@ -93,7 +93,7 @@ public class MQClientInstance {
     private final long bootTimestamp = System.currentTimeMillis();
 
     // 生产者映射表，key:组名称，value：生产者或者消费者
-    private final ConcurrentMap<String/* group */, MQProducerInner> producerTable = new ConcurrentHashMap<String, MQProducerInner>();
+    private final ConcurrentMap<String/* group */, MQProducerInner/*DefaultMQProducerImpl*/> producerTable = new ConcurrentHashMap<String, MQProducerInner>();
 
     // 消费者映射表
     // 生产者映射表，key:组名称，value：生产者或者消费者
@@ -122,7 +122,7 @@ public class MQClientInstance {
     // value： 主题的路由数据
     // 客户端本地的路由数据
     @Getter
-    private final ConcurrentMap<String/* Topic */, TopicRouteData> topicRouteTable = new ConcurrentHashMap<String, TopicRouteData>();
+    private final ConcurrentMap<String/* Topic */, TopicRouteData/*主题路由信息*/> topicRouteTable = new ConcurrentHashMap<String, TopicRouteData>();
 
     private final Lock lockNamesrv = new ReentrantLock();
 
@@ -140,7 +140,7 @@ public class MQClientInstance {
      * key:brokerName 逻辑层面的对象
      * value:k是broker,0 的节点是主节点，其他是slave，v 版本号
      */
-    private final ConcurrentMap<String/* Broker Name */, HashMap<String/* address */, Integer>> brokerVersionTable = new ConcurrentHashMap<String, HashMap<String, Integer>>();
+    private final ConcurrentMap<String/* Broker Name */, HashMap<String/* address */, Integer/*brokerId*/>> brokerVersionTable = new ConcurrentHashMap<String, HashMap<String, Integer>>();
 
     // 单线程的调度线程池，用于执行定时任务
     @Getter

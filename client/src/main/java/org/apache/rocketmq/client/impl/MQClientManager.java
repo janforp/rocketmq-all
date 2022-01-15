@@ -17,16 +17,17 @@ public class MQClientManager {
 
     private static final MQClientManager instance = new MQClientManager();
 
+    // 计数用
     private final AtomicInteger factoryIndexGenerator = new AtomicInteger();
 
     /**
      * key:clientId
      * value:mq客户端实例
      */
-    private final ConcurrentMap<String, MQClientInstance> factoryTable = new ConcurrentHashMap<String, MQClientInstance>();
+    private final ConcurrentMap<String/*clientId：IP&instanceName（当前进程PID），如：10.201.13.28@9738*/, MQClientInstance> factoryTable = new ConcurrentHashMap<String, MQClientInstance>();
 
     private MQClientManager() {
-
+        // 单例
     }
 
     public static MQClientManager getInstance() {
@@ -43,8 +44,12 @@ public class MQClientManager {
         String clientId = clientConfig.buildMQClientId();
         MQClientInstance instance = this.factoryTable.get(clientId);
         if (null == instance) {
-            // 第一次拿不到，则创建
-            instance = new MQClientInstance(clientConfig.cloneClientConfig(), this.factoryIndexGenerator.getAndIncrement(), clientId, rpcHook);
+            // 首次拿不到，则创建
+            ClientConfig cloneClientConfig = clientConfig.cloneClientConfig();
+            int generatorAndIncrement = this.factoryIndexGenerator.getAndIncrement();
+            instance = new MQClientInstance(cloneClientConfig, generatorAndIncrement, clientId/*10.201.13.28@9738*/, rpcHook);
+
+            // 放进去缓存
             MQClientInstance prev = this.factoryTable.putIfAbsent(clientId, instance);
             if (prev != null) {
                 instance = prev;

@@ -13,9 +13,9 @@ import java.util.concurrent.ConcurrentHashMap;
 
 public class RequestFutureTable {
 
-    private static InternalLogger log = ClientLogger.getLog();
+    private static final InternalLogger log = ClientLogger.getLog();
 
-    private static ConcurrentHashMap<String, RequestResponseFuture> requestFutureTable = new ConcurrentHashMap<String, RequestResponseFuture>();
+    private static final ConcurrentHashMap<String, RequestResponseFuture> requestFutureTable = new ConcurrentHashMap<String, RequestResponseFuture>();
 
     public static ConcurrentHashMap<String, RequestResponseFuture> getRequestFutureTable() {
         return requestFutureTable;

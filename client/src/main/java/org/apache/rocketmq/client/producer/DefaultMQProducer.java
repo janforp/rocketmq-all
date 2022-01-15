@@ -74,7 +74,7 @@ public class DefaultMQProducer extends ClientConfig implements MQProducer {
      */
     @Getter
     @Setter
-    private String createTopicKey = MixAll.AUTO_CREATE_TOPIC_KEY_TOPIC;
+    private String createTopicKey = MixAll.AUTO_CREATE_TOPIC_KEY_TOPIC; // TBW102
 
     /**
      * Number of queues to create per default topic.
@@ -98,7 +98,7 @@ public class DefaultMQProducer extends ClientConfig implements MQProducer {
      */
     @Getter
     @Setter
-    private int compressMsgBodyOverHowmuch = 1024 * 4;
+    private int compressMsgBodyOverHowmuch = 1024 * 4;// 4M
 
     /**
      * Maximum number of retry to perform internally before claiming sending failure in synchronous mode. </p>
@@ -146,7 +146,7 @@ public class DefaultMQProducer extends ClientConfig implements MQProducer {
      * Default constructor.
      */
     public DefaultMQProducer() {
-        this(null, MixAll.DEFAULT_PRODUCER_GROUP, null);
+        this(null, MixAll.DEFAULT_PRODUCER_GROUP/*DEFAULT_PRODUCER*/, null);
     }
 
     /**
@@ -155,7 +155,7 @@ public class DefaultMQProducer extends ClientConfig implements MQProducer {
      * @param rpcHook RPC hook to execute per each remoting command execution.
      */
     public DefaultMQProducer(RPCHook rpcHook) {
-        this(null, MixAll.DEFAULT_PRODUCER_GROUP, rpcHook);
+        this(null, MixAll.DEFAULT_PRODUCER_GROUP/*DEFAULT_PRODUCER*/, rpcHook);
     }
 
     /**
@@ -226,11 +226,7 @@ public class DefaultMQProducer extends ClientConfig implements MQProducer {
         // ！！！！！！ 最重要
         // 创建生产者对象
         //
-        defaultMQProducerImpl = new DefaultMQProducerImpl(
-
-                this, // 当前门面对象
-                rpcHook // 钩子
-        );
+        defaultMQProducerImpl = new DefaultMQProducerImpl(this, rpcHook);
     }
 
     /**
@@ -295,7 +291,8 @@ public class DefaultMQProducer extends ClientConfig implements MQProducer {
     public void start() throws MQClientException {
 
         // 重置生产者组名称，如果传了，则需要加上门面空间
-        this.setProducerGroup(withNamespace(this.producerGroup));
+        String withNamespace = withNamespace(this.producerGroup);
+        this.setProducerGroup(withNamespace);
 
         // 生产者实现对象启动
         this.defaultMQProducerImpl.start();

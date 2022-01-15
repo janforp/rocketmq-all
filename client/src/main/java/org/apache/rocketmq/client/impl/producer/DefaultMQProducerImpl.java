@@ -102,7 +102,7 @@ public class DefaultMQProducerImpl implements MQProducerInner {
      * key:topic主题
      * value:主题的发布信息
      */
-    private final ConcurrentMap<String/*topic*/, TopicPublishInfo> topicPublishInfoTable = new ConcurrentHashMap<String, TopicPublishInfo>();
+    private final ConcurrentMap<String/*topic*/, TopicPublishInfo/*该主题的发布信息*/> topicPublishInfoTable = new ConcurrentHashMap<String, TopicPublishInfo>();
 
     // 发送消息的钩子，留给用户扩展
     private final ArrayList<SendMessageHook> sendMessageHookList = new ArrayList<SendMessageHook>();
@@ -214,7 +214,7 @@ public class DefaultMQProducerImpl implements MQProducerInner {
 
     // 正常路径： startFactory 为 true
     public void start(final boolean startFactory) throws MQClientException {
-
+        String producerGroup = this.defaultMQProducer.getProducerGroup();
         switch (this.serviceState) {
 
             // 刚刚创建的就是 CREAT_JUST 状态
@@ -228,7 +228,7 @@ public class DefaultMQProducerImpl implements MQProducerInner {
                 this.checkConfig();
 
                 //
-                if (!this.defaultMQProducer.getProducerGroup().equals(MixAll.CLIENT_INNER_PRODUCER_GROUP)) {
+                if (!producerGroup.equals(MixAll.CLIENT_INNER_PRODUCER_GROUP/*CLIENT_INNER_PRODUCER*/)) {
                     // 条件成立：说明当前生产者不是 内部生产者（什么是内部生产者？？？？？成立消息回退这种情况使用的生产者）
 
                     // 正常会进来这里
@@ -237,23 +237,28 @@ public class DefaultMQProducerImpl implements MQProducerInner {
                 }
 
                 // 获取当前进程的RocketMQ客户端实例对象，其中包括设置 clientId 的逻辑，一般为：10.201.13.28@9738
-                this.mQClientFactory = MQClientManager.getInstance().getOrCreateMQClientInstance(this.defaultMQProducer, rpcHook);
+                MQClientManager mqClientManager = MQClientManager.getInstance();
+
+                // 每个 client 都有一个不变的实例
+                this.mQClientFactory = mqClientManager.getOrCreateMQClientInstance(this.defaultMQProducer, rpcHook);
 
                 // 将生产者自己注册到mq客户端实例内(观察者模式)
-                boolean registerOK = mQClientFactory.registerProducer(this.defaultMQProducer.getProducerGroup(), this);
+                boolean registerOK = mQClientFactory.registerProducer(producerGroup, this);
                 if (!registerOK) {
                     this.serviceState = ServiceState.CREATE_JUST;
-                    throw new MQClientException("The producer group[" + this.defaultMQProducer.getProducerGroup() + "] has been created before, specify another name please." + FAQUrl.suggestTodo(FAQUrl.GROUP_NAME_DUPLICATE_URL), null);
+                    throw new MQClientException("The producer group[" + producerGroup + "] has been created before, specify another name please." + FAQUrl.suggestTodo(FAQUrl.GROUP_NAME_DUPLICATE_URL), null);
                 }
 
-                this.topicPublishInfoTable.put(this.defaultMQProducer.getCreateTopicKey(), new TopicPublishInfo());
+                // TBW102
+                String createTopicKey = this.defaultMQProducer.getCreateTopicKey();
+                this.topicPublishInfoTable.put(createTopicKey, new TopicPublishInfo());
 
                 if (startFactory) {
                     // 启动 RocketMq 客户端实例对象 入口
                     mQClientFactory.start();
                 }
 
-                log.info("the producer [{}] start OK. sendMessageWithVIPChannel={}", this.defaultMQProducer.getProducerGroup(), this.defaultMQProducer.isSendMessageWithVIPChannel());
+                log.info("the producer [{}] start OK. sendMessageWithVIPChannel={}", producerGroup, this.defaultMQProducer.isSendMessageWithVIPChannel());
 
                 // 设置生产者实例设置为运行中
                 this.serviceState = ServiceState.RUNNING;
