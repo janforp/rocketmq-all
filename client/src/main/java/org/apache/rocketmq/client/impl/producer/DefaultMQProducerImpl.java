@@ -102,7 +102,7 @@ public class DefaultMQProducerImpl implements MQProducerInner {
      * key:topic主题
      * value:主题的发布信息
      */
-    private final ConcurrentMap<String, TopicPublishInfo> topicPublishInfoTable = new ConcurrentHashMap<String, TopicPublishInfo>();
+    private final ConcurrentMap<String/*topic*/, TopicPublishInfo> topicPublishInfoTable = new ConcurrentHashMap<String, TopicPublishInfo>();
 
     // 发送消息的钩子，留给用户扩展
     private final ArrayList<SendMessageHook> sendMessageHookList = new ArrayList<SendMessageHook>();
@@ -583,7 +583,7 @@ public class DefaultMQProducerImpl implements MQProducerInner {
         return this.mqFaultStrategy.selectOneMessageQueue(tpInfo, lastBrokerName);
     }
 
-    public void updateFaultItem(final String brokerName, final long currentLatency, boolean isolation) {
+    public void updateFaultItem(final String brokerName, final long currentLatency/*发送消息的耗时*/, boolean isolation) {
         this.mqFaultStrategy.updateFaultItem(brokerName, currentLatency, isolation);
     }
 

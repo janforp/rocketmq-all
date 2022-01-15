@@ -14,12 +14,12 @@ import java.util.concurrent.ConcurrentHashMap;
 @ToString
 public class LatencyFaultToleranceImpl implements LatencyFaultTolerance<String> {
 
-    private final ConcurrentHashMap<String, FaultItem> faultItemTable = new ConcurrentHashMap<String, FaultItem>(16);
+    private final ConcurrentHashMap<String/*brokerName*/, FaultItem> faultItemTable = new ConcurrentHashMap<String, FaultItem>(16);
 
     private final ThreadLocalIndex whichItemWorst = new ThreadLocalIndex();
 
     @Override
-    public void updateFaultItem(final String name, final long currentLatency, final long notAvailableDuration) {
+    public void updateFaultItem(final String name, final long currentLatency/*发送消息的耗时*/, final long notAvailableDuration) {
         FaultItem old = this.faultItemTable.get(name);
         if (null == old) {
             final FaultItem faultItem = new FaultItem(name);
@@ -81,11 +81,14 @@ public class LatencyFaultToleranceImpl implements LatencyFaultTolerance<String> 
     @ToString
     static class FaultItem implements Comparable<FaultItem> {
 
+        // brokerName
         private final String name;
 
+        // 延迟时间
         @Setter
         private volatile long currentLatency;
 
+        // ？
         @Setter
         private volatile long startTimestamp;
 
