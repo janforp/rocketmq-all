@@ -45,6 +45,8 @@ public class ResponseFuture {
      * 在这个对象上等待服务器响应
      *
      * 发起请求的线程在这个对象等待
+     *
+     * 异步转同步的关机所在！！！
      */
     private final CountDownLatch countDownLatch = new CountDownLatch(1);
 
@@ -115,6 +117,8 @@ public class ResponseFuture {
 
     public void putResponse(final RemotingCommand responseCommand) {
         this.responseCommand = responseCommand;
+
+        // 释放锁，返回
         this.countDownLatch.countDown();
     }
 }

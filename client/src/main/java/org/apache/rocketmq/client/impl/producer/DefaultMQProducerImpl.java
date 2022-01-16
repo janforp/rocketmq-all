@@ -118,8 +118,12 @@ public class DefaultMQProducerImpl implements MQProducerInner {
      */
     private final Timer timer = new Timer("RequestHouseKeepingService", true);
 
+    // 事务消息检查事务状态的任务
     protected BlockingQueue<Runnable> checkRequestQueue;
 
+    /**
+     * @see DefaultMQProducerImpl#checkTransactionState(java.lang.String, org.apache.rocketmq.common.message.MessageExt, org.apache.rocketmq.common.protocol.header.CheckTransactionStateRequestHeader)
+     */
     protected ExecutorService checkExecutor;
 
     // 状态
@@ -346,7 +350,7 @@ public class DefaultMQProducerImpl implements MQProducerInner {
 
     @Override
     public boolean isPublishTopicNeedUpdate(String topic) {
-        // ConcurrentMap<String, TopicPublishInfo> topicPublishInfoTable
+        // ConcurrentMap<String/*topic*/, TopicPublishInfo/*该主题的发布信息*/>
         TopicPublishInfo prev = this.topicPublishInfoTable.get(topic);
 
         return null == prev || !prev.ok();
@@ -625,6 +629,8 @@ public class DefaultMQProducerImpl implements MQProducerInner {
         long endTimestamp = beginTimestampFirst;
         // 获取当前主题的发布信息，需要依赖它里面的 MessageQueues 信息选择队列后面去发送消息使用
         String topic = msg.getTopic();
+
+        // 先试图本地查询，如果本地没有，则去 namesrv 上获取
         TopicPublishInfo topicPublishInfo = this.tryToFindTopicPublishInfo(topic);
         if (topicPublishInfo != null && topicPublishInfo.ok()) {
             boolean callTimeout = false; // 是否超时
@@ -634,13 +640,14 @@ public class DefaultMQProducerImpl implements MQProducerInner {
 
             // 总的发送次数
             int timesTotal = communicationMode == CommunicationMode.SYNC ?
-                    1 + this.defaultMQProducer.getRetryTimesWhenSendFailed() : // 同步发送
+                    1 + this.defaultMQProducer.getRetryTimesWhenSendFailed()/*2*/ : // 同步发送
                     1; // 非同步发送
 
             // 当前是第几次发送
             int times = 0;
 
             // 下标值 代表 发送的 第几次，值 代表这次选择的 brokerName
+            // 存储每次发送的时候选择的 brokerName
             String[] brokersSent = new String[timesTotal];
 
             // 循环发送，什么时候跳出循环？1.发送成功 2.次数超过上限
@@ -786,6 +793,7 @@ public class DefaultMQProducerImpl implements MQProducerInner {
 
     private TopicPublishInfo tryToFindTopicPublishInfo(final String topic) {
         // 从生产者本地发布信息映射表中尝试获取发布信息
+        // ConcurrentMap<String/*topic*/, TopicPublishInfo/*该主题的发布信息*/>
         TopicPublishInfo topicPublishInfo = this.topicPublishInfoTable.get(topic);
 
         // 如果本地获取不到或者状态不对

@@ -12,6 +12,12 @@ import java.util.List;
 @ToString
 public class TopicRouteData extends RemotingSerializable {
 
+    // if (route.getOrderTopicConf() != null && route.getOrderTopicConf().length() > 0) 成立则该主题为顺序消息
+    //             String[] brokers = route.getOrderTopicConf().split(";");
+
+    /**
+     * @see org.apache.rocketmq.client.impl.factory.MQClientInstance#topicRouteData2TopicPublishInfo(java.lang.String, org.apache.rocketmq.common.protocol.route.TopicRouteData)
+     */
     @Setter
     @Getter
     private String orderTopicConf;

@@ -474,6 +474,8 @@ public abstract class NettyRemotingAbstract {
             final ResponseFuture responseFuture = new ResponseFuture(channel, opaque, timeoutMillis, null, null);
             // 先不管那么多，先放到映射表
             // key:opaque
+
+            // 因为 netty 是一个异步的网络通信框架，怎么实现同步调用呢？答案就在这个映射表中！
             this.responseTable.put(opaque, responseFuture);
             // 获取客户端地址信息
             final SocketAddress addr = channel.remoteAddress();

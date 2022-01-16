@@ -1224,7 +1224,7 @@ public class MQClientAPIImpl {
      * @param allowTopicNotExist 是否允许主题不存在
      * @return 主题的路由信息
      */
-    public TopicRouteData getTopicRouteInfoFromNameServer(final String topic, final long timeoutMillis, boolean allowTopicNotExist)
+    public TopicRouteData getTopicRouteInfoFromNameServer(final String topic, final long timeoutMillis/*3000*/, boolean allowTopicNotExist/*true*/)
             throws MQClientException, InterruptedException, RemotingTimeoutException, RemotingSendRequestException, RemotingConnectException {
 
         GetRouteInfoRequestHeader requestHeader = new GetRouteInfoRequestHeader();

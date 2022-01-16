@@ -253,12 +253,16 @@ public class MQClientInstance {
 
             // 非顺序消息
 
-            List<QueueData> qds = route.getQueueDatas();
-            Collections.sort(qds);
-            for (QueueData qd : qds) {
+            // 队列信息
+            List<QueueData> queueDataList = route.getQueueDatas();
+            Collections.sort(queueDataList);
+            for (QueueData qd : queueDataList) {
                 if (PermName.isWriteable(qd.getPerm())) {
+                    // 可写的队列
+
                     BrokerData brokerData = null;
-                    for (BrokerData bd : route.getBrokerDatas()) {
+                    List<BrokerData> brokerDataList = route.getBrokerDatas();
+                    for (BrokerData bd : brokerDataList) {
                         if (bd.getBrokerName().equals(qd.getBrokerName())) {
                             brokerData = bd;
                             break;
@@ -270,9 +274,11 @@ public class MQClientInstance {
                     }
 
                     if (!brokerData.getBrokerAddrs().containsKey(MixAll.MASTER_ID)) {
+                        // 如果找到的 broker 节点不是主节点，则继续下次循环
                         continue;
                     }
 
+                    // 找到了主节点
                     for (int i = 0; i < qd.getWriteQueueNums(); i++) {
 
                         // 创建队列
@@ -734,22 +740,29 @@ public class MQClientInstance {
 
                     if (topicRouteData != null) {
                         // 获取当前客户端本地的路由数据
+                        // this.topicPublishInfoTable.putIfAbsent(topic, new TopicPublishInfo());
+                        // old 一般情况下是一个空对象，里面的字段都是默认值的那种对象
                         TopicRouteData old = this.topicRouteTable.get(topic);
                         // 判断路由数据是否发送变化（本地跟远程的差异）
                         boolean changed = topicRouteDataIsChange(old, topicRouteData);
                         if (!changed) {
 
                             // 如果上面没发生变化，则继续判断是否需要更新
+                            // 从每个生产者跟消费者中逐一判断
                             changed = this.isNeedUpdateTopicRouteInfo(topic);
                         } else {
                             log.info("the topic[{}] route info changed, old[{}] ,new[{}]", topic, old, topicRouteData);
                         }
                         if (changed) {
                             // 克隆
+                            // 到 namesrv 上拉去最新的主题路由数据
                             TopicRouteData cloneTopicRouteData = topicRouteData.cloneTopicRouteData();
 
-                            for (BrokerData bd : topicRouteData.getBrokerDatas()) {
-                                this.brokerAddrTable.put(bd.getBrokerName(), bd.getBrokerAddrs());
+                            // 订阅该主题的 broker 节点集合
+                            List<BrokerData> brokerDataList = topicRouteData.getBrokerDatas();
+                            for (BrokerData bd : brokerDataList) {
+                                HashMap<Long/* brokerId,如 0为master，其他为 slave节点  */, String/* broker address 如 127.0.0.1:10911*/> brokerAddrs = bd.getBrokerAddrs();
+                                this.brokerAddrTable.put(bd.getBrokerName(), brokerAddrs);
                             }
 
                             // Update Pub info
@@ -893,11 +906,13 @@ public class MQClientInstance {
         }
     }
 
-    private boolean topicRouteDataIsChange(TopicRouteData olddata, TopicRouteData nowdata) {
+    private boolean topicRouteDataIsChange(TopicRouteData olddata/*old一般情况下是一个空对象，里面的字段都是默认值的那种对象*/, TopicRouteData nowdata/*刚从namesrv获取的*/) {
         if (olddata == null || nowdata == null) {
             return true;
         }
+        // old一般情况下是一个空对象，里面的字段都是默认值的那种对象
         TopicRouteData old = olddata.cloneTopicRouteData();
+        // 刚从namesrv获取的
         TopicRouteData now = nowdata.cloneTopicRouteData();
         Collections.sort(old.getQueueDatas());
         Collections.sort(old.getBrokerDatas());
@@ -910,6 +925,7 @@ public class MQClientInstance {
     private boolean isNeedUpdateTopicRouteInfo(final String topic) {
         boolean result = false;
         {
+            // ConcurrentMap<String/* group */, MQProducerInner/*DefaultMQProducerImpl*/> producerTable
             Iterator<Entry<String, MQProducerInner>> it = this.producerTable.entrySet().iterator();
             while (it.hasNext() && !result) {
                 Entry<String, MQProducerInner> entry = it.next();
