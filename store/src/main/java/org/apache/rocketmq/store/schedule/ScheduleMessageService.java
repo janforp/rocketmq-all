@@ -144,7 +144,7 @@ public class ScheduleMessageService extends ConfigManager {
                         log.error("scheduleAtFixedRate flush exception", e);
                     }
                 }
-            }, 10000, this.defaultMessageStore.getMessageStoreConfig().getFlushDelayOffsetInterval());
+            }, 10000, this.defaultMessageStore.getMessageStoreConfig().getFlushDelayOffsetInterval()/*10秒*/);
         }
     }
 
@@ -283,7 +283,8 @@ public class ScheduleMessageService extends ConfigManager {
         public void executeOnTimeUp() {
 
             // 拿到消费队列
-            ConsumeQueue cq = ScheduleMessageService.this.defaultMessageStore.findConsumeQueue(SCHEDULE_TOPIC, delayLevel2QueueId(delayLevel));
+            int queueId = delayLevel2QueueId(delayLevel);
+            ConsumeQueue cq = ScheduleMessageService.this.defaultMessageStore.findConsumeQueue(SCHEDULE_TOPIC, queueId);
             long failScheduleOffset = offset;
 
             if (cq != null) {
@@ -297,7 +298,7 @@ public class ScheduleMessageService extends ConfigManager {
                         for (; i < bufferCQ.getSize(); i += ConsumeQueue.CQ_STORE_UNIT_SIZE /*每次读取20个字节*/) {
                             long offsetPy = bufferCQ.getByteBuffer().getLong(); // 物理偏移量
                             int sizePy = bufferCQ.getByteBuffer().getInt(); // 大小
-                            /*
+                            /**
                              * @see ScheduleMessageService#computeDeliverTimestamp(int, long)
                              * 延迟消息的交付时间！！！！！！ 跟正常消息不一样
                              */
@@ -335,6 +336,7 @@ public class ScheduleMessageService extends ConfigManager {
                                         // 创建新消息
                                         MessageExtBrokerInner msgInner = this.messageTimeUp(msgExt);
                                         if (MixAll.RMQ_SYS_TRANS_HALF_TOPIC.equals(msgInner.getTopic())) {
+                                            // 半消息不投递
                                             log.error("[BUG] the real topic of schedule msg is {}, discard the msg. msg={}", msgInner.getTopic(), msgInner);
                                             continue;
                                         }
@@ -419,6 +421,7 @@ public class ScheduleMessageService extends ConfigManager {
             // 目标主题
             msgInner.setTopic(msgInner.getProperty(MessageConst.PROPERTY_REAL_TOPIC));
 
+            // 目标队列
             String queueIdStr = msgInner.getProperty(MessageConst.PROPERTY_REAL_QUEUE_ID);
             int queueId = Integer.parseInt(queueIdStr);
             msgInner.setQueueId(queueId);
