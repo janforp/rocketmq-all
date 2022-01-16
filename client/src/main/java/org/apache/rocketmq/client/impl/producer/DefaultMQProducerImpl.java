@@ -2,6 +2,7 @@ package org.apache.rocketmq.client.impl.producer;
 
 import lombok.Getter;
 import lombok.Setter;
+import org.apache.rocketmq.client.ClientConfig;
 import org.apache.rocketmq.client.QueryResult;
 import org.apache.rocketmq.client.Validators;
 import org.apache.rocketmq.client.common.ClientErrorCode;
@@ -1225,12 +1226,21 @@ public class DefaultMQProducerImpl implements MQProducerInner {
         if (topicPublishInfo != null && topicPublishInfo.ok()) {
             MessageQueue mq = null;
             try {
-                List<MessageQueue> messageQueueList = mQClientFactory.getMQAdminImpl().parsePublishMessageQueues(topicPublishInfo.getMessageQueueList());
+                MQAdminImpl mqAdminImpl = mQClientFactory.getMQAdminImpl();
+                List<MessageQueue> queueList = topicPublishInfo.getMessageQueueList();
+
+                // 类似复制了一个集合，数据都是一样的
+                List<MessageQueue> messageQueueList = mqAdminImpl.parsePublishMessageQueues(queueList);
                 Message userMessage = MessageAccessor.cloneMessage(msg);
-                String userTopic = NamespaceUtil.withoutNamespace(userMessage.getTopic(), mQClientFactory.getClientConfig().getNamespace());
+                String topic = userMessage.getTopic();
+                ClientConfig clientConfig = mQClientFactory.getClientConfig();
+                String namespace = clientConfig.getNamespace();
+                String userTopic = NamespaceUtil.withoutNamespace(topic, namespace);
                 userMessage.setTopic(userTopic);
 
-                mq = mQClientFactory.getClientConfig().queueWithNamespace(selector.select(messageQueueList, userMessage, arg));
+                // 根据队列选择器选择一个待发送队列
+                MessageQueue messageQueue = selector.select(messageQueueList, userMessage, arg);
+                mq = clientConfig.queueWithNamespace(messageQueue);
             } catch (Throwable e) {
                 throw new MQClientException("select message queue throwed exception.", e);
             }
