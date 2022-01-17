@@ -39,7 +39,7 @@ public class Producer {
 
         //producer.createTopic(testTopic, testTopic, 4);
 
-        for (int i = 0; i < 1000; i++) {
+        for (int i = 0; i < 100000; i++) {
             try {
 
                 /*

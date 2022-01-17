@@ -82,12 +82,20 @@ public class CommitLog {
      * 主题下各消费队列的偏移量，队列偏移量字典表
      * key：主题下的队列id
      * value:偏移量 (key:队列id，value:该队列的偏移量)
+     *
+     * @see DefaultAppendMessageCallback#doAppend(long, java.nio.ByteBuffer, int, org.apache.rocketmq.store.MessageExtBrokerInner)
      */
-    protected HashMap<String/* topic-queueid */, Long/* offset */> topicQueueTable = new HashMap<String, Long>(1024);
+    protected HashMap<String/* topic-queueid */, Long/* 该队列的逻辑offset */> topicQueueTable = new HashMap<String, Long>(1024);
 
     protected volatile long confirmOffset = -1L;
 
     // 写锁开始时间
+
+    /**
+     * 开始写到时候赋值，写完成的时候恢复为0
+     *
+     * @see CommitLog#putMessage(org.apache.rocketmq.store.MessageExtBrokerInner)
+     */
     @Getter
     private volatile long beginTimeInLock = 0;
 
@@ -913,14 +921,17 @@ public class CommitLog {
                     msg.setDelayTimeLevel(this.defaultMessageStore.getScheduleMessageService().getMaxDelayLevel());
                 }
 
+                // 延迟消息先保存到 该主题下
                 topic = ScheduleMessageService.SCHEDULE_TOPIC;
                 queueId = ScheduleMessageService.delayLevel2QueueId(msg.getDelayTimeLevel());
 
                 // Backup real topic, queueId
+                // 保存真正的主题跟队列id
                 MessageAccessor.putProperty(msg, MessageConst.PROPERTY_REAL_TOPIC, msg.getTopic());
                 MessageAccessor.putProperty(msg, MessageConst.PROPERTY_REAL_QUEUE_ID, String.valueOf(msg.getQueueId()));
                 msg.setPropertiesString(MessageDecoder.messageProperties2String(msg.getProperties()));
 
+                // 保存的时候先保存到延迟消息队列中
                 msg.setTopic(topic);
                 msg.setQueueId(queueId);
             }
@@ -939,11 +950,15 @@ public class CommitLog {
         long elapsedTimeInLock = 0;
 
         MappedFile unlockMappedFile = null;
+
+        // 拿到最后一个文件
         MappedFile mappedFile = this.mappedFileQueue.getLastMappedFile();
 
         putMessageLock.lock(); //spin or ReentrantLock ,depending on store config
         try {
             long beginLockTimestamp = this.defaultMessageStore.getSystemClock().now();
+
+            // 锁开始时间
             this.beginTimeInLock = beginLockTimestamp;
 
             // Here settings are stored timestamp, in order to ensure an orderly
@@ -951,6 +966,7 @@ public class CommitLog {
             msg.setStoreTimestamp(beginLockTimestamp);
 
             if (null == mappedFile || mappedFile.isFull()) {
+                // 可能会新建
                 mappedFile = this.mappedFileQueue.getLastMappedFile(0); // Mark: NewFile may be cause noise
             }
             if (null == mappedFile) {
@@ -959,8 +975,12 @@ public class CommitLog {
                 return new PutMessageResult(PutMessageStatus.CREATE_MAPEDFILE_FAILED, null);
             }
 
+            // 把该消息写入到该 mappedFile 中去
             result = mappedFile.appendMessage(msg, this.appendMessageCallback);
-            switch (result.getStatus()) {
+
+            // 添加消息结果
+            AppendMessageStatus appendMessageStatus = result.getStatus();
+            switch (appendMessageStatus) {
                 case PUT_OK:
                     break;
                 case END_OF_FILE:
@@ -1681,6 +1701,7 @@ public class CommitLog {
     class DefaultAppendMessageCallback implements AppendMessageCallback {
 
         // File at the end of the minimum fixed length empty
+        // 文件结尾最少有8个字节
         private static final int END_FILE_MIN_BLANK_LENGTH = 4 + 4;
 
         private final ByteBuffer msgIdMemory;
@@ -1709,7 +1730,7 @@ public class CommitLog {
         /**
          * 向 commitLog 中追加消息
          */
-        public AppendMessageResult doAppend(final long fileFromOffset, final ByteBuffer byteBuffer, final int maxBlank, final MessageExtBrokerInner msgInner) {
+        public AppendMessageResult doAppend(final long fileFromOffset/*commitLog文件名*/, final ByteBuffer byteBuffer, final int maxBlank/*该文件剩余的可写入的字节数*/, final MessageExtBrokerInner msgInner) {
             // STORETIMESTAMP + STOREHOSTADDRESS + OFFSET <br>
 
             // PHY OFFSET
@@ -1724,11 +1745,15 @@ public class CommitLog {
             ByteBuffer storeHostHolder = ByteBuffer.allocate(storeHostLength);
 
             this.resetByteBuffer(storeHostHolder, storeHostLength);
+
+            // 创建消息 id
             String msgId;
             if ((sysflag & MessageSysFlag.STOREHOSTADDRESS_V6_FLAG) == 0) {
-                msgId = MessageDecoder.createMessageId(this.msgIdMemory, msgInner.getStoreHostBytes(storeHostHolder), wroteOffset);
+                ByteBuffer storeHostBytes = msgInner.getStoreHostBytes(storeHostHolder);
+                msgId = MessageDecoder.createMessageId(this.msgIdMemory, storeHostBytes, wroteOffset);
             } else {
-                msgId = MessageDecoder.createMessageId(this.msgIdV6Memory, msgInner.getStoreHostBytes(storeHostHolder), wroteOffset);
+                ByteBuffer storeHostBytes = msgInner.getStoreHostBytes(storeHostHolder);
+                msgId = MessageDecoder.createMessageId(this.msgIdV6Memory, storeHostBytes, wroteOffset);
             }
 
             // Record ConsumeQueue information
@@ -1775,17 +1800,17 @@ public class CommitLog {
 
             final int bodyLength = msgInner.getBody() == null ? 0 : msgInner.getBody().length;
 
+            // 计数消息长度
             final int msgLen = calMsgLength(msgInner.getSysFlag(), bodyLength, topicLength, propertiesLength);
 
             // Exceeds the maximum message
             if (msgLen > this.maxMessageSize) {
-                CommitLog.log.warn("message size exceeded, msg total size: " + msgLen + ", msg body size: " + bodyLength
-                        + ", maxMessageSize: " + this.maxMessageSize);
+                CommitLog.log.warn("message size exceeded, msg total size: " + msgLen + ", msg body size: " + bodyLength + ", maxMessageSize: " + this.maxMessageSize);
                 return new AppendMessageResult(AppendMessageStatus.MESSAGE_SIZE_EXCEEDED);
             }
 
             // Determines whether there is sufficient free space
-            if ((msgLen + END_FILE_MIN_BLANK_LENGTH) > maxBlank) {
+            if ((msgLen + END_FILE_MIN_BLANK_LENGTH) > maxBlank/*说明到文件结尾了*/) {
                 // 说明这个文件即将写满
 
                 this.resetByteBuffer(this.msgStoreItemMemory, maxBlank);
@@ -1801,6 +1826,8 @@ public class CommitLog {
                 // 返回结果表示已经到文件尾
                 return new AppendMessageResult(AppendMessageStatus.END_OF_FILE, wroteOffset, maxBlank, msgId, msgInner.getStoreTimestamp(), queueOffset, CommitLog.this.defaultMessageStore.now() - beginTimeMills);
             }
+
+            // 还没到文件尾，这条消息可以写入
 
             // Initialization of storage space
             this.resetByteBuffer(msgStoreItemMemory, msgLen);

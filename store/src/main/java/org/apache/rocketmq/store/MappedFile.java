@@ -56,9 +56,11 @@ public class MappedFile extends ReferenceResource {
     private final AtomicInteger flushedPosition = new AtomicInteger(0);
 
     // 文件大小
+    @Getter
     protected int fileSize;
 
     // 文件访问通道
+    @Getter
     protected FileChannel fileChannel;
 
     /**
@@ -73,6 +75,7 @@ public class MappedFile extends ReferenceResource {
     private String fileName;
 
     // 文件名称转long 偏移量
+    @Getter
     private long fileFromOffset;
 
     // 文件
@@ -219,17 +222,9 @@ public class MappedFile extends ReferenceResource {
         return this.file.lastModified();
     }
 
-    public int getFileSize() {
-        return fileSize;
-    }
-
-    public FileChannel getFileChannel() {
-        return fileChannel;
-    }
-
     /**
      * @param msg 消息，服务端包装之后的
-     * @param cb 追加消息回调，控制消息中的哪些字段需要追加，哪些不需要追加，都由该对象控制
+     * @param cb 追加消息回调，控制消息中的哪些字段需要追加，哪些不需要追加，都由该对象控制 {@link CommitLog.DefaultAppendMessageCallback}
      */
     public AppendMessageResult appendMessage(final MessageExtBrokerInner msg, final AppendMessageCallback cb) {
         return appendMessagesInner(msg, cb);
@@ -241,7 +236,7 @@ public class MappedFile extends ReferenceResource {
 
     /**
      * @param messageExt 消息，服务端包装之后的
-     * @param cb 追加消息回调，控制消息中的哪些字段需要追加，哪些不需要追加，都由该对象控制
+     * @param cb 追加消息回调，控制消息中的哪些字段需要追加，哪些不需要追加，都由该对象控制  {@link CommitLog.DefaultAppendMessageCallback}
      */
     public AppendMessageResult appendMessagesInner(final MessageExt messageExt, final AppendMessageCallback cb) {
         assert messageExt != null;
@@ -275,10 +270,6 @@ public class MappedFile extends ReferenceResource {
         }
         log.error("MappedFile.appendMessage return null, wrotePosition: {} fileSize: {}", currentPos, this.fileSize);
         return new AppendMessageResult(AppendMessageStatus.UNKNOWN_ERROR);
-    }
-
-    public long getFileFromOffset() {
-        return this.fileFromOffset;
     }
 
     /**
