@@ -56,6 +56,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 
+@SuppressWarnings("all")
 public class NettyRemotingClient extends NettyRemotingAbstract implements RemotingClient {
 
     private static final InternalLogger log = InternalLoggerFactory.getLogger(RemotingHelper.ROCKETMQ_REMOTING);
@@ -184,7 +185,9 @@ public class NettyRemotingClient extends NettyRemotingAbstract implements Remoti
         this.bootstrap
                 .group(this.eventLoopGroupWorker)// 一个线程的线程池
                 .channel(NioSocketChannel.class) // ch 类型：Nio
-                .option(ChannelOption.TCP_NODELAY, true).option(ChannelOption.SO_KEEPALIVE, false).option(ChannelOption.CONNECT_TIMEOUT_MILLIS, nettyClientConfig.getConnectTimeoutMillis()) // 超时时间
+                .option(ChannelOption.TCP_NODELAY, true)
+                .option(ChannelOption.SO_KEEPALIVE, false)
+                .option(ChannelOption.CONNECT_TIMEOUT_MILLIS, nettyClientConfig.getConnectTimeoutMillis()) // 超时时间
                 .option(ChannelOption.SO_SNDBUF, nettyClientConfig.getClientSocketSndBufSize()) // 发送缓冲区大小
                 .option(ChannelOption.SO_RCVBUF, nettyClientConfig.getClientSocketRcvBufSize()) // 接收缓冲区大小
                 // 初始化 pipeline
