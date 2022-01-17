@@ -1159,17 +1159,28 @@ public class CommitLog {
     }
 
     public void handleHA(AppendMessageResult result, PutMessageResult putMessageResult, MessageExt messageExt) {
-        if (BrokerRole.SYNC_MASTER == this.defaultMessageStore.getMessageStoreConfig().getBrokerRole()) {
+        MessageStoreConfig messageStoreConfig = this.defaultMessageStore.getMessageStoreConfig();
+
+        /**
+         * ASYNC_MASTER, 主节点，异步复制
+         * SYNC_MASTER, 主节点，同步复制
+         * SLAVE; 从节点
+         */
+        BrokerRole brokerRole = messageStoreConfig.getBrokerRole();
+        if (BrokerRole.SYNC_MASTER == brokerRole) {
+            // 只有同步复制的节点，写消息请求才会阻塞
+
             HAService service = this.defaultMessageStore.getHaService();
             if (messageExt.isWaitStoreMsgOK()) {
                 // Determine whether to wait
+
                 if (service.isSlaveOK(result.getWroteOffset() + result.getWroteBytes())) {
                     GroupCommitRequest request = new GroupCommitRequest(result.getWroteOffset() + result.getWroteBytes());
                     service.putRequest(request);
                     service.getWaitNotifyObject().wakeupAll();
                     PutMessageStatus replicaStatus = null;
                     try {
-                        replicaStatus = request.future().get(this.defaultMessageStore.getMessageStoreConfig().getSyncFlushTimeout(), TimeUnit.MILLISECONDS);
+                        replicaStatus = request.future().get(messageStoreConfig.getSyncFlushTimeout(), TimeUnit.MILLISECONDS);
                     } catch (InterruptedException | ExecutionException | TimeoutException e) {
                     }
                     if (replicaStatus != PutMessageStatus.PUT_OK) {
@@ -1562,6 +1573,7 @@ public class CommitLog {
 
     /**
      * 同步刷盘请求
+     * 主从复制请求
      */
     public static class GroupCommitRequest {
 

@@ -303,11 +303,6 @@ public class HAService {
         protected void onWaitEnd() {
             this.swapRequests();
         }
-
-        @Override
-        public String getServiceName() {
-            return GroupTransferService.class.getSimpleName();
-        }
     }
 
     /**
