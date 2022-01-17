@@ -19,6 +19,7 @@ import java.util.concurrent.CopyOnWriteArrayList;
 /**
  * MappedFile 的管理对象
  */
+@SuppressWarnings("all")
 public class MappedFileQueue {
 
     private static final InternalLogger log = InternalLoggerFactory.getLogger(LoggerName.STORE_LOGGER_NAME);
@@ -37,12 +38,14 @@ public class MappedFileQueue {
     private final String storePath;
 
     // 如果管理的是 MappedFile 则是 1G,如果是consumerQueue则为六百万字节
+    @Getter
     private final int mappedFileSize;
 
     /**
      * 维护了多个文件，每个文件都有一个对象
      * 该目录下的每个文件
      */
+    @Getter
     private final CopyOnWriteArrayList<MappedFile> mappedFiles = new CopyOnWriteArrayList<MappedFile>();
 
     // 创建新 MappedFile 的服务，内部有自己的线程，我们通过向他提交请求，它内部线程处理完后会返回给我们结果，结果就是 MappedFile 对象
@@ -58,6 +61,7 @@ public class MappedFileQueue {
     private long committedWhere = 0;
 
     // 当前目录最后一条消息的存储时间
+    @Getter
     private volatile long storeTimestamp = 0;
 
     public MappedFileQueue(final String storePath, int mappedFileSize, AllocateMappedFileService allocateMappedFileService) {
@@ -91,7 +95,10 @@ public class MappedFileQueue {
 
         for (Object mf : mfs) {
             MappedFile mappedFile = (MappedFile) mf;
-            if (mappedFile.getLastModifiedTimestamp() >= timestamp) {
+
+            // 当前文件的最后修改时间
+            long lastModifiedTimestamp = mappedFile.getLastModifiedTimestamp();
+            if (lastModifiedTimestamp >= timestamp) {
                 return mappedFile;
             }
         }
@@ -111,11 +118,15 @@ public class MappedFileQueue {
     }
 
     public void truncateDirtyFiles(long offset) {
+
+        // 待删除的列表
         List<MappedFile> willRemoveFiles = new ArrayList<MappedFile>();
 
         for (MappedFile file : this.mappedFiles) {
-            long fileTailOffset = file.getFileFromOffset() + this.mappedFileSize;
-            if (fileTailOffset > offset) {
+
+            // 该文件的最后一个字节的偏移量
+            long fileTailOffset = file.getFileFromOffset()/*文件名称转long，*/ + this.mappedFileSize;
+            if (fileTailOffset > offset  /*如果该文件的最大偏移量 > 传入的offset*/) {
                 if (offset >= file.getFileFromOffset()) {
                     file.setWrotePosition((int) (offset % this.mappedFileSize));
                     file.setCommittedPosition((int) (offset % this.mappedFileSize));
@@ -130,7 +141,7 @@ public class MappedFileQueue {
         this.deleteExpiredFile(willRemoveFiles);
     }
 
-    void deleteExpiredFile(List<MappedFile> files) {
+    void deleteExpiredFile(List<MappedFile> files/*willRemoveFiles*/) {
 
         if (!files.isEmpty()) {
 
@@ -715,17 +726,5 @@ public class MappedFileQueue {
         if (file.isDirectory()) {
             file.delete();
         }
-    }
-
-    public long getStoreTimestamp() {
-        return storeTimestamp;
-    }
-
-    public List<MappedFile> getMappedFiles() {
-        return mappedFiles;
-    }
-
-    public int getMappedFileSize() {
-        return mappedFileSize;
     }
 }
