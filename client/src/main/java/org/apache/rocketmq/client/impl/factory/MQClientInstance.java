@@ -410,7 +410,7 @@ public class MQClientInstance {
                     log.error("ScheduledTask persistAllConsumerOffset exception", e);
                 }
             }
-        }, 1000 * 10, this.clientConfig.getPersistConsumerOffsetInterval(), TimeUnit.MILLISECONDS);
+        }, 1000 * 10, this.clientConfig.getPersistConsumerOffsetInterval()/*5秒*/, TimeUnit.MILLISECONDS);
 
         // 定时任务4：调整消费者线程池
         this.scheduledExecutorService.scheduleAtFixedRate(new Runnable() {
@@ -490,26 +490,24 @@ public class MQClientInstance {
                 try {
                     ConcurrentHashMap<String, HashMap<Long, String>> updatedTable = new ConcurrentHashMap<String, HashMap<Long, String>>();
 
-                    Iterator<Entry<String, HashMap<Long, String>>> itBrokerTable = this.brokerAddrTable.entrySet().iterator();
+                    Iterator<Entry<String/* Broker Name */, HashMap<Long/* brokerId */, String/* address */>>> itBrokerTable = this.brokerAddrTable.entrySet().iterator();
                     while (itBrokerTable.hasNext()) {
-                        Entry<String, HashMap<Long, String>> entry = itBrokerTable.next();
+
+                        // 一个 brokerName 的主从节点地址信息
+                        Entry<String/* Broker Name */, HashMap<Long/* brokerId */, String/* address */>> entry = itBrokerTable.next();
 
                         // 遍历每个 broker
                         String brokerName = entry.getKey();
                         // 该 broker 下的所有节点，brokerId - addr
-                        HashMap<Long, String> oneTable = entry.getValue();
-
-                        HashMap<Long, String> cloneAddrTable = new HashMap<Long, String>(oneTable);
-
-                        Iterator<Entry<Long, String>> it = cloneAddrTable.entrySet().iterator();
+                        HashMap<Long/* brokerId */, String/* address */> oneTable = entry.getValue();
+                        HashMap<Long/* brokerId */, String/* address */> cloneAddrTable = new HashMap<Long, String>(oneTable);
+                        Iterator<Entry<Long/* brokerId */, String/* address */>> it = cloneAddrTable.entrySet().iterator();
                         while (it.hasNext()) {
-                            Entry<Long, String> ee = it.next();
-                            // 节点地址
+                            Entry<Long/* brokerId */, String/* address */> ee = it.next();
+                            // broker节点地址
                             String addr = ee.getValue();
-
                             // 判断该节点是否存在
                             if (!this.isBrokerAddrExistInTopicRouteTable(addr)) {
-
                                 // 如果该addr 已经不再了，则移除
                                 it.remove();
                                 log.info("the broker addr[{} {}] is offline, remove it", brokerName, addr);
@@ -612,8 +610,11 @@ public class MQClientInstance {
     }
 
     private boolean isBrokerAddrExistInTopicRouteTable(final String addr) {
-        for (Entry<String, TopicRouteData> entry : this.topicRouteTable.entrySet()) {
-            TopicRouteData topicRouteData = entry.getValue();
+        // ConcurrentMap<String/* Topic */, TopicRouteData/*主题路由信息*/> topicRouteTable
+        for (Entry<String/* Topic */, TopicRouteData/*主题路由信息*/> entry : this.topicRouteTable.entrySet()) {
+            TopicRouteData topicRouteData/*主题路由信息*/ = entry.getValue();
+
+            // 节点信息
             List<BrokerData> bds = topicRouteData.getBrokerDatas();
             for (BrokerData bd : bds) {
                 if (bd.getBrokerAddrs() != null) {
