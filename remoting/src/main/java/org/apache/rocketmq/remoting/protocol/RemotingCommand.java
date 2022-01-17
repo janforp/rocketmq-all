@@ -161,7 +161,7 @@ public class RemotingCommand {
      */
     @Setter
     @Getter
-    private HashMap<String, String> extFields;
+    private HashMap<String/*customHeader 的字段名称*/, String/*customHeader 的字段 值*/> extFields;
 
     // 不参与序列化，通过extFields传递
     private transient CommandCustomHeader customHeader;

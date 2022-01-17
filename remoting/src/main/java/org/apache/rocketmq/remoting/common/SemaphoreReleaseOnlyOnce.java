@@ -5,8 +5,10 @@ import lombok.Getter;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.atomic.AtomicBoolean;
 
+// 一个对象只是否一次
 public class SemaphoreReleaseOnlyOnce {
 
+    // 一个对象只是否一次
     private final AtomicBoolean released = new AtomicBoolean(false);
 
     @Getter

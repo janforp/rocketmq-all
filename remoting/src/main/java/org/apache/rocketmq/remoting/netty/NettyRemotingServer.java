@@ -53,6 +53,8 @@ import java.util.concurrent.atomic.AtomicInteger;
  * 主要负责网络层的调用
  * 报文的编解码
  */
+
+@SuppressWarnings("all")
 public class NettyRemotingServer extends NettyRemotingAbstract implements RemotingServer {
 
     private static final InternalLogger log = InternalLoggerFactory.getLogger(RemotingHelper.ROCKETMQ_REMOTING);
@@ -66,7 +68,7 @@ public class NettyRemotingServer extends NettyRemotingAbstract implements Remoti
     // netty boss 线程池，一般只有一个线程
     private final EventLoopGroup eventLoopGroupBoss;
 
-    // NETty 服务端网络配置
+    // NETty 服务端网络配置，配置文件决定
     private final NettyServerConfig nettyServerConfig;
 
     // 公共线程池，注册处理器时，如果未指定线程池，则使用该线程池
@@ -87,10 +89,10 @@ public class NettyRemotingServer extends NettyRemotingAbstract implements Remoti
      */
     private final Timer timer = new Timer("ServerHouseKeepingService", true);
 
-    // 当向 channel pipeline 添加 handler 时，制定了 GROUP 时候，网络事件传播到当前 handler 时，事件处理器由分配给 handler 的线程执行
+    // 当向 channel pipeline 添加 handler 时，制定了 GROUP（线程组） 时候，网络事件传播到当前 handler 时，事件处理器由分配给 handler 的线程执行
     private DefaultEventExecutorGroup defaultEventExecutorGroup;
 
-    // 服务器绑定端口
+    // 服务器绑定端口,启动成功后赋值
     private int port = 0;
 
     private static final String HANDSHAKE_HANDLER_NAME = "handshakeHandler";
@@ -208,6 +210,8 @@ public class NettyRemotingServer extends NettyRemotingAbstract implements Remoti
             });
         }
 
+        // 创建完，但是并没有启动
+
         loadSslContext();
     }
 
@@ -256,7 +260,9 @@ public class NettyRemotingServer extends NettyRemotingAbstract implements Remoti
 
         // 配置服务端启动对象
         ServerBootstrap childHandler =
-                this.serverBootstrap.group(this.eventLoopGroupBoss, this.eventLoopGroupSelector)
+                this.serverBootstrap/*服务端启动对象*/.group(this.eventLoopGroupBoss/*boss*/, this.eventLoopGroupSelector/*worker*/)
+
+                        // 优先使用 epoll
                         .channel(useEpoll() ? EpollServerSocketChannel.class : NioServerSocketChannel.class)
 
                         // 服务端通道选项
@@ -268,20 +274,26 @@ public class NettyRemotingServer extends NettyRemotingAbstract implements Remoti
                         // 客户端通道选项
                         .childOption(ChannelOption.SO_SNDBUF, nettyServerConfig.getServerSocketSndBufSize())
                         .childOption(ChannelOption.SO_RCVBUF, nettyServerConfig.getServerSocketRcvBufSize())
+
+                        // 服务端监听的端口
                         .localAddress(new InetSocketAddress(this.nettyServerConfig.getListenPort()))
+
+                        // 当客户端发起请求连接服务端的时候就会调到这里面
                         .childHandler(new ChannelInitializer<SocketChannel>() {
+
+                            // 当客户端发起请求连接服务端的时候就会调到这里面
                             @Override
                             public void initChannel(SocketChannel ch) {
                                 ch.pipeline()
                                         // ChannelPipeline addLast(EventExecutorGroup group, String name, ChannelHandler handler);
-                                        .addLast(defaultEventExecutorGroup/*指定该handler使用的线程组*/, HANDSHAKE_HANDLER_NAME, handshakeHandler/*数字证书相关，安全*/) // 指定名称的处理器，该处理器工作在指定的线程中
+                                        .addLast(defaultEventExecutorGroup/*指定该handler使用的线程组*/, HANDSHAKE_HANDLER_NAME/*handshakeHandler*/, handshakeHandler/*数字证书相关，安全*/) // 指定名称的处理器，该处理器工作在指定的线程中
                                         // ChannelPipeline addLast(EventExecutorGroup group, ChannelHandler... handlers);
                                         .addLast(defaultEventExecutorGroup,// 这些理器工作在指定的线程中
                                                 encoder, // 编码 RemotingCommand
                                                 new NettyDecoder(), // 解码 RemotingCommand
                                                 new IdleStateHandler(0, 0, nettyServerConfig.getServerChannelMaxIdleTimeSeconds()),// 监听当前通道的空闲时间
-                                                /*
-                                                 * 连接管理处理器，监听通道状态发送改变
+                                                /**
+                                                 * 连接管理处理器，监听通道状态发送改变，如关闭，连接，异常等
                                                  * @see NettyRemotingAbstract#nettyEventExecutor
                                                  */
                                                 connectionManageHandler,
@@ -292,7 +304,8 @@ public class NettyRemotingServer extends NettyRemotingAbstract implements Remoti
 
         if (nettyServerConfig.isServerPooledByteBufAllocatorEnable()) {
             // 开启 netty 内存池
-            childHandler.childOption(ChannelOption.ALLOCATOR, PooledByteBufAllocator.DEFAULT);
+            PooledByteBufAllocator pooledByteBufAllocator = PooledByteBufAllocator.DEFAULT;
+            childHandler.childOption(ChannelOption.ALLOCATOR, pooledByteBufAllocator);
         }
 
         try {
@@ -305,7 +318,7 @@ public class NettyRemotingServer extends NettyRemotingAbstract implements Remoti
             throw new RuntimeException("this.serverBootstrap.bind().sync() InterruptedException", e1);
         }
 
-        /*
+        /**
          * @see org.apache.rocketmq.namesrv.routeinfo.BrokerHousekeepingService namesrv使用
          * @see org.apache.rocketmq.broker.client.ClientHousekeepingService broker 使用,监听客户端的连接状态
          */
@@ -368,13 +381,14 @@ public class NettyRemotingServer extends NettyRemotingAbstract implements Remoti
     }
 
     @Override
-    public void registerProcessor(int requestCode, NettyRequestProcessor processor, ExecutorService executor) {
+    public void registerProcessor(int requestCode/*业务代码*/, NettyRequestProcessor processor/*业务处理器*/, ExecutorService executor/*处理业务逻辑的时候，在该线程池资源中执行*/) {
         ExecutorService executorThis = executor;
         if (null == executor) {
             executorThis = this.publicExecutor;
         }
 
-        Pair<NettyRequestProcessor, ExecutorService> pair = new Pair<NettyRequestProcessor, ExecutorService>(processor, executorThis);
+        Pair<NettyRequestProcessor, ExecutorService> pair = new Pair<NettyRequestProcessor, ExecutorService>(processor/*业务处理器*/, executorThis/*处理业务逻辑的时候，在该线程池资源中执行*/);
+        // 处理器映射表
         this.processorTable.put(requestCode, pair);
     }
 
@@ -507,7 +521,9 @@ public class NettyRemotingServer extends NettyRemotingAbstract implements Remoti
     class NettyServerHandler extends SimpleChannelInboundHandler<RemotingCommand> {
 
         @Override
-        protected void channelRead0(ChannelHandlerContext ctx, RemotingCommand msg) {
+        protected void channelRead0(ChannelHandlerContext ctx, RemotingCommand msg/*该对象是 org.apache.rocketmq.remoting.netty.NettyDecoder 解码器转化过来的，这就是 netty 的使用方法！！！*/) {
+
+            // 对端有数据过来啦啊
             processMessageReceived(ctx, msg);
         }
     }

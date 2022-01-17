@@ -20,6 +20,7 @@ import io.netty.handler.timeout.IdleStateHandler;
 import io.netty.util.concurrent.DefaultEventExecutorGroup;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
+import lombok.SneakyThrows;
 import org.apache.rocketmq.logging.InternalLogger;
 import org.apache.rocketmq.logging.InternalLoggerFactory;
 import org.apache.rocketmq.remoting.ChannelEventListener;
@@ -562,24 +563,18 @@ public class NettyRemotingClient extends NettyRemotingAbstract implements Remoti
     }
 
     @Override
-    public void invokeAsync(String addr, RemotingCommand request, long timeoutMillis, InvokeCallback invokeCallback)
-            throws InterruptedException, RemotingConnectException, RemotingTooMuchRequestException, RemotingTimeoutException, RemotingSendRequestException {
+    @SneakyThrows
+    public void invokeAsync(String addr, RemotingCommand request, long timeoutMillis, InvokeCallback invokeCallback) {
 
         long beginStartTime = System.currentTimeMillis();
         final Channel channel = this.getAndCreateChannel(addr);
         if (channel != null && channel.isActive()) {
-            try {
-                doBeforeRpcHooks(addr, request);
-                long costTime = System.currentTimeMillis() - beginStartTime;
-                if (timeoutMillis < costTime) {
-                    throw new RemotingTooMuchRequestException("invokeAsync call timeout");
-                }
-                this.invokeAsyncImpl(channel, request, timeoutMillis - costTime, invokeCallback);
-            } catch (RemotingSendRequestException e) {
-                log.warn("invokeAsync: send request exception, so close the channel[{}]", addr);
-                this.closeChannel(addr, channel);
-                throw e;
+            doBeforeRpcHooks(addr, request);
+            long costTime = System.currentTimeMillis() - beginStartTime;
+            if (timeoutMillis < costTime) {
+                throw new RemotingTooMuchRequestException("invokeAsync call timeout");
             }
+            this.invokeAsyncImpl(channel, request, timeoutMillis - costTime, invokeCallback);
         } else {
             this.closeChannel(addr, channel);
             throw new RemotingConnectException(addr);

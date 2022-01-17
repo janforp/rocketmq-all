@@ -50,6 +50,7 @@ public class ResponseFuture {
      */
     private final CountDownLatch countDownLatch = new CountDownLatch(1);
 
+    // 并发度控制
     private final SemaphoreReleaseOnlyOnce once;
 
     /**
@@ -64,6 +65,7 @@ public class ResponseFuture {
     @Setter
     private volatile RemotingCommand responseCommand;
 
+    // 只是说明发送请求是否成功
     @Getter
     @Setter
     private volatile boolean sendRequestOK = true;

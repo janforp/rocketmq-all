@@ -7,6 +7,7 @@ import io.netty.channel.ChannelHandlerContext;
 import io.netty.handler.ssl.SslContext;
 import io.netty.handler.ssl.SslHandler;
 import lombok.Getter;
+import lombok.SneakyThrows;
 import org.apache.rocketmq.logging.InternalLogger;
 import org.apache.rocketmq.logging.InternalLoggerFactory;
 import org.apache.rocketmq.remoting.ChannelEventListener;
@@ -38,6 +39,7 @@ import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 
+@SuppressWarnings("all")
 public abstract class NettyRemotingAbstract {
 
     /**
@@ -70,13 +72,13 @@ public abstract class NettyRemotingAbstract {
      * @see NettyRemotingAbstract#processResponseCommand(io.netty.channel.ChannelHandlerContext, org.apache.rocketmq.remoting.protocol.RemotingCommand)
      * @see NettyRemotingAbstract#invokeSyncImpl(io.netty.channel.Channel, org.apache.rocketmq.remoting.protocol.RemotingCommand, long)
      */
-    protected final ConcurrentMap<Integer /* opaque */, ResponseFuture> responseTable = new ConcurrentHashMap<Integer, ResponseFuture>(256);
+    protected final ConcurrentMap<Integer /* opaque */, ResponseFuture/*响应，里面封装了异步转同步的逻辑*/> responseTable = new ConcurrentHashMap<Integer, ResponseFuture>(256);
 
     /**
      * This container holds all processors per request code, aka, for each incoming request, we may look up the
      * responding processor in this map to handle the request.
      */
-    protected final HashMap<Integer/* request code */, Pair<NettyRequestProcessor, ExecutorService>> processorTable = new HashMap<Integer, Pair<NettyRequestProcessor, ExecutorService>>(64);
+    protected final HashMap<Integer/* request code */, Pair<NettyRequestProcessor/*业务处理器*/, ExecutorService/*处理业务逻辑的时候，在该线程池资源中执行*/>> processorTable = new HashMap<Integer, Pair<NettyRequestProcessor, ExecutorService>>(64);
 
     /**
      * Executor to feed netty events to user defined {@link ChannelEventListener}.
@@ -477,11 +479,12 @@ public abstract class NettyRemotingAbstract {
 
             // 因为 netty 是一个异步的网络通信框架，怎么实现同步调用呢？答案就在这个映射表中！
             this.responseTable.put(opaque, responseFuture);
-            // 获取客户端地址信息
-            final SocketAddress addr = channel.remoteAddress();
+
             // 写入请求，其实就是发起
             // 通过客户端channel写数据
             ChannelFuture channelFuture = channel.writeAndFlush(request);
+            // 获取客户端地址信息
+            final SocketAddress addr = channel.remoteAddress();
             // 注册监听器:channel线程回调
             channelFuture.addListener(new ChannelFutureListener() {
                 // 提取注册监听器，注意：在操作完成之后再回调这个方法，并不是马上执行的！！！！！
@@ -490,7 +493,11 @@ public abstract class NettyRemotingAbstract {
                 public void operationComplete(ChannelFuture future) {
                     // 如果写成功，则
                     if (future.isSuccess()) {
-                        // 异步设置成true
+                        /**
+                         * 异步设置成true
+                         * responseTable 中的数据在 finally 中移除
+                         *
+                         */
                         responseFuture.setSendRequestOK(true);
                         // 成功就直接返回了
                     } else {
@@ -500,12 +507,17 @@ public abstract class NettyRemotingAbstract {
                         responseTable.remove(opaque);
                         responseFuture.setCause(future.cause());
                         responseFuture.putResponse(null);
+
                         log.warn("send a request command to channel <" + addr + "> failed.");
                     }
                 }
             });
-            // 服务器业务线程需要在这里等待Client返回结果之后整个调用才完毕
-            // 业务线程在这里进入挂起状态
+            /**
+             * 服务器业务线程需要在这里等待Client返回结果之后整个调用才完毕
+             * 业务线程在这里进入挂起状态
+             * @see NettyRemotingAbstract#processResponseCommand(io.netty.channel.ChannelHandlerContext, org.apache.rocketmq.remoting.protocol.RemotingCommand)
+             * @see ResponseFuture#putResponse(org.apache.rocketmq.remoting.protocol.RemotingCommand) 响应的时候调用这个方法唤醒
+             */
             RemotingCommand responseCommand = responseFuture.waitResponse/*业务线程阻塞在这里*/(timeoutMillis);
             // 线程执行到这里
             // 1.正常情况：客户端返回数据了，IO线程将业务线程唤醒
@@ -533,8 +545,8 @@ public abstract class NettyRemotingAbstract {
      * @param timeoutMillis 超时时长
      * @param invokeCallback 请求回调处理对象
      */
-    public void invokeAsyncImpl(final Channel channel, final RemotingCommand request, final long timeoutMillis, final InvokeCallback invokeCallback)
-            throws InterruptedException, RemotingTooMuchRequestException, RemotingTimeoutException, RemotingSendRequestException {
+    @SneakyThrows
+    public void invokeAsyncImpl(final Channel channel, final RemotingCommand request, final long timeoutMillis, final InvokeCallback invokeCallback/*请求的对端返回的时候，会在调用端执行回调*/) {
         // 因为有超时的判断
         long beginStartTime = System.currentTimeMillis();
         // 请求id
@@ -554,7 +566,7 @@ public abstract class NettyRemotingAbstract {
                 throw new RemotingTimeoutException("invokeAsyncImpl call timeout");
             }
             // 创建响应对象
-            final ResponseFuture responseFuture = new ResponseFuture(channel,/*客户端ch*/opaque,/*请求id*/timeoutMillis - costTime,/*剩余的超时时间*/invokeCallback,/*回调处理对象*/once/*信号量释放对象*/);
+            final ResponseFuture responseFuture = new ResponseFuture(channel,/*客户端ch*/opaque,/*请求id*/timeoutMillis - costTime,/*剩余的超时时间*/invokeCallback/*回调处理对象*/, once/*信号量释放对象*/);
             // 加入映射表中
             this.responseTable.put(opaque, responseFuture);
             try {
@@ -581,6 +593,9 @@ public abstract class NettyRemotingAbstract {
                 log.warn("send a request command to channel <" + RemotingHelper.parseChannelRemoteAddr(channel) + "> Exception", e);
                 throw new RemotingSendRequestException(RemotingHelper.parseChannelRemoteAddr(channel), e);
             }
+
+            // 异步调用就不会在这里阻塞了！！！！！
+            // RemotingCommand responseCommand = responseFuture.waitResponse/*业务线程阻塞在这里*/(timeoutMillis);
         } else {
             // 获取信号量失败,并发高
             if (timeoutMillis <= 0) {
