@@ -199,16 +199,17 @@ public abstract class NettyRemotingAbstract {
      */
     public void processRequestCommand(final ChannelHandlerContext ctx, final RemotingCommand cmd) {
         // 根据业务代码找到合适的处理器和线程池资源---pair
-        final Pair<NettyRequestProcessor, ExecutorService> matched = this.processorTable.get(cmd.getCode());
+        int code = cmd.getCode();
+        final Pair<NettyRequestProcessor/*业务处理器*/, ExecutorService> matched = this.processorTable.get(code);
         // 如果没找到，则使用默认的
-        /*
+        /**
          * @see org.apache.rocketmq.namesrv.processor.DefaultRequestProcessor namesrv使用这个处理器
          */
         final Pair<NettyRequestProcessor, ExecutorService> pair = (null == matched) ? this.defaultRequestProcessor/*未注册处理器，则使用默认处理器，namesrv就是使用默认处理器*/ : matched;
         // 拿到请求id
         final int opaque = cmd.getOpaque();
         if (pair == null) {
-            String error = " request type " + cmd.getCode() + " not supported";
+            String error = " request type " + code + " not supported";
             final RemotingCommand response = RemotingCommand.createResponseCommand(RemotingSysResponseCode.REQUEST_CODE_NOT_SUPPORTED, error);
             response.setOpaque(opaque);
             ctx.writeAndFlush(response);
@@ -307,7 +308,7 @@ public abstract class NettyRemotingAbstract {
             executorService.submit(requestTask);
         } catch (RejectedExecutionException e) {
             if ((System.currentTimeMillis() % 10000) == 0) {
-                log.warn(RemotingHelper.parseChannelRemoteAddr(ctx.channel()) + ", too many requests and system thread pool busy, RejectedExecutionException " + pair.getObject2().toString() + " request code: " + cmd.getCode());
+                log.warn(RemotingHelper.parseChannelRemoteAddr(ctx.channel()) + ", too many requests and system thread pool busy, RejectedExecutionException " + pair.getObject2().toString() + " request code: " + code);
             }
             if (!cmd.isOnewayRPC()) {
                 // 如果该请求不是单向的，则至少给对端一个响应
@@ -451,7 +452,7 @@ public abstract class NettyRemotingAbstract {
 
         for (ResponseFuture rf : rfList) {
             try {
-                // TODO 超时的直接执行回调？？为什么呢？？
+                // 超时的直接执行回调？？为什么呢？？
                 executeInvokeCallback(rf);
             } catch (Throwable e) {
                 log.warn("scanResponseTable, operationComplete Exception", e);
@@ -709,6 +710,11 @@ public abstract class NettyRemotingAbstract {
         @Override
         public void run() {
             log.info(this.getServiceName() + " service started");
+
+            /**
+             * @see org.apache.rocketmq.broker.client.ClientHousekeepingService
+             * @see org.apache.rocketmq.namesrv.routeinfo.BrokerHousekeepingService
+             */
             final ChannelEventListener listener = NettyRemotingAbstract.this.getChannelEventListener();
             while (!this.isStopped()) {
                 try {

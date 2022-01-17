@@ -368,6 +368,7 @@ public class RemotingCommand {
             String fieldName = field.getName();
             if (fieldName.startsWith("this")) {
                 // TODO 什么字段会以 this 开头呢？？？？
+                System.out.println("this开头的字段" + fieldName);
                 continue;
             }
             // 字段名称不以this开头

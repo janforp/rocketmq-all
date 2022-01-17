@@ -48,6 +48,8 @@ import java.util.concurrent.atomic.AtomicLong;
 
 /**
  * 封装了 namesrv 能处理的所有业务
+ *
+ * namesrv 其实就是 crud
  */
 @SuppressWarnings("all")
 @AllArgsConstructor
@@ -59,10 +61,12 @@ public class DefaultRequestProcessor extends AsyncNettyRequestProcessor implemen
 
     @Override
     public RemotingCommand processRequest(ChannelHandlerContext ctx, RemotingCommand request) throws RemotingCommandException {
+        int requestCode = request.getCode();
         if (ctx != null) {
-            log.debug("receive request, {} {} {}", request.getCode(), RemotingHelper.parseChannelRemoteAddr(ctx.channel()), request);
+            log.debug("receive request, {} {} {}", requestCode, RemotingHelper.parseChannelRemoteAddr(ctx.channel()), request);
         }
-        switch (request.getCode()) {
+
+        switch (requestCode) {
             case RequestCode.PUT_KV_CONFIG:
                 return this.putKVConfig(ctx, request);
             case RequestCode.GET_KV_CONFIG:
@@ -293,6 +297,7 @@ public class DefaultRequestProcessor extends AsyncNettyRequestProcessor implemen
         String haServerAddr = result.getHaServerAddr();
         responseHeader.setHaServerAddr(haServerAddr);
 
+        // 主 broker 地址
         String masterAddr = result.getMasterAddr();
         responseHeader.setMasterAddr(masterAddr);
 

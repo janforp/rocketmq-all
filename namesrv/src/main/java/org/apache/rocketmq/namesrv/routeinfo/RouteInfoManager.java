@@ -154,12 +154,10 @@ public class RouteInfoManager {
         return topicList.encode();
     }
 
+    // crud
     public RegisterBrokerResult registerBroker(
-            final String clusterName/*集群名称*/, final String brokerAddr/*节点ip地址*/, final String brokerName/*节点名称*/,
-            final long brokerId/*节点id:0为主节点*/, final String haServerAddr/*ha节点地址*/,
-            final TopicConfigSerializeWrapper topicConfigWrapper/*当前节点的主题信息*/,
-            final List<String> filterServerList/*过滤服务器列表*/, final Channel channel/*当前服务端与客户端的通信ch*/) {
-
+            final String clusterName/*集群名称*/, final String brokerAddr/*节点ip地址*/, final String brokerName/*节点名称*/, final long brokerId/*节点id:0为主节点*/, final String haServerAddr/*ha节点地址*/,
+            final TopicConfigSerializeWrapper topicConfigWrapper/*当前节点的主题信息*/, final List<String> filterServerList/*过滤服务器列表*/, final Channel channel/*当前服务端与客户端的通信ch*/) {
         RegisterBrokerResult result = new RegisterBrokerResult();
         try {
             try {
@@ -174,7 +172,7 @@ public class RouteInfoManager {
                 // 当前的broker添加到集合
                 // 某个集群下面的所有 broker 名称集合
                 brokerNames.add(brokerName);
-                // 是否首次注册？
+                // boker是否首次注册？
                 boolean registerFirst = false;
                 // HashMap<String/* brokerName，如：broker-a */, BrokerData /* broker 信息,包括主从 broker，只要 brokerName 相关的 broker 都会封装在一个对象中，其实都是有配置决定 */> brokerAddrTable;
                 BrokerData brokerData = this.brokerAddrTable.get(brokerName);
@@ -201,9 +199,9 @@ public class RouteInfoManager {
                 String oldAddr = brokerDataBrokerAddrs.put(brokerId, brokerAddr);
                 registerFirst = registerFirst || (null == oldAddr);
 
-                if (null != topicConfigWrapper && MixAll.MASTER_ID == brokerId) {
+                if (null != topicConfigWrapper && MixAll.MASTER_ID == brokerId/*当前物理节点是主节点*/) {
                     DataVersion dataVersion = topicConfigWrapper.getDataVersion();
-                    boolean brokerTopicConfigChanged = this.isBrokerTopicConfigChanged(brokerAddr, dataVersion);
+                    boolean brokerTopicConfigChanged = this.isBrokerTopicConfigChanged(brokerAddr, dataVersion/*其实就是比较版本是否一致*/);
                     if (brokerTopicConfigChanged || registerFirst) {
                         // 获取主题映射表，从 broker 注册数据中获取
                         ConcurrentMap<String/*topic*/ , TopicConfig/*主题信息*/> tcTable = topicConfigWrapper.getTopicConfigTable();
