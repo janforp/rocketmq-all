@@ -9,6 +9,10 @@ public enum PutMessageStatus {
     CREATE_MAPEDFILE_FAILED,
     MESSAGE_ILLEGAL,
     PROPERTIES_SIZE_EXCEEDED,
+
+    /**
+     * 操作系统页缓存繁忙
+     */
     OS_PAGECACHE_BUSY,
     UNKNOWN_ERROR,
 }
