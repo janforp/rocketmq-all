@@ -89,8 +89,8 @@ public class MappedFileQueue {
             return null;
         }
 
-        for (int i = 0; i < mfs.length; i++) {
-            MappedFile mappedFile = (MappedFile) mfs[i];
+        for (Object mf : mfs) {
+            MappedFile mappedFile = (MappedFile) mf;
             if (mappedFile.getLastModifiedTimestamp() >= timestamp) {
                 return mappedFile;
             }
@@ -160,14 +160,21 @@ public class MappedFileQueue {
      */
     public boolean load() {
         // 拿到当前目录
+        // /Users/zhuchenjian/Documents/code/learn/rocketmq/rocketmq-all/conf/home/broker/store/consumequeue 目录
         File dir = new File(this.storePath);
-        // 拿到目录下的所有文件
+        /*
+         * 拿到目录下的所有文件
+         *
+         * 主题为 order 的文件夹：/Users/zhuchenjian/Documents/code/learn/rocketmq/rocketmq-all/conf/home/broker/store/consumequeue/order
+         * 主题为 TopicTest 的文件夹：/Users/zhuchenjian/Documents/code/learn/rocketmq/rocketmq-all/conf/home/broker/store/consumequeue/TopicTest
+         */
         File[] files = dir.listFiles();
         if (files != null) {
             // ascending order
             // 安装文件名称排序
             Arrays.sort(files);
             for (File file : files) {
+                // 遍历每个主题下面的各个队列的文件夹
 
                 // 理论上说，当前目录下的每个文件大小都是 mappedFileSize
                 if (file.length() != this.mappedFileSize) {
@@ -245,10 +252,10 @@ public class MappedFileQueue {
         if (createOffset != -1 && needCreate) {
             // 真正需要创建新的 mappedFile
 
-            // 待创建文件的绝对路径（storePath/）
+            // 待创建文件的绝对路径（storePath/）如：../store/commitlog/00000000000012345567
             String nextFilePath = this.storePath + File.separator + UtilAll.offset2FileName(createOffset);
             // 每次预创建2个文件
-            // 获取下下次的文件绝对路径
+            // 获取下下次的文件绝对路径 如：../store/commitlog/0000000000002234231231
             String nextNextFilePath = this.storePath + File.separator + UtilAll.offset2FileName(createOffset + this.mappedFileSize);
 
             // 即将创建的对象

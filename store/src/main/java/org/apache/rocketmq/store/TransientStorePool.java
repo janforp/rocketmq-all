@@ -14,8 +14,17 @@ import java.util.Deque;
 import java.util.concurrent.ConcurrentLinkedDeque;
 
 /**
- * TransientStorePool的构造器会根据MessageStoreConfig设置poolSize、fileSize属性；其init方法会创建poolSize个byteBuffer放入到availableBuffers中；其destroy方法会遍历availableBuffers，然后取出其address进行LibC.INSTANCE.munlock
- * borrowBuffer返回availableBuffers.pollFirst()，returnBuffer方法会执行byteBuffer.position(0)以及byteBuffer.limit(fileSize)，然后offerFirst方法放入availableBuffers
+ * 瞬态存储池
+ * <p>
+ * TransientStorePool的构造器会根据MessageStoreConfig设置poolSize、fileSize属性；
+ * <p>
+ * 其init方法会创建poolSize个byteBuffer放入到availableBuffers中；
+ * <p>
+ * 其destroy方法会遍历availableBuffers，然后取出其address进行LibC.INSTANCE.munlock
+ * <p>
+ * borrowBuffer返回availableBuffers.pollFirst()，returnBuffer方法会执行byteBuffer.position(0)以及byteBuffer.limit(fileSize)，
+ * <p>
+ * 然后offerFirst方法放入availableBuffers
  * availableBufferNums方法在storeConfig.isTransientStorePoolEnable()为true的情况下会返回availableBuffers.size()，否则返回Integer.MAX_VALUE
  */
 public class TransientStorePool {
@@ -65,7 +74,7 @@ public class TransientStorePool {
     public void init() {
         for (int i = 0; i < poolSize/*5*/; i++) {
 
-            // 申请 1G 内容
+            // 申请 1G 内容 DM
             ByteBuffer byteBuffer = ByteBuffer.allocateDirect(fileSize);
 
             final long address = ((DirectBuffer) byteBuffer).address();

@@ -168,10 +168,10 @@ public class ConsumeQueue {
     public long getOffsetInQueueByTime(final long timestamp) {
         MappedFile mappedFile = this.mappedFileQueue.getMappedFileByTime(timestamp);
         if (mappedFile != null) {
-            long offset = 0;
+            long offset;
             int low = minLogicOffset > mappedFile.getFileFromOffset() ? (int) (minLogicOffset - mappedFile.getFileFromOffset()) : 0;
-            int high = 0;
-            int midOffset = -1, targetOffset = -1, leftOffset = -1, rightOffset = -1;
+            int high;
+            int midOffset, targetOffset = -1, leftOffset = -1, rightOffset = -1;
             long leftIndexValue = -1L, rightIndexValue = -1L;
             long minPhysicOffset = this.defaultMessageStore.getMinPhyOffset();
             SelectMappedBufferResult sbr = mappedFile.selectMappedBuffer(0);
@@ -313,12 +313,8 @@ public class ConsumeQueue {
 
     public long getLastOffset() {
         long lastOffset = -1;
-
-        int logicFileSize = this.mappedFileSize;
-
         MappedFile mappedFile = this.mappedFileQueue.getLastMappedFile();
         if (mappedFile != null) {
-
             int position = mappedFile.getWrotePosition() - CQ_STORE_UNIT_SIZE;
             if (position < 0) {
                 position = 0;
@@ -326,7 +322,7 @@ public class ConsumeQueue {
 
             ByteBuffer byteBuffer = mappedFile.sliceByteBuffer();
             byteBuffer.position(position);
-            for (int i = 0; i < logicFileSize; i += CQ_STORE_UNIT_SIZE) {
+            for (int i = 0; i < this.mappedFileSize; i += CQ_STORE_UNIT_SIZE) {
                 long offset = byteBuffer.getLong();
                 int size = byteBuffer.getInt();
                 byteBuffer.getLong();

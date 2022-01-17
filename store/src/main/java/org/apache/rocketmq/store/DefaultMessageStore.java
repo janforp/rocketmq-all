@@ -168,6 +168,8 @@ public class DefaultMessageStore implements MessageStore {
         this.dispatcherList = new LinkedList<>();
         this.dispatcherList.addLast(new CommitLogDispatcherBuildConsumeQueue());
         this.dispatcherList.addLast(new CommitLogDispatcherBuildIndex());
+
+        // 文件： /Users/zhuchenjian/Documents/code/learn/rocketmq/rocketmq-all/conf/home/broker/store/lock
         File file = new File(StorePathConfigHelper.getLockFile(messageStoreConfig.getStorePathRootDir()));
         // 创建 lock 文件
         MappedFile.ensureDirOK(file.getParent());
@@ -243,7 +245,9 @@ public class DefaultMessageStore implements MessageStore {
 
             // 所有队列中的最大的物理偏移量
             long maxPhysicalPosInLogicQueue = commitLog.getMinOffset();
-            for (ConcurrentMap<Integer, ConsumeQueue> maps : this.consumeQueueTable.values()) {
+
+            // ConcurrentMap<String/* topic */, ConcurrentMap<Integer/* queueId */, ConsumeQueue>> consumeQueueTable;
+            for (ConcurrentMap<Integer/* queueId */, ConsumeQueue> maps : this.consumeQueueTable.values()) {
                 for (ConsumeQueue logic : maps.values()) {
                     if (logic.getMaxPhysicOffset() > maxPhysicalPosInLogicQueue) {
                         // 循环找到最大的 offset
@@ -2016,11 +2020,5 @@ public class DefaultMessageStore implements MessageStore {
 
             DefaultMessageStore.log.info(this.getServiceName() + " service end");
         }
-
-        @Override
-        public String getServiceName() {
-            return ReputMessageService.class.getSimpleName();
-        }
-
     }
 }

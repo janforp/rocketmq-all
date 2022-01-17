@@ -49,6 +49,9 @@ public class MappedFile extends ReferenceResource {
     // 当前数据写入到 MappedFile 的位点，写入点
     protected final AtomicInteger wrotePosition = new AtomicInteger(0);
 
+    /**
+     * 主从同步的时候用
+     */
     protected final AtomicInteger committedPosition = new AtomicInteger(0);
     // 0 ------- 落盘数据(安全数据) --------- flushedPos ------- 脏页(不安全的数据) ------- wrotePos -------- 空闲 -------.....
 
@@ -68,6 +71,10 @@ public class MappedFile extends ReferenceResource {
      */
     protected ByteBuffer writeBuffer = null;
 
+    /**
+     * 瞬态存储池
+     * 内存池！！！！
+     */
     protected TransientStorePool transientStorePool = null;
 
     // 文件名称(commitLog:文件名就是第一条消息的物理偏移量，consumerQueue：文件名也是第一条消息的偏移量，indexFile:文件名就是 年月日时分秒)
@@ -79,9 +86,17 @@ public class MappedFile extends ReferenceResource {
     private long fileFromOffset;
 
     // 文件
+    @Getter
     private File file;
 
     // 内存映射缓冲区，访问虚拟内存
+
+    /**
+     * 总结
+     * MappedByteBuffer使用虚拟内存，因此分配(map)的内存大小不受JVM的-Xmx参数限制，但是也是有大小限制的。
+     * 如果当文件超出1.5G限制时，可以通过position参数重新map文件后面的内容。
+     * MappedByteBuffer在处理大文件时的确性能很高，但也存在一些问题，如内存占用、文件关闭不确定，被其打开的文件只有在垃圾回收的才会被关闭，而且这个时间点是不确定的。
+     */
     @Getter
     private MappedByteBuffer mappedByteBuffer;
 
@@ -105,8 +120,7 @@ public class MappedFile extends ReferenceResource {
         init(fileName, fileSize);
     }
 
-    public MappedFile(final String fileName, final int fileSize,
-            final TransientStorePool transientStorePool) throws IOException {
+    public MappedFile(final String fileName, final int fileSize, final TransientStorePool transientStorePool) throws IOException {
         init(fileName, fileSize, transientStorePool);
     }
 
@@ -127,7 +141,12 @@ public class MappedFile extends ReferenceResource {
         if (buffer == null || !buffer.isDirect() || buffer.capacity() == 0) {
             return;
         }
-        invoke(invoke(viewed(buffer), "cleaner"), "clean");
+
+        ByteBuffer viewed = viewed(buffer);
+
+        Object cleaner = invoke(viewed, "cleaner");
+
+        invoke(cleaner, "clean");
     }
 
     private static Object invoke(final Object target, final String methodName, final Class<?>... args) {
@@ -176,8 +195,7 @@ public class MappedFile extends ReferenceResource {
         return TOTAL_MAPPED_VIRTUAL_MEMORY.get();
     }
 
-    public void init(final String fileName, final int fileSize,
-            final TransientStorePool transientStorePool) throws IOException {
+    public void init(final String fileName, final int fileSize, final TransientStorePool transientStorePool) throws IOException {
         init(fileName, fileSize);
         this.writeBuffer = transientStorePool.borrowBuffer();
         this.transientStorePool = transientStorePool;
@@ -195,9 +213,17 @@ public class MappedFile extends ReferenceResource {
 
         try {
             // 创建文件通道
-            this.fileChannel = new RandomAccessFile(this.file, "rw").getChannel();
+            RandomAccessFile randomAccessFile = new RandomAccessFile(this.file, "rw");
+            this.fileChannel = randomAccessFile.getChannel();
+
+            /*
+             * TODO
+             * 这个比较重要！！！！！
+             *
+             * FileChannel提供了map方法把文件映射到虚拟内存
+             */
             // 获取内存映射缓冲区，用于访问虚拟内存
-            this.mappedByteBuffer = this.fileChannel.map(MapMode.READ_WRITE, 0, fileSize);
+            this.mappedByteBuffer = this.fileChannel.map/*FileChannel提供了map方法把文件映射到虚拟内存*/(MapMode.READ_WRITE, 0/*文件映射时的起始位置。*/, fileSize);
 
             // 文件对象
             TOTAL_MAPPED_VIRTUAL_MEMORY.addAndGet(fileSize);
@@ -505,6 +531,12 @@ public class MappedFile extends ReferenceResource {
         return null;
     }
 
+    /**
+     * 清理回收资源
+     *
+     * @param currentRef 当前对象被引用的次数，引用计数
+     * @return 是否清理完成
+     */
     @Override
     public boolean cleanup(final long currentRef) {
         if (this.isAvailable()) {
@@ -518,7 +550,11 @@ public class MappedFile extends ReferenceResource {
         }
 
         clean(this.mappedByteBuffer);
+
+        // 当前进程下，所有的 MappedFile 占用的总的虚拟内存的大小
         TOTAL_MAPPED_VIRTUAL_MEMORY.addAndGet(this.fileSize * (-1));
+
+        // 当前进程下，所有的 MappedFile 对象的个数
         TOTAL_MAPPED_FILES.decrementAndGet();
         log.info("unmap file[REF:" + currentRef + "] " + this.fileName + " OK");
         return true;
@@ -588,8 +624,11 @@ public class MappedFile extends ReferenceResource {
         ByteBuffer byteBuffer = this.mappedByteBuffer.slice();
         int flush = 0;
         long time = System.currentTimeMillis();
-        for (int i = 0, j = 0; i < this.fileSize; i += MappedFile.OS_PAGE_SIZE, j++) {
+        for (int i = 0, j/*控制线程睡眠*/ = 0; i < this.fileSize; i += MappedFile.OS_PAGE_SIZE/*4KB*/, j++) {
+
+            // 都设置为 0
             byteBuffer.put(i, (byte) 0);
+
             // force flush when flush disk type is sync
             if (type == FlushDiskType.SYNC_FLUSH) {
                 if ((i / OS_PAGE_SIZE) - (flush / OS_PAGE_SIZE) >= pages) {
@@ -650,17 +689,15 @@ public class MappedFile extends ReferenceResource {
         }
     }
 
+    /**
+     * 解锁内存
+     */
     public void munlock() {
         final long beginTime = System.currentTimeMillis();
         final long address = ((DirectBuffer) (this.mappedByteBuffer)).address();
         Pointer pointer = new Pointer(address);
         int ret = LibC.INSTANCE.munlock(pointer, new NativeLong(this.fileSize));
         log.info("munlock {} {} {} ret = {} time consuming = {}", address, this.fileName, this.fileSize, ret, System.currentTimeMillis() - beginTime);
-    }
-
-    //testable
-    File getFile() {
-        return this.file;
     }
 
     @Override

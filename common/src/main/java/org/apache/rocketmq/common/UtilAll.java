@@ -77,6 +77,12 @@ public class UtilAll {
         return sb.toString();
     }
 
+    /**
+     * 12345567 -> 00000000000012345567
+     *
+     * @param offset 偏移量
+     * @return 20位长度的名字
+     */
     public static String offset2FileName(final long offset) {
         final NumberFormat nf = NumberFormat.getInstance();
         nf.setMinimumIntegerDigits(20);

@@ -1,5 +1,7 @@
 package org.apache.rocketmq.store;
 
+import lombok.Getter;
+
 import java.util.concurrent.atomic.AtomicLong;
 
 public abstract class ReferenceResource {
@@ -10,6 +12,7 @@ public abstract class ReferenceResource {
     protected final AtomicLong refCount = new AtomicLong(1);
 
     // 是否存活，默认是
+    @Getter
     protected volatile boolean available = true;
 
     // 是否清理完毕，执行完子类对象的 cleanup 之后就设置为 true
@@ -41,10 +44,6 @@ public abstract class ReferenceResource {
         }
 
         return false;
-    }
-
-    public boolean isAvailable() {
-        return this.available;
     }
 
     /**
