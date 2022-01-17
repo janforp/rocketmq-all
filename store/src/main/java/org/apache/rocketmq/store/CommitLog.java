@@ -63,6 +63,7 @@ public class CommitLog {
     protected final DefaultMessageStore defaultMessageStore;
 
     /**
+     * @see GroupCommitService 同步刷盘
      * @see FlushRealTimeService 默认是异步刷盘
      */
     // 刷盘服务：里面有自己的线程，实现异步刷盘
@@ -1029,6 +1030,7 @@ public class CommitLog {
 
         // 刷盘逻辑入口
         handleDiskFlush(result, putMessageResult, msg);
+        // 主从复制相关
         handleHA(result, putMessageResult, msg);
 
         return putMessageResult;
@@ -1110,15 +1112,17 @@ public class CommitLog {
      * @param messageExt 消息
      */
     public void handleDiskFlush(AppendMessageResult result, PutMessageResult putMessageResult, MessageExt messageExt) {
+        MessageStoreConfig messageStoreConfig = this.defaultMessageStore.getMessageStoreConfig();
         // Synchronization flush
-        if (FlushDiskType.SYNC_FLUSH == this.defaultMessageStore.getMessageStoreConfig().getFlushDiskType()) {
+        if (FlushDiskType.SYNC_FLUSH == messageStoreConfig.getFlushDiskType()) {
             // 同步刷盘
 
             // 获取同步刷盘服务
             final GroupCommitService service = (GroupCommitService) this.flushCommitLogService;
             if (messageExt.isWaitStoreMsgOK() /*一般情况返回 true*/) {
 
-                GroupCommitRequest request = new GroupCommitRequest(result.getWroteOffset() + result.getWroteBytes()  /*当前消息写完之后的commitLog的偏移量或者下条消息的开始偏移量*/);
+                long nextOffset = result.getWroteOffset() + result.getWroteBytes();
+                GroupCommitRequest request = new GroupCommitRequest(nextOffset  /*当前消息写完之后的commitLog的偏移量或者下条消息的开始偏移量*/);
 
                 // 提交
                 service.putRequest(request);
@@ -1128,10 +1132,10 @@ public class CommitLog {
                 PutMessageStatus flushStatus = null;
                 try {
                     /**
-                     * 写消息线程 试图 获取到 request.future(),当前线程在此阻塞等待
+                     * 写消息线程 试图 获取到 request.future(),当前线程在此阻塞等待，直到刷盘任务完成并且返回
                      * @see GroupCommitRequest#wakeupCustomer(boolean) 通过这个方法唤醒当前线程
                      */
-                    flushStatus = flushOkFuture.get(this.defaultMessageStore.getMessageStoreConfig().getSyncFlushTimeout(), TimeUnit.MILLISECONDS);
+                    flushStatus = flushOkFuture.get(messageStoreConfig.getSyncFlushTimeout(), TimeUnit.MILLISECONDS);
                 } catch (InterruptedException | ExecutionException | TimeoutException e) {
                     //flushOK=false;
                 }
@@ -1146,7 +1150,7 @@ public class CommitLog {
         // Asynchronous flush
         else {
             // 异步刷盘
-            if (!this.defaultMessageStore.getMessageStoreConfig().isTransientStorePoolEnable()) {
+            if (!messageStoreConfig.isTransientStorePoolEnable()) {
                 flushCommitLogService.wakeup();
             } else {
                 commitLogService.wakeup();
@@ -1556,6 +1560,9 @@ public class CommitLog {
         }
     }
 
+    /**
+     * 同步刷盘请求
+     */
     public static class GroupCommitRequest {
 
         // wroteOffset + 消息size
@@ -1599,9 +1606,10 @@ public class CommitLog {
      */
     class GroupCommitService extends FlushCommitLogService {
 
-        //
+        // 新到的刷盘请求放到这个了
         private volatile List<GroupCommitRequest> requestsWrite = new ArrayList<GroupCommitRequest>();
 
+        // 执行刷盘任务的时候从这个队列中取任务执行
         private volatile List<GroupCommitRequest> requestsRead = new ArrayList<GroupCommitRequest>();
 
         public synchronized void putRequest(final GroupCommitRequest request) {
@@ -1618,6 +1626,7 @@ public class CommitLog {
                 if (!this.requestsRead.isEmpty()) {
 
                     // 检查所有进度
+                    // 处理刷盘任务！
                     for (GroupCommitRequest req : this.requestsRead) {
                         // There may be a message in the next file, so a maximum of
                         // two times the flush
@@ -1625,7 +1634,15 @@ public class CommitLog {
                         for (int i = 0; i < 2 && !flushOK; i++) {
 
                             // 如果 flushOK 返回 true 则说明，req 关联的"生产者线程"需要被唤醒了，因为它关心的数据已经全部落盘了
-                            flushOK = CommitLog.this.mappedFileQueue.getFlushedWhere() >= req.getNextOffset();
+
+                            // 真实刷盘到了什么位置
+                            long flushedWhere = CommitLog.this.mappedFileQueue.getFlushedWhere();
+
+                            // 该请求要求刷盘到 nextOffset 这个位置
+                            long nextOffset = req.getNextOffset();
+
+                            // 如果 真实刷盘位点已经大于等于 该请求要求的刷盘位点，则说明：在这个位点之前的数据都已经刷盘完成了
+                            flushOK = flushedWhere >= nextOffset;
 
                             if (!flushOK) {
                                 // 如果上面返回还是没有刷盘，则强制刷盘
@@ -1685,11 +1702,6 @@ public class CommitLog {
             List<GroupCommitRequest> tmp = this.requestsWrite;
             this.requestsWrite = this.requestsRead;
             this.requestsRead = tmp;
-        }
-
-        @Override
-        public String getServiceName() {
-            return GroupCommitService.class.getSimpleName();
         }
 
         @Override
