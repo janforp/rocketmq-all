@@ -102,6 +102,9 @@ public class DefaultMQProducerImpl implements MQProducerInner {
      * 主题发布信息映射表
      * key:topic主题
      * value:主题的发布信息
+     * <p>
+     * 作为一个生产者，你肯定要直到各个主题的路由信息
+     * </p>
      */
     private final ConcurrentMap<String/*topic*/, TopicPublishInfo/*该主题的发布信息*/> topicPublishInfoTable = new ConcurrentHashMap<String, TopicPublishInfo>();
 

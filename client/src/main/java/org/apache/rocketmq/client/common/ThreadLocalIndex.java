@@ -29,8 +29,6 @@ public class ThreadLocalIndex {
 
     @Override
     public String toString() {
-        return "ThreadLocalIndex{" +
-                "threadLocalIndex=" + threadLocalIndex.get() +
-                '}';
+        return "ThreadLocalIndex{" + "threadLocalIndex=" + threadLocalIndex.get() + '}';
     }
 }

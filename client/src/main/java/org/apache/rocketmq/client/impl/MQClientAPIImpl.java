@@ -150,6 +150,10 @@ import java.util.Properties;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 
+/**
+ * 封装了 broker 与 namesrv 之间的所有逻辑！！！
+ */
+@SuppressWarnings("all")
 public class MQClientAPIImpl {
 
     private final static InternalLogger log = ClientLogger.getLog();
@@ -163,6 +167,10 @@ public class MQClientAPIImpl {
     // 客户端网络层对象，管理客户端于服务器之间连接的 NioSocketChannel 对象
     // 通过它提供的 invoke 系列方法，客户端可以与服务器进行远程调用
     // 服务器也可以
+
+    /**
+     * @see NettyRemotingClient netty 网络调用
+     */
     @Getter
     private final RemotingClient remotingClient;
 
@@ -185,6 +193,7 @@ public class MQClientAPIImpl {
 
         // 同一个处理器，注册到不同的业务上
         // 注册业务处理器
+        // org.apache.rocketmq.client.impl.ClientRemotingProcessor.processRequest
         this.remotingClient.registerProcessor(RequestCode.CHECK_TRANSACTION_STATE, clientRemotingProcessor, null);
 
         this.remotingClient.registerProcessor(RequestCode.NOTIFY_CONSUMER_IDS_CHANGED, clientRemotingProcessor, null);

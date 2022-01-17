@@ -99,7 +99,6 @@ public class MQClientInstance {
     // 生产者映射表，key:组名称，value：生产者或者消费者
     private final ConcurrentMap<String/* group */, MQConsumerInner> consumerTable = new ConcurrentHashMap<String, MQConsumerInner>();
 
-    //
     private final ConcurrentMap<String/* group */, MQAdminExtInner> adminExtTable = new ConcurrentHashMap<String, MQAdminExtInner>();
 
     // 客户端网络层的配置
@@ -118,15 +117,15 @@ public class MQClientInstance {
     @Getter
     private final MQAdminImpl mQAdminImpl;
 
+    private final Lock lockNamesrv = new ReentrantLock();
+
+    private final Lock lockHeartbeat = new ReentrantLock();
+
     // key topic
     // value： 主题的路由数据
     // 客户端本地的路由数据
     @Getter
     private final ConcurrentMap<String/* Topic */, TopicRouteData/*主题路由信息*/> topicRouteTable = new ConcurrentHashMap<String, TopicRouteData>();
-
-    private final Lock lockNamesrv = new ReentrantLock();
-
-    private final Lock lockHeartbeat = new ReentrantLock();
 
     /**
      * broker 物理节点映射表
@@ -164,6 +163,8 @@ public class MQClientInstance {
 
     /**
      * TODO 内部生产者，用于处理消费端消息回退 ? 是这样吗？
+     *
+     * CLIENT_INNER_PRODUCER
      */
     @Getter
     private final DefaultMQProducer defaultMQProducer;
@@ -182,7 +183,6 @@ public class MQClientInstance {
     // 客户端状态
     private ServiceState serviceState = ServiceState.CREATE_JUST;
 
-    //
     private DatagramSocket datagramSocket;
 
     private final Random random = new Random();
@@ -195,7 +195,10 @@ public class MQClientInstance {
         this.clientConfig = clientConfig;
         // 索引值一般是0，因为客户端实例一般都是一个进程只有一个
         this.nettyClientConfig = new NettyClientConfig();
-        this.nettyClientConfig.setClientCallbackExecutorThreads(clientConfig.getClientCallbackExecutorThreads());
+
+        // clientCallbackExecutorThreads = Runtime.getRuntime().availableProcessors();
+        int clientCallbackExecutorThreads = clientConfig.getClientCallbackExecutorThreads();
+        this.nettyClientConfig.setClientCallbackExecutorThreads(clientCallbackExecutorThreads);
         this.nettyClientConfig.setUseTLS(clientConfig.isUseTLS());
 
         // 创建客户端协议处理器
@@ -205,13 +208,14 @@ public class MQClientInstance {
         ClientRemotingProcessor clientRemotingProcessor = new ClientRemotingProcessor(this);
 
         // 创建 mQClientAPIImpl
-        this.mQClientAPIImpl = new MQClientAPIImpl(this.nettyClientConfig, clientRemotingProcessor, // 客户端协议处理器，注册到客户端网络层
-                rpcHook, // 注册到客户端网络层
-                clientConfig);
+        this.mQClientAPIImpl = new MQClientAPIImpl(this.nettyClientConfig, clientRemotingProcessor/*客户端协议处理器，注册到客户端网络层*/, rpcHook, clientConfig);
 
-        if (this.clientConfig.getNamesrvAddr() != null) {
-            this.mQClientAPIImpl.updateNameServerAddressList(this.clientConfig.getNamesrvAddr());
-            log.info("user specified name server address: {}", this.clientConfig.getNamesrvAddr());
+        // 配置的 namesrv
+        String configNamesrvAddr = this.clientConfig.getNamesrvAddr();
+        if (configNamesrvAddr != null) {
+            // 关系到生产者本地映射表
+            this.mQClientAPIImpl.updateNameServerAddressList(configNamesrvAddr);
+            log.info("user specified name server address: {}", configNamesrvAddr);
         }
 
         this.clientId = clientId;
@@ -224,12 +228,13 @@ public class MQClientInstance {
 
         // 创建了一个 内部生产者实例，来完消息回退
         this.defaultMQProducer = new DefaultMQProducer(MixAll.CLIENT_INNER_PRODUCER_GROUP);
+        // 复制配置
         this.defaultMQProducer.resetClientConfig(clientConfig);
 
         this.consumerStatsManager = new ConsumerStatsManager(this.scheduledExecutorService);
 
-        log.info("Created a new client Instance, InstanceIndex:{}, ClientID:{}, ClientConfig:{}, ClientVersion:{}, SerializerType:{}", instanceIndex, this.clientId, this.clientConfig,
-                MQVersion.getVersionDesc(MQVersion.CURRENT_VERSION), RemotingCommand.getSerializeTypeConfigInThisServer());
+        String msg = "Created a new client Instance, InstanceIndex:{}, ClientID:{}, ClientConfig:{}, ClientVersion:{}, SerializerType:{}";
+        log.info(msg, instanceIndex, this.clientId, this.clientConfig, MQVersion.getVersionDesc(MQVersion.CURRENT_VERSION), RemotingCommand.getSerializeTypeConfigInThisServer());
     }
 
     public static TopicPublishInfo topicRouteData2TopicPublishInfo(final String topic, final TopicRouteData route) {
@@ -332,7 +337,8 @@ public class MQClientInstance {
                     // Start push service
 
                     // 启动内部生产者，消息回退使用这个生产者
-                    this.defaultMQProducer.getDefaultMQProducerImpl().start(false);
+                    DefaultMQProducerImpl defaultMQProducerImpl = this.defaultMQProducer.getDefaultMQProducerImpl();
+                    defaultMQProducerImpl.start(false);
                     log.info("the client factory [{}] start OK", this.clientId);
 
                     // 设置客户的状态为运行中
@@ -374,7 +380,7 @@ public class MQClientInstance {
                     log.error("ScheduledTask updateTopicRouteInfoFromNameServer exception", e);
                 }
             }
-        }, 10, this.clientConfig.getPollNameServerInterval(), TimeUnit.MILLISECONDS);
+        }, 10, this.clientConfig.getPollNameServerInterval()/*30秒*/, TimeUnit.MILLISECONDS);
 
         // 定时任务2
         this.scheduledExecutorService.scheduleAtFixedRate(new Runnable() {
@@ -390,7 +396,7 @@ public class MQClientInstance {
                     log.error("ScheduledTask sendHeartbeatToAllBroker exception", e);
                 }
             }
-        }, 1000, this.clientConfig.getHeartbeatBrokerInterval(), TimeUnit.MILLISECONDS);
+        }, 1000, this.clientConfig.getHeartbeatBrokerInterval()/*30秒*/, TimeUnit.MILLISECONDS);
 
         // 定时任务3：消费者持久化消费进度
         this.scheduledExecutorService.scheduleAtFixedRate(new Runnable() {
@@ -398,6 +404,7 @@ public class MQClientInstance {
             @Override
             public void run() {
                 try {
+                    // 所以：可能重复消费
                     MQClientInstance.this.persistAllConsumerOffset();
                 } catch (Exception e) {
                     log.error("ScheduledTask persistAllConsumerOffset exception", e);
@@ -642,15 +649,14 @@ public class MQClientInstance {
         long times = this.sendHeartbeatTimesTotal.getAndIncrement();
 
         // ConcurrentMap<String/* Broker Name */, HashMap<Long/* brokerId */, String/* address */>> brokerAddrTable
-        for (Entry<String, HashMap<Long, String>> entry : this.brokerAddrTable.entrySet()) {
+        for (Entry<String/* Broker Name */, HashMap<Long/* brokerId */, String/* address */>> entry : this.brokerAddrTable.entrySet()) {
             String brokerName = entry.getKey();
-
             // 该 broker 下面的所有的 节点地址映射 HashMap<Long/* brokerId */, String/* address */>
-            HashMap<Long, String> oneTable = entry.getValue();
+            HashMap<Long/* brokerId */, String/* address */> oneTable = entry.getValue();
             if (oneTable == null) {
                 continue;
             }
-            for (Entry<Long, String> brokerIdAddress : oneTable.entrySet()) {
+            for (Entry<Long/* brokerId */, String/* address */> brokerIdAddress : oneTable.entrySet()) {
                 // brokerId
                 Long id = brokerIdAddress.getKey();
                 // 地址
@@ -668,7 +674,7 @@ public class MQClientInstance {
                 try {
 
                     // 发送心跳，心跳包中包含了很多信息： 包括所有生产者，消费者信息，以及当前实例id
-                    int version = this.mQClientAPIImpl.sendHearbeat(addr, heartbeatData, 3000);
+                    int version = this.mQClientAPIImpl.sendHearbeat(addr/*发送心跳到每个master节点*/, heartbeatData, 3000);
                     if (!this.brokerVersionTable.containsKey(brokerName)) {
                         this.brokerVersionTable.put(brokerName, new HashMap<String, Integer>(4));
                     }
