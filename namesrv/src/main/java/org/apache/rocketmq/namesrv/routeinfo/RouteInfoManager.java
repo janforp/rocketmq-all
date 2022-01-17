@@ -477,7 +477,7 @@ public class RouteInfoManager {
 
             // 该 broker 上次向 namesrv 心跳成功的事件！
             long last = next.getValue().getLastUpdateTimestamp();
-            if ((last + BROKER_CHANNEL_EXPIRED_TIME) < System.currentTimeMillis()/*该 broker 超过2分钟没发心跳给 namesrv，则认为出问题了*/) {
+            if ((last + BROKER_CHANNEL_EXPIRED_TIME/*120秒*/) < System.currentTimeMillis()/*该 broker 超过2分钟没发心跳给 namesrv，则认为出问题了*/) {
                 BrokerLiveInfo brokerLiveInfo = next.getValue();
                 Channel channel = brokerLiveInfo.getChannel();
                 RemotingUtil.closeChannel(channel);
