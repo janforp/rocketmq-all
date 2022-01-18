@@ -38,7 +38,7 @@ public class MQFaultStrategy {
      * @param lastBrokerName 上次发送失败的 brokerName
      * @return 队列
      */
-    public MessageQueue selectOneMessageQueue(final TopicPublishInfo tpInfo/*订阅信息*/, final String lastBrokerName/*上次发送失败的 broker*/) {
+    public MessageQueue selectOneMessageQueue(final TopicPublishInfo tpInfo/*订阅信息*/, final String lastBrokerName/*上次发送失败的 brokerName 如果是第一次发送则为null*/) {
         if (this.sendLatencyFaultEnable) {
             // 开关打开了
             try {

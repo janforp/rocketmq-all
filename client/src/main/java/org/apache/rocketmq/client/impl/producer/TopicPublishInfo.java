@@ -46,7 +46,7 @@ public class TopicPublishInfo {
      * @param lastBrokerName 上次发送失败的 brokerName,第一次发送的是为null
      * @return 队列
      */
-    public MessageQueue selectOneMessageQueue(final String lastBrokerName) {
+    public MessageQueue selectOneMessageQueue(final String lastBrokerName/*上次发送失败的 brokerName,第一次发送的是为null*/) {
         if (lastBrokerName == null) {
             return selectOneMessageQueue();
         }

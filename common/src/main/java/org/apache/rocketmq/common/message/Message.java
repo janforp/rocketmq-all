@@ -27,6 +27,7 @@ public class Message implements Serializable {
     @Setter
     private int flag;
 
+    @Getter
     private Map<String, String> properties;
 
     @Getter
@@ -83,17 +84,14 @@ public class Message implements Serializable {
         }
     }
 
+    // 添加用户自定义的 key-value
     public void putUserProperty(final String name, final String value) {
         if (MessageConst.STRING_HASH_SET.contains(name)) {
-            throw new RuntimeException(String.format(
-                    "The Property<%s> is used by system, input another please", name));
+            throw new RuntimeException(String.format("The Property<%s> is used by system, input another please", name));
         }
 
-        if (value == null || value.trim().isEmpty()
-                || name == null || name.trim().isEmpty()) {
-            throw new IllegalArgumentException(
-                    "The name or value of property can not be null or blank string!"
-            );
+        if (value == null || value.trim().isEmpty() || name == null || name.trim().isEmpty()) {
+            throw new IllegalArgumentException("The name or value of property can not be null or blank string!");
         }
 
         this.putProperty(name, value);
@@ -112,7 +110,7 @@ public class Message implements Serializable {
     }
 
     public String getTags() {
-        return this.getProperty(MessageConst.PROPERTY_TAGS);
+        return this.getProperty(MessageConst.PROPERTY_TAGS/*TAGS*/);
     }
 
     public void setTags(String tags) {
@@ -124,7 +122,7 @@ public class Message implements Serializable {
     }
 
     public void setKeys(Collection<String> keys) {
-        StringBuffer sb = new StringBuffer();
+        StringBuilder sb = new StringBuilder();
         for (String k : keys) {
             sb.append(k);
             sb.append(MessageConst.KEY_SEPARATOR);
@@ -161,10 +159,6 @@ public class Message implements Serializable {
 
     public void setInstanceId(String instanceId) {
         this.putProperty(MessageConst.PROPERTY_INSTANCE_ID, instanceId);
-    }
-
-    public Map<String, String> getProperties() {
-        return properties;
     }
 
     void setProperties(Map<String, String> properties) {

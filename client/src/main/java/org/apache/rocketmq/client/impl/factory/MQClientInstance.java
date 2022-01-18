@@ -755,17 +755,21 @@ public class MQClientInstance {
      * @param defaultMQProducer 发送方
      * @return 成功失败
      */
-    public boolean updateTopicRouteInfoFromNameServer(final String topic, boolean isDefault/*定时任务 false*/, DefaultMQProducer defaultMQProducer/*定时任务 null*/) {
+    public boolean updateTopicRouteInfoFromNameServer(final String topic, boolean isDefault/*定时任务 false， true*/, DefaultMQProducer defaultMQProducer/*定时任务 null 或者 defaultProducer*/) {
         try {
             if (this.lockNamesrv.tryLock(LOCK_TIMEOUT_MILLIS, TimeUnit.MILLISECONDS)) {
                 try {
                     TopicRouteData topicRouteData;
                     if (isDefault && defaultMQProducer != null) {
                         // TBW102
-                        topicRouteData = this.mQClientAPIImpl.getDefaultTopicRouteInfoFromNameServer(defaultMQProducer.getCreateTopicKey(), 1000 * 3);
+                        String createTopicKey = defaultMQProducer.getCreateTopicKey();
+                        int defaultTopicQueueNums = defaultMQProducer.getDefaultTopicQueueNums();
+                        // 使用模版信息
+                        topicRouteData = this.mQClientAPIImpl.getDefaultTopicRouteInfoFromNameServer(createTopicKey/*TBW102*/, 1000 * 3);
                         if (topicRouteData != null) {
-                            for (QueueData data : topicRouteData.getQueueDatas()) {
-                                int queueNums = Math.min(defaultMQProducer.getDefaultTopicQueueNums(), data.getReadQueueNums());
+                            List<QueueData> queueDataList = topicRouteData.getQueueDatas();
+                            for (QueueData data : queueDataList) {
+                                int queueNums = Math.min(defaultTopicQueueNums, data.getReadQueueNums());
                                 data.setReadQueueNums(queueNums);
                                 data.setWriteQueueNums(queueNums);
                             }
