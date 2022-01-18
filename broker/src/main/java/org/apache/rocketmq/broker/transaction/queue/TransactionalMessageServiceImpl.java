@@ -440,12 +440,14 @@ public class TransactionalMessageServiceImpl implements TransactionalMessageServ
 
     @Override
     public OperationResult commitMessage(EndTransactionRequestHeader requestHeader) {
-        return getHalfMessageByOffset(requestHeader.getCommitLogOffset());
+        Long commitLogOffset = requestHeader.getCommitLogOffset();
+        return getHalfMessageByOffset(commitLogOffset);
     }
 
     @Override
     public OperationResult rollbackMessage(EndTransactionRequestHeader requestHeader) {
-        return getHalfMessageByOffset(requestHeader.getCommitLogOffset());
+        Long commitLogOffset = requestHeader.getCommitLogOffset();
+        return getHalfMessageByOffset(commitLogOffset);
     }
 
     @Override

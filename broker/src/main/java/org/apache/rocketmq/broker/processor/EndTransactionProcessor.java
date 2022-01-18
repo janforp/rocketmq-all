@@ -22,6 +22,7 @@ import org.apache.rocketmq.remoting.netty.AsyncNettyRequestProcessor;
 import org.apache.rocketmq.remoting.netty.NettyRequestProcessor;
 import org.apache.rocketmq.remoting.protocol.RemotingCommand;
 import org.apache.rocketmq.store.MessageExtBrokerInner;
+import org.apache.rocketmq.store.MessageStore;
 import org.apache.rocketmq.store.PutMessageResult;
 import org.apache.rocketmq.store.config.BrokerRole;
 
@@ -45,8 +46,8 @@ public class EndTransactionProcessor extends AsyncNettyRequestProcessor implemen
             LOGGER.warn("Message store is slave mode, so end transaction is forbidden. ");
             return response;
         }
-
-        if (requestHeader.getFromTransactionCheck()) {
+        Boolean fromTransactionCheck = requestHeader.getFromTransactionCheck();
+        if (fromTransactionCheck) {
             switch (requestHeader.getCommitOrRollback()) {
                 case MessageSysFlag.TRANSACTION_NOT_TYPE: {
                     LOGGER.warn("Check producer[{}] transaction state, but it's pending status." + "RequestHeader: {} Remark: {}",
@@ -96,27 +97,34 @@ public class EndTransactionProcessor extends AsyncNettyRequestProcessor implemen
         TransactionalMessageService transactionalMessageService = this.brokerController.getTransactionalMessageService();
 
         if (MessageSysFlag.TRANSACTION_COMMIT_TYPE == requestHeader.getCommitOrRollback()) {
+            // 提交
+
             result = transactionalMessageService.commitMessage(requestHeader);
             if (result.getResponseCode() == ResponseCode.SUCCESS) {
-                RemotingCommand res = checkPrepareMessage(result.getPrepareMessage(), requestHeader);
+                MessageExt prepareMessage = result.getPrepareMessage();
+                RemotingCommand res = checkPrepareMessage(prepareMessage, requestHeader);
                 if (res.getCode() == ResponseCode.SUCCESS) {
-                    MessageExtBrokerInner msgInner = endMessageTransaction(result.getPrepareMessage());
+
+                    // 新建一条消息
+                    MessageExtBrokerInner msgInner = endMessageTransaction(prepareMessage);
                     msgInner.setSysFlag(MessageSysFlag.resetTransactionValue(msgInner.getSysFlag(), requestHeader.getCommitOrRollback()));
                     msgInner.setQueueOffset(requestHeader.getTranStateTableOffset());
                     msgInner.setPreparedTransactionOffset(requestHeader.getCommitLogOffset());
-                    msgInner.setStoreTimestamp(result.getPrepareMessage().getStoreTimestamp());
+                    msgInner.setStoreTimestamp(prepareMessage.getStoreTimestamp());
                     MessageAccessor.clearProperty(msgInner, MessageConst.PROPERTY_TRANSACTION_PREPARED /*TRAN_MSG*/);
 
                     // 保存到用户目标的主题的队列中
                     RemotingCommand sendResult = sendFinalMessage(msgInner);
                     if (sendResult.getCode() == ResponseCode.SUCCESS) {
-                        transactionalMessageService.deletePrepareMessage(result.getPrepareMessage());
+                        transactionalMessageService.deletePrepareMessage(prepareMessage);
                     }
                     return sendResult;
                 }
                 return res;
             }
         } else if (MessageSysFlag.TRANSACTION_ROLLBACK_TYPE == requestHeader.getCommitOrRollback()) {
+            // 回滚
+
             result = transactionalMessageService.rollbackMessage(requestHeader);
             if (result.getResponseCode() == ResponseCode.SUCCESS) {
                 RemotingCommand res = checkPrepareMessage(result.getPrepareMessage(), requestHeader);
@@ -140,7 +148,7 @@ public class EndTransactionProcessor extends AsyncNettyRequestProcessor implemen
     private RemotingCommand checkPrepareMessage(MessageExt msgExt, EndTransactionRequestHeader requestHeader) {
         final RemotingCommand response = RemotingCommand.createResponseCommand(null);
         if (msgExt != null) {
-            final String pgroupRead = msgExt.getProperty(MessageConst.PROPERTY_PRODUCER_GROUP);
+            final String pgroupRead = msgExt.getProperty(MessageConst.PROPERTY_PRODUCER_GROUP/*PGROUP*/);
             if (!pgroupRead.equals(requestHeader.getProducerGroup())) {
                 response.setCode(ResponseCode.SYSTEM_ERROR);
                 response.setRemark("The producer group wrong");
@@ -167,9 +175,14 @@ public class EndTransactionProcessor extends AsyncNettyRequestProcessor implemen
         return response;
     }
 
+    // 新建一条消息，把半消息的部分数据塞进去
     private MessageExtBrokerInner endMessageTransaction(MessageExt msgExt) {
         MessageExtBrokerInner msgInner = new MessageExtBrokerInner();
+
+        // 设置真实的 topic
         msgInner.setTopic(msgExt.getUserProperty(MessageConst.PROPERTY_REAL_TOPIC));
+
+        // 设置真实的 queueId
         msgInner.setQueueId(Integer.parseInt(msgExt.getUserProperty(MessageConst.PROPERTY_REAL_QUEUE_ID)));
         msgInner.setBody(msgExt.getBody());
         msgInner.setFlag(msgExt.getFlag());
@@ -194,7 +207,10 @@ public class EndTransactionProcessor extends AsyncNettyRequestProcessor implemen
 
     private RemotingCommand sendFinalMessage(MessageExtBrokerInner msgInner) {
         final RemotingCommand response = RemotingCommand.createResponseCommand(null);
-        final PutMessageResult putMessageResult = this.brokerController.getMessageStore().putMessage(msgInner);
+        MessageStore messageStore = this.brokerController.getMessageStore();
+
+        // 把消息写入到 commitLog
+        final PutMessageResult putMessageResult = messageStore.putMessage(msgInner);
         if (putMessageResult != null) {
             switch (putMessageResult.getPutMessageStatus()) {
                 // Success

@@ -203,7 +203,10 @@ public class TransactionalMessageBridge {
     }
 
     public boolean putOpMessage(MessageExt messageExt, String opType) {
-        MessageQueue messageQueue = new MessageQueue(messageExt.getTopic(), this.brokerController.getBrokerConfig().getBrokerName(), messageExt.getQueueId());
+        String topic = messageExt.getTopic();
+        String brokerName = this.brokerController.getBrokerConfig().getBrokerName();
+        int queueId = messageExt.getQueueId();
+        MessageQueue messageQueue = new MessageQueue(topic, brokerName, queueId);
         if (TransactionalMessageUtil.REMOVETAG.equals(opType)) {
             return addRemoveTagInTransactionOp(messageExt, messageQueue);
         }
@@ -297,7 +300,11 @@ public class TransactionalMessageBridge {
      * @return This method will always return true.
      */
     private boolean addRemoveTagInTransactionOp(MessageExt messageExt, MessageQueue messageQueue) {
-        Message message = new Message(TransactionalMessageUtil.buildOpTopic()/*RMQ_SYS_TRANS_OP_HALF_TOPIC*/, TransactionalMessageUtil.REMOVETAG, String.valueOf(messageExt.getQueueOffset()).getBytes(TransactionalMessageUtil.charset));
+        // RMQ_SYS_TRANS_OP_HALF_TOPIC
+        String buildOpTopic = TransactionalMessageUtil.buildOpTopic();
+
+        byte[] bytes = String.valueOf(messageExt.getQueueOffset()).getBytes(TransactionalMessageUtil.charset);
+        Message message = new Message(buildOpTopic/*RMQ_SYS_TRANS_OP_HALF_TOPIC*/, TransactionalMessageUtil.REMOVETAG, bytes);
         writeOp(message, messageQueue);
         return true;
     }
