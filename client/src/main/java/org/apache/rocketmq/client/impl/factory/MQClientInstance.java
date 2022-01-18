@@ -12,6 +12,7 @@ import org.apache.rocketmq.client.impl.FindBrokerResult;
 import org.apache.rocketmq.client.impl.MQAdminImpl;
 import org.apache.rocketmq.client.impl.MQClientAPIImpl;
 import org.apache.rocketmq.client.impl.MQClientManager;
+import org.apache.rocketmq.client.impl.consumer.ConsumeMessageOrderlyService;
 import org.apache.rocketmq.client.impl.consumer.DefaultMQPullConsumerImpl;
 import org.apache.rocketmq.client.impl.consumer.DefaultMQPushConsumerImpl;
 import org.apache.rocketmq.client.impl.consumer.MQConsumerInner;
@@ -81,6 +82,7 @@ public class MQClientInstance {
 
     private final InternalLogger log = ClientLogger.getLog();
 
+    // 其实就是 org.apache.rocketmq.client.producer.DefaultMQProducer
     @Getter
     private final ClientConfig clientConfig;
 
@@ -92,6 +94,11 @@ public class MQClientInstance {
     @Getter
     private final long bootTimestamp = System.currentTimeMillis();
 
+    /**
+     * 每个组下面有多个生产者或者发送者
+     * 是很正常的事情
+     */
+
     // 生产者映射表，key:组名称，value：生产者或者消费者
     private final ConcurrentMap<String/* group */, MQProducerInner/*DefaultMQProducerImpl*/> producerTable = new ConcurrentHashMap<String, MQProducerInner>();
 
@@ -99,6 +106,7 @@ public class MQClientInstance {
     // 生产者映射表，key:组名称，value：生产者或者消费者
     private final ConcurrentMap<String/* group */, MQConsumerInner> consumerTable = new ConcurrentHashMap<String, MQConsumerInner>();
 
+    // 管理
     private final ConcurrentMap<String/* group */, MQAdminExtInner> adminExtTable = new ConcurrentHashMap<String, MQAdminExtInner>();
 
     // 客户端网络层的配置
@@ -121,8 +129,6 @@ public class MQClientInstance {
 
     private final Lock lockHeartbeat = new ReentrantLock();
 
-    // key topic
-    // value： 主题的路由数据
     // 客户端本地的路由数据
     @Getter
     private final ConcurrentMap<String/* Topic */, TopicRouteData/*主题路由信息*/> topicRouteTable = new ConcurrentHashMap<String, TopicRouteData>();
@@ -132,14 +138,14 @@ public class MQClientInstance {
      * key:brokerName 逻辑层面的对象
      * value:k是broker,0 的节点是主节点，其他是slave，v 是节点的地址 ip + port
      */
-    private final ConcurrentMap<String/* Broker Name */, HashMap<Long/* brokerId */, String/* address */>> brokerAddrTable = new ConcurrentHashMap<String, HashMap<Long, String>>();
+    private final ConcurrentMap<String/* Broker Name */, HashMap<Long/* brokerId */, String/* address：ip:port */>> brokerAddrTable = new ConcurrentHashMap<String, HashMap<Long, String>>();
 
     /**
      * broker 物理节点版本映射表
      * key:brokerName 逻辑层面的对象
      * value:k是broker,0 的节点是主节点，其他是slave，v 版本号
      */
-    private final ConcurrentMap<String/* Broker Name */, HashMap<String/* address */, Integer/*brokerId*/>> brokerVersionTable = new ConcurrentHashMap<String, HashMap<String, Integer>>();
+    private final ConcurrentMap<String/* Broker Name */, HashMap<String/* address:ip:port */, Integer/*TODO 版本号？？*/>> brokerVersionTable = new ConcurrentHashMap<String, HashMap<String, Integer>>();
 
     // 单线程的调度线程池，用于执行定时任务
     @Getter
@@ -151,13 +157,13 @@ public class MQClientInstance {
     });
 
     /**
-     * 拉消息服务
+     * 拉消息服务,与消费有关
      */
     @Getter
     private final PullMessageService pullMessageService;
 
     /**
-     * 负载均衡服务
+     * 负载均衡服务,与消费有关
      */
     private final RebalanceService rebalanceService;
 
@@ -165,6 +171,10 @@ public class MQClientInstance {
      * TODO 内部生产者，用于处理消费端消息回退 ? 是这样吗？
      *
      * CLIENT_INNER_PRODUCER
+     *
+     * this.defaultMQProducer = new DefaultMQProducer(CLIENT_INNER_PRODUCER);
+     *
+     * @see ConsumeMessageOrderlyService#sendMessageBack(org.apache.rocketmq.common.message.MessageExt)
      */
     @Getter
     private final DefaultMQProducer defaultMQProducer;
@@ -201,9 +211,10 @@ public class MQClientInstance {
         this.nettyClientConfig.setClientCallbackExecutorThreads(clientCallbackExecutorThreads);
         this.nettyClientConfig.setUseTLS(clientConfig.isUseTLS());
 
-        // 创建客户端协议处理器
-        /*
+        /**
+         * 创建客户端协议处理器
          * 客户端协议处理器，用于处理IO事件
+         * @see ClientRemotingProcessor#processRequest(io.netty.channel.ChannelHandlerContext, org.apache.rocketmq.remoting.protocol.RemotingCommand)
          */
         ClientRemotingProcessor clientRemotingProcessor = new ClientRemotingProcessor(this);
 
@@ -227,7 +238,7 @@ public class MQClientInstance {
         this.rebalanceService = new RebalanceService(this);
 
         // 创建了一个 内部生产者实例，来完消息回退
-        this.defaultMQProducer = new DefaultMQProducer(MixAll.CLIENT_INNER_PRODUCER_GROUP);
+        this.defaultMQProducer = new DefaultMQProducer(MixAll.CLIENT_INNER_PRODUCER_GROUP/*CLIENT_INNER_PRODUCER*/);
         // 复制配置
         this.defaultMQProducer.resetClientConfig(clientConfig);
 
@@ -337,8 +348,9 @@ public class MQClientInstance {
                     // Start push service
 
                     // 启动内部生产者，消息回退使用这个生产者
+                    // this.defaultMQProducer = new DefaultMQProducer(CLIENT_INNER_PRODUCER);
                     DefaultMQProducerImpl defaultMQProducerImpl = this.defaultMQProducer.getDefaultMQProducerImpl();
-                    defaultMQProducerImpl.start(false);
+                    defaultMQProducerImpl.start(false/*  用户的生产者传的 true ，内部生产者传 false，避免循环调用！！！*/);
                     log.info("the client factory [{}] start OK", this.clientId);
 
                     // 设置客户的状态为运行中

@@ -19,7 +19,7 @@ public class NettyClientConfig {
     // 单向请求并发度控制：65535
     private int clientOnewaySemaphoreValue = NettySystemConfig.CLIENT_ONEWAY_SEMAPHORE_VALUE;
 
-    // 异步
+    // 异步，65535
     private int clientAsyncSemaphoreValue = NettySystemConfig.CLIENT_ASYNC_SEMAPHORE_VALUE;
 
     // 客户端链接服务器超时时间限制
@@ -37,10 +37,10 @@ public class NettyClientConfig {
     private int clientChannelMaxIdleTimeSeconds = 120;
 
     // 底层 socket 写缓冲区大小
-    private int clientSocketSndBufSize = NettySystemConfig.socketSndbufSize;
+    private int clientSocketSndBufSize = NettySystemConfig.socketSndbufSize; // 65535
 
     // 底层 socket 收缓冲区大小
-    private int clientSocketRcvBufSize = NettySystemConfig.socketRcvbufSize;
+    private int clientSocketRcvBufSize = NettySystemConfig.socketRcvbufSize; // 65535
 
     // 客户端 netty 是否启用 内存池
     private boolean clientPooledByteBufAllocatorEnable = false;

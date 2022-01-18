@@ -153,7 +153,9 @@ import java.util.concurrent.atomic.AtomicInteger;
 /**
  * 封装了 broker 与 namesrv 之间的所有逻辑！！！
  *
- * 主要功能转化commandRemoting对象
+ * 最底层的api
+ * 核心api实现，它几乎包含了所有服务端api，他的作用是 将 mq 业务层的数据转换为网络层 RemotingCommand 对象
+ * 然后使用内部的 nettyRemotingClient 网络层对象的 invoke 系列方法完成网络 IOl
  */
 @SuppressWarnings("all")
 public class MQClientAPIImpl {
@@ -166,11 +168,10 @@ public class MQClientAPIImpl {
         System.setProperty(RemotingCommand.REMOTING_VERSION_KEY, Integer.toString(MQVersion.CURRENT_VERSION));
     }
 
-    // 客户端网络层对象，管理客户端于服务器之间连接的 NioSocketChannel 对象
-    // 通过它提供的 invoke 系列方法，客户端可以与服务器进行远程调用
-    // 服务器也可以
-
     /**
+     * 客户端网络层对象，管理客户端于服务器之间连接的 NioSocketChannel 对象
+     * 通过它提供的 invoke 系列方法，客户端可以与服务器进行远程调用
+     *
      * @see NettyRemotingClient netty 网络调用
      */
     @Getter
@@ -193,21 +194,18 @@ public class MQClientAPIImpl {
 
         this.remotingClient.registerRPCHook(rpcHook);
 
-        // 同一个处理器，注册到不同的业务上
-        // 注册业务处理器
-        // org.apache.rocketmq.client.impl.ClientRemotingProcessor.processRequest
+        /**
+         *  同一个处理器，注册到不同的业务上
+         *  注册业务处理器
+         *  org.apache.rocketmq.client.impl.ClientRemotingProcessor.processRequest
+         *  @see ClientRemotingProcessor#processRequest(io.netty.channel.ChannelHandlerContext, org.apache.rocketmq.remoting.protocol.RemotingCommand)
+         */
         this.remotingClient.registerProcessor(RequestCode.CHECK_TRANSACTION_STATE, clientRemotingProcessor, null);
-
         this.remotingClient.registerProcessor(RequestCode.NOTIFY_CONSUMER_IDS_CHANGED, clientRemotingProcessor, null);
-
         this.remotingClient.registerProcessor(RequestCode.RESET_CONSUMER_CLIENT_OFFSET, clientRemotingProcessor, null);
-
         this.remotingClient.registerProcessor(RequestCode.GET_CONSUMER_STATUS_FROM_CLIENT, clientRemotingProcessor, null);
-
         this.remotingClient.registerProcessor(RequestCode.GET_CONSUMER_RUNNING_INFO, clientRemotingProcessor, null);
-
         this.remotingClient.registerProcessor(RequestCode.CONSUME_MESSAGE_DIRECTLY, clientRemotingProcessor, null);
-
         this.remotingClient.registerProcessor(RequestCode.PUSH_REPLY_MESSAGE_TO_CLIENT, clientRemotingProcessor, null);
     }
 

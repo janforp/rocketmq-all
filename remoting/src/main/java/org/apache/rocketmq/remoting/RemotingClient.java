@@ -22,16 +22,6 @@ public interface RemotingClient extends RemotingService {
      * 该方法内部会为本次请求创建一个 ResponseFuture 对象，放入到 remotingClient 的 responseFutureTable 中,key 是 request.opaque（全局唯一）,在 ResponseFuture 内部{1.opaque,2.invokeCall,3.response}
      * 当服务器端 响应客户端的时候，会根据 response.opaque 找到当前的 ResponseFuture,将结果设置到 ResponseFuture 的 response 字段中，再接下来会检查该 ResponseFuture.invokeCall 是否有值，如果有，则说明需要进行回调成立，
      * 再接下来，就将该 invokeCallback 封装成任务提交到 remotingClient 的公共线程池内执行 invokeCallback.operationComplete方法，传递进去 ResponseFuture
-     *
-     * @param addr
-     * @param request
-     * @param timeoutMillis
-     * @param invokeCallback
-     * @throws InterruptedException
-     * @throws RemotingConnectException
-     * @throws RemotingTooMuchRequestException
-     * @throws RemotingTimeoutException
-     * @throws RemotingSendRequestException
      */
     void invokeAsync(final String addr, final RemotingCommand request, final long timeoutMillis, final InvokeCallback invokeCallback)
             throws InterruptedException, RemotingConnectException, RemotingTooMuchRequestException, RemotingTimeoutException, RemotingSendRequestException;
