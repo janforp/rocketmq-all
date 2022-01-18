@@ -17,7 +17,7 @@ public class RequestFutureTable {
     private static final InternalLogger log = ClientLogger.getLog();
 
     @Getter
-    private static final ConcurrentHashMap<String, RequestResponseFuture> requestFutureTable = new ConcurrentHashMap<String, RequestResponseFuture>();
+    private static final ConcurrentHashMap<String/*correlationId：uuid*/, RequestResponseFuture> requestFutureTable = new ConcurrentHashMap<String, RequestResponseFuture>();
 
     public static void scanExpiredRequest() {
         final List<RequestResponseFuture> rfList = new LinkedList<RequestResponseFuture>();

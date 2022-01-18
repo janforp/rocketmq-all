@@ -21,6 +21,8 @@ public class MQClientManager {
     private final AtomicInteger factoryIndexGenerator = new AtomicInteger();
 
     /**
+     * 控制每个JVM进程只有一个实例
+     *
      * key:clientId
      * value:mq客户端实例
      */

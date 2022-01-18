@@ -53,6 +53,7 @@ import org.apache.rocketmq.common.protocol.ResponseCode;
 import org.apache.rocketmq.common.protocol.header.CheckTransactionStateRequestHeader;
 import org.apache.rocketmq.common.protocol.header.EndTransactionRequestHeader;
 import org.apache.rocketmq.common.protocol.header.SendMessageRequestHeader;
+import org.apache.rocketmq.common.protocol.route.TopicRouteData;
 import org.apache.rocketmq.common.sysflag.MessageSysFlag;
 import org.apache.rocketmq.common.utils.CorrelationIdUtil;
 import org.apache.rocketmq.logging.InternalLogger;
@@ -93,8 +94,9 @@ public class DefaultMQProducerImpl implements MQProducerInner {
     private final Random random = new Random();
 
     /**
-     * 就是前面的生产者门面对象,在这里主要当作config使用
+     * 就是前面的生产者门面对象,在这里主要当作config使用,没错他与当前类就是循环依赖！！！！！！
      */
+    @Getter
     private final DefaultMQProducer defaultMQProducer;
 
     /**
@@ -106,9 +108,10 @@ public class DefaultMQProducerImpl implements MQProducerInner {
      * 作为一个生产者，你肯定要直到各个主题的路由信息
      * </p>
      */
+    @Getter
     private final ConcurrentMap<String/*topic*/, TopicPublishInfo/*该主题的发布信息*/> topicPublishInfoTable = new ConcurrentHashMap<String, TopicPublishInfo>();
 
-    // 发送消息的钩子，留给用户扩展
+    // 发送消息的钩子，留给用户扩展，如：消息轨迹
     private final ArrayList<SendMessageHook> sendMessageHookList = new ArrayList<SendMessageHook>();
 
     // 该对象最终传递给 NettyRemotingClient,留给用户扩展
@@ -128,6 +131,8 @@ public class DefaultMQProducerImpl implements MQProducerInner {
     protected BlockingQueue<Runnable> checkRequestQueue;
 
     /**
+     * 事务相关
+     *
      * @see DefaultMQProducerImpl#checkTransactionState(java.lang.String, org.apache.rocketmq.common.message.MessageExt, org.apache.rocketmq.common.protocol.header.CheckTransactionStateRequestHeader)
      */
     protected ExecutorService checkExecutor;
@@ -138,6 +143,7 @@ public class DefaultMQProducerImpl implements MQProducerInner {
     private ServiceState serviceState = ServiceState.CREATE_JUST;
 
     // 客户端实例对象，生产者启动后需要注册到该客户端对象中（观察者模式）
+    @Getter
     private MQClientInstance mQClientFactory;
 
     // 钩子，扩展用，注意和 sendMessageHook 区别，它可以抛异常。控制消息是否可以发送
@@ -151,7 +157,7 @@ public class DefaultMQProducerImpl implements MQProducerInner {
     // 选择队列容错策略
     private final MQFaultStrategy mqFaultStrategy = new MQFaultStrategy();
 
-    // 异步发送线程池，如果指定的话，就不再使用默认的线程池，而是使用该线程池
+    // 异步发送线程池，如果指定的话，就不再使用默认(defaultAsyncSenderExecutor)的线程池，而是使用该线程池
     private ExecutorService asyncSenderExecutor;
 
     public DefaultMQProducerImpl(final DefaultMQProducer defaultMQProducer) {
@@ -169,20 +175,9 @@ public class DefaultMQProducerImpl implements MQProducerInner {
         BlockingQueue<Runnable> asyncSenderThreadPoolQueue = new LinkedBlockingQueue<Runnable>(50000);
 
         // 创建缺省的异步任务线程池
-        this.defaultAsyncSenderExecutor = new ThreadPoolExecutor(
-
-                Runtime.getRuntime().availableProcessors(), // 核心线程数量
-
-                Runtime.getRuntime().availableProcessors(), // 最大数量
-
-                1000 * 60, // 空闲线程的存活时间
-
-                TimeUnit.MILLISECONDS, // 时间单位
-
-                asyncSenderThreadPoolQueue, // 异步消息线程池任务队列
-
+        int availableProcessors = Runtime.getRuntime().availableProcessors();
+        this.defaultAsyncSenderExecutor = new ThreadPoolExecutor(availableProcessors/*核心线程数量*/, availableProcessors/*最大数量*/, 1000 * 60/*空闲线程的存活时间*/, TimeUnit.MILLISECONDS, asyncSenderThreadPoolQueue/*异步消息线程池任务队列*/,
                 new ThreadFactory() { // 线程工厂
-
                     private AtomicInteger threadIndex = new AtomicInteger(0);
 
                     @Override
@@ -199,8 +194,9 @@ public class DefaultMQProducerImpl implements MQProducerInner {
 
     public void initTransactionEnv() {
         TransactionMQProducer producer = (TransactionMQProducer) this.defaultMQProducer;
-        if (producer.getExecutorService() != null) {
-            this.checkExecutor = producer.getExecutorService();
+        ExecutorService executorService = producer.getExecutorService();
+        if (executorService != null) {
+            this.checkExecutor = executorService;
         } else {
             this.checkRequestQueue = new LinkedBlockingQueue<Runnable>(producer.getCheckRequestHoldMax());
             this.checkExecutor = new ThreadPoolExecutor(producer.getCheckThreadPoolMinSize(), producer.getCheckThreadPoolMaxSize(), 1000 * 60, TimeUnit.MILLISECONDS, this.checkRequestQueue);
@@ -237,12 +233,12 @@ public class DefaultMQProducerImpl implements MQProducerInner {
                 // 1.组名称不能空，也不能为  DEFAULT_PRODUCER
                 this.checkConfig();
 
-                //
                 if (!producerGroup.equals(MixAll.CLIENT_INNER_PRODUCER_GROUP/*CLIENT_INNER_PRODUCER*/)) {
-                    // 条件成立：说明当前生产者不是 内部生产者（什么是内部生产者？？？？？成立消息回退这种情况使用的生产者）
+                    // 条件成立：说明当前生产者不是 内部生产者（什么是内部生产者？处理消息回退这种情况使用的生产者，就是 CLIENT_INNER_PRODUCER 生产者组）
 
                     // 正常会进来这里
                     // 修改生产者实例名称为：当前进程的PID
+                    //  this.instanceName = String.valueOf(pid);
                     this.defaultMQProducer.changeInstanceNameToPID();
                 }
 
@@ -250,6 +246,8 @@ public class DefaultMQProducerImpl implements MQProducerInner {
                 MQClientManager mqClientManager = MQClientManager.getInstance();
 
                 // 每个 client 都有一个不变的实例
+                // ConcurrentMap<String/*clientId：IP&instanceName（当前进程PID），如：10.201.13.28@9738*/, MQClientInstance> factoryTable
+                // 一个 JVM 进程只有一个实例！！！！
                 this.mQClientFactory = mqClientManager.getOrCreateMQClientInstance(this.defaultMQProducer, rpcHook);
 
                 // 将生产者自己注册到mq客户端实例内(观察者模式)
@@ -261,9 +259,10 @@ public class DefaultMQProducerImpl implements MQProducerInner {
 
                 // TBW102
                 String createTopicKey = this.defaultMQProducer.getCreateTopicKey();
+                // 内置的主题信息放置到主题发布信息映射表中
                 this.topicPublishInfoTable.put(createTopicKey, new TopicPublishInfo());
 
-                if (startFactory) {
+                if (startFactory/*正常启动传的 true*/) {
                     // 启动 RocketMq 客户端实例对象 入口
                     mQClientFactory.start();
                 }
@@ -276,6 +275,7 @@ public class DefaultMQProducerImpl implements MQProducerInner {
             case RUNNING:
             case START_FAILED:
             case SHUTDOWN_ALREADY:
+                // 重复调用
                 throw new MQClientException("The producer service state not OK, maybe started once, " + this.serviceState + FAQUrl.suggestTodo(FAQUrl.CLIENT_SERVICE_NOT_OK), null);
             default:
                 break;
@@ -291,6 +291,7 @@ public class DefaultMQProducerImpl implements MQProducerInner {
          * 处理完消息之后，根据msg关联的ID以及客户端Id生成一条消息（封装响应给生产者的结果）发送到broker。
          * broker拿到这条消息之后，它知道这是一条回执消息，根据客户端Id找到ch，将消息推送给生产者，
          * 生产者这边拿到回执消息之后，读取出来关联ID，找到对应的 RequestFuture，将阻塞的线程唤醒
+         *
          * 类似 生产者 和 消费者 之间进行了一次 RPC，只不过 中间由 broker 代理完成！
          */
         this.timer.scheduleAtFixedRate(new TimerTask() {
@@ -308,13 +309,14 @@ public class DefaultMQProducerImpl implements MQProducerInner {
     }
 
     private void checkConfig() throws MQClientException {
-        Validators.checkGroup(this.defaultMQProducer.getProducerGroup());
+        String producerGroup = this.defaultMQProducer.getProducerGroup();
+        Validators.checkGroup(producerGroup);
 
-        if (null == this.defaultMQProducer.getProducerGroup()) {
+        if (null == producerGroup) {
             throw new MQClientException("producerGroup is null", null);
         }
 
-        if (this.defaultMQProducer.getProducerGroup().equals(MixAll.DEFAULT_PRODUCER_GROUP)) {
+        if (producerGroup.equals(MixAll.DEFAULT_PRODUCER_GROUP/*DEFAULT_PRODUCER*/)) {
             throw new MQClientException("producerGroup can not equal " + MixAll.DEFAULT_PRODUCER_GROUP + ", please specify another one.", null);
         }
     }
@@ -347,6 +349,7 @@ public class DefaultMQProducerImpl implements MQProducerInner {
     @Override
     public Set<String> getPublishTopicList() {
         Set<String> topicList = new HashSet<String>();
+        // ConcurrentMap<String/*topic*/, TopicPublishInfo/*该主题的发布信息*/> topicPublishInfoTable = new ConcurrentHashMap<String, TopicPublishInfo>();
         for (String key : this.topicPublishInfoTable.keySet()) {
             topicList.add(key);
         }
@@ -1473,14 +1476,19 @@ public class DefaultMQProducerImpl implements MQProducerInner {
         return this.sendDefaultImpl(msg, CommunicationMode.SYNC, null, timeout);
     }
 
+    // request 发送的消息需要消费者回执一条消息
     public Message request(Message msg, long timeout) throws RequestTimeoutException, MQClientException, RemotingException, MQBrokerException, InterruptedException {
         long beginTimestamp = System.currentTimeMillis();
         prepareSendRequest(msg, timeout);
-        final String correlationId = msg.getProperty(MessageConst.PROPERTY_CORRELATION_ID);
 
+        // uuid
+        final String correlationId = msg.getProperty(MessageConst.PROPERTY_CORRELATION_ID/*CORRELATION_ID*/);
+
+        ConcurrentHashMap<String, RequestResponseFuture> requestFutureTable = RequestFutureTable.getRequestFutureTable();
         try {
             final RequestResponseFuture requestResponseFuture = new RequestResponseFuture(correlationId, timeout, null);
-            RequestFutureTable.getRequestFutureTable().put(correlationId, requestResponseFuture);
+            // 塞入
+            requestFutureTable.put(correlationId, requestResponseFuture);
 
             long cost = System.currentTimeMillis() - beginTimestamp;
             this.sendDefaultImpl(msg, CommunicationMode.ASYNC, new SendCallback() {
@@ -1497,7 +1505,11 @@ public class DefaultMQProducerImpl implements MQProducerInner {
                 }
             }, timeout - cost);
 
+            // 发送线程在此阻塞！！！
+            // 等待消费者消费完成
             Message responseMessage = requestResponseFuture.waitResponseMessage(timeout - cost);
+
+            // 返回结果或者超时
             if (responseMessage == null) {
                 if (requestResponseFuture.isSendRequestOk()) {
                     throw new RequestTimeoutException(ClientErrorCode.REQUEST_TIMEOUT_EXCEPTION, "send request message to <" + msg.getTopic() + "> OK, but wait reply message timeout, " + timeout + " ms.");
@@ -1507,7 +1519,7 @@ public class DefaultMQProducerImpl implements MQProducerInner {
             }
             return responseMessage;
         } finally {
-            RequestFutureTable.getRequestFutureTable().remove(correlationId);
+            requestFutureTable.remove(correlationId);
         }
     }
 
@@ -1672,26 +1684,30 @@ public class DefaultMQProducerImpl implements MQProducerInner {
     }
 
     private void prepareSendRequest(final Message msg, long timeout) {
-        String correlationId = CorrelationIdUtil.createCorrelationId();
-        String requestClientId = this.getmQClientFactory().getClientId();
-        MessageAccessor.putProperty(msg, MessageConst.PROPERTY_CORRELATION_ID, correlationId);
-        MessageAccessor.putProperty(msg, MessageConst.PROPERTY_MESSAGE_REPLY_TO_CLIENT, requestClientId);
-        MessageAccessor.putProperty(msg, MessageConst.PROPERTY_MESSAGE_TTL, String.valueOf(timeout));
 
-        boolean hasRouteData = this.getmQClientFactory().getTopicRouteTable().containsKey(msg.getTopic());
+        // UUID.randomUUID().toString();
+        String correlationId = CorrelationIdUtil.createCorrelationId();
+
+        MQClientInstance mqClientInstance = this.getmQClientFactory();
+
+        // 客户端Id：ip&pid
+        String requestClientId = mqClientInstance.getClientId();
+        MessageAccessor.putProperty(msg, MessageConst.PROPERTY_CORRELATION_ID/*CORRELATION_ID*/, correlationId);
+        MessageAccessor.putProperty(msg, MessageConst.PROPERTY_MESSAGE_REPLY_TO_CLIENT/*REPLY_TO_CLIENT*/, requestClientId);
+        MessageAccessor.putProperty(msg, MessageConst.PROPERTY_MESSAGE_TTL/*TTL*/, String.valueOf(timeout));
+
+        // ConcurrentMap<String/* Topic */, TopicRouteData/*主题路由信息*/>
+        ConcurrentMap<String, TopicRouteData> topicRouteTable = mqClientInstance.getTopicRouteTable();
+        boolean hasRouteData = topicRouteTable.containsKey(msg.getTopic());
         if (!hasRouteData) {
             long beginTimestamp = System.currentTimeMillis();
             this.tryToFindTopicPublishInfo(msg.getTopic());
-            this.getmQClientFactory().sendHeartbeatToAllBrokerWithLock();
+            mqClientInstance.sendHeartbeatToAllBrokerWithLock();
             long cost = System.currentTimeMillis() - beginTimestamp;
             if (cost > 500) {
                 log.warn("prepare send request for <{}> cost {} ms", msg.getTopic(), cost);
             }
         }
-    }
-
-    public ConcurrentMap<String, TopicPublishInfo> getTopicPublishInfoTable() {
-        return topicPublishInfoTable;
     }
 
     public long[] getNotAvailableDuration() {
@@ -1716,9 +1732,5 @@ public class DefaultMQProducerImpl implements MQProducerInner {
 
     public void setSendLatencyFaultEnable(final boolean sendLatencyFaultEnable) {
         this.mqFaultStrategy.setSendLatencyFaultEnable(sendLatencyFaultEnable);
-    }
-
-    public DefaultMQProducer getDefaultMQProducer() {
-        return defaultMQProducer;
     }
 }

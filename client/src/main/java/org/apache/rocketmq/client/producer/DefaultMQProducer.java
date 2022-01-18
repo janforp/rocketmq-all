@@ -62,7 +62,7 @@ public class DefaultMQProducer extends ClientConfig implements MQProducer {
      * For non-transactional messages, it does not matter as long as it's unique per process. </p>
      * <p>
      * See {@linktourl http://rocketmq.apache.org/docs/core-concept/} for more discussion.
-     * 生产者组（如果发送事物消息，broker端进行事物回查时，可以选择当前生产者组下的任意一个生产者进行事物回查）
+     * 生产者组（如果发送事物消息，broker端进行事务回查时，可以选择当前生产者组下的任意一个生产者进行事务回查）
      */
     @Getter
     @Setter
@@ -70,7 +70,8 @@ public class DefaultMQProducer extends ClientConfig implements MQProducer {
 
     /**
      * Just for testing or demo program
-     * TBW102：broker端写死的主题队列信息，当发送信息指定的topic在namesrv上没有找到路由信息，则使用该TBW102作为模版去创建路主题发布信息
+     * <p></p>
+     * TBW102：broker端写死的主题队列信息，当发送消息指定的topic在namesrv上没有找到路由信息，则使用该 TBW102 作为模版去创建主题发布信息
      */
     @Getter
     @Setter
@@ -98,7 +99,7 @@ public class DefaultMQProducer extends ClientConfig implements MQProducer {
      */
     @Getter
     @Setter
-    private int compressMsgBodyOverHowmuch = 1024 * 4;// 4M
+    private int compressMsgBodyOverHowmuch = 1024 * 4;// 4K
 
     /**
      * Maximum number of retry to perform internally before claiming sending failure in synchronous mode. </p>
@@ -108,7 +109,7 @@ public class DefaultMQProducer extends ClientConfig implements MQProducer {
      */
     @Getter
     @Setter
-    private int retryTimesWhenSendFailed = 2;
+    private int retryTimesWhenSendFailed = 2; // 同步发送的时候用
 
     /**
      * Maximum number of retry to perform internally before claiming sending failure in asynchronous mode. </p>
@@ -117,11 +118,12 @@ public class DefaultMQProducer extends ClientConfig implements MQProducer {
      */
     @Getter
     @Setter
-    private int retryTimesWhenSendAsyncFailed = 2;
+    private int retryTimesWhenSendAsyncFailed = 2; // 异步发送的时候用
 
     /**
      * Indicate whether to retry another broker on sending failure internally.
-     * 消息微存储成功，是否选择其他broker节点进行消息重试？一般是true
+     * <P></P>
+     * 消息未存储成功，是否选择其他broker节点进行消息重试？一般是true
      */
     @Getter
     @Setter
@@ -163,7 +165,7 @@ public class DefaultMQProducer extends ClientConfig implements MQProducer {
      *
      * @param producerGroup Producer group, see the name-sake field.
      */
-    public DefaultMQProducer(final String producerGroup) {
+    public DefaultMQProducer(final String producerGroup) { // 一般使用这个
         this(null, producerGroup, null);
     }
 
@@ -219,13 +221,12 @@ public class DefaultMQProducer extends ClientConfig implements MQProducer {
      * @param producerGroup Producer group, see the name-sake field. 发送则组
      * @param rpcHook RPC hook to execute per each remoting command execution. 钩子
      */
-    public DefaultMQProducer(final String namespace, final String producerGroup, RPCHook rpcHook) {
+    public DefaultMQProducer(final String namespace/*一般用于区分 环境，如：dev,pre,prod 等*/, final String producerGroup, RPCHook rpcHook) {
         this.namespace = namespace;
-        this.producerGroup = producerGroup;
+        this.producerGroup = producerGroup;// 用户传
 
         // ！！！！！！ 最重要
         // 创建生产者对象
-        //
         defaultMQProducerImpl = new DefaultMQProducerImpl(this, rpcHook);
     }
 
@@ -291,6 +292,7 @@ public class DefaultMQProducer extends ClientConfig implements MQProducer {
     public void start() throws MQClientException {
 
         // 重置生产者组名称，如果传了，则需要加上门面空间
+        // 一般用于区分 环境，如：dev,pre,prod 等
         String withNamespace = withNamespace(this.producerGroup);
         this.setProducerGroup(withNamespace);
 

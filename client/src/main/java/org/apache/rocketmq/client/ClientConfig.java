@@ -14,7 +14,6 @@ import org.apache.rocketmq.remoting.protocol.LanguageCode;
 
 import java.util.Collection;
 import java.util.HashSet;
-import java.util.Iterator;
 import java.util.Set;
 
 /**
@@ -51,7 +50,7 @@ public class ClientConfig {
     @Setter
     private int clientCallbackExecutorThreads = Runtime.getRuntime().availableProcessors();
 
-    // 命名空间
+    // 命名空间,一般用于区分 环境，如：dev,pre,prod 等
     @Setter
     protected String namespace;
 
@@ -92,13 +91,16 @@ public class ClientConfig {
     @Setter
     private boolean unitMode = false;
 
+    /**
+     * @see ClientConfig#buildMQClientId() 控制客户端实例是否唯一
+     */
     @Getter
     @Setter
     private String unitName;
 
     /**
      * 是否启用vip netty通道以发送消息
-     * broker启动的时候会绑定2哥端口，其中一个是vip通道端口
+     * broker启动的时候会绑定2个端口，其中一个是vip通道端口
      */
     @Getter
     @Setter
@@ -140,6 +142,7 @@ public class ClientConfig {
         }
     }
 
+    // 如果又 namespace，则加上 namespace% 返回
     public String withNamespace(String resource) {
         String namespace = this.getNamespace();
         return NamespaceUtil.wrapNamespace(namespace, resource);
@@ -188,9 +191,7 @@ public class ClientConfig {
         if (StringUtils.isEmpty(this.getNamespace())) {
             return queues;
         }
-        Iterator<MessageQueue> iterator = queues.iterator();
-        while (iterator.hasNext()) {
-            MessageQueue queue = iterator.next();
+        for (MessageQueue queue : queues) {
             queue.setTopic(withNamespace(queue.getTopic()));
         }
         return queues;

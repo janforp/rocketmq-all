@@ -1,5 +1,6 @@
 package org.apache.rocketmq.client.trace.hook;
 
+import lombok.AllArgsConstructor;
 import org.apache.rocketmq.client.hook.SendMessageContext;
 import org.apache.rocketmq.client.hook.SendMessageHook;
 import org.apache.rocketmq.client.producer.SendStatus;
@@ -12,13 +13,10 @@ import org.apache.rocketmq.common.protocol.NamespaceUtil;
 
 import java.util.ArrayList;
 
+@AllArgsConstructor
 public class SendMessageTraceHookImpl implements SendMessageHook {
 
-    private TraceDispatcher localDispatcher;
-
-    public SendMessageTraceHookImpl(TraceDispatcher localDispatcher) {
-        this.localDispatcher = localDispatcher;
-    }
+    private final TraceDispatcher localDispatcher;
 
     @Override
     public String hookName() {

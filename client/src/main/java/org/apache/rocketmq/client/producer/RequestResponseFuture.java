@@ -9,7 +9,7 @@ import java.util.concurrent.TimeUnit;
 
 public class RequestResponseFuture {
 
-    // 相关标识
+    // 相关标识,uuid
     @Getter
     private final String correlationId;
 
