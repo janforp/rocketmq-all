@@ -497,7 +497,6 @@ public abstract class NettyRemotingAbstract {
                         /**
                          * 异步设置成true
                          * responseTable 中的数据在 finally 中移除
-                         *
                          */
                         responseFuture.setSendRequestOK(true);
                         // 成功就直接返回了

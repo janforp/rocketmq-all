@@ -300,7 +300,7 @@ public class MQClientInstance {
                     }
 
                     if (!brokerData.getBrokerAddrs().containsKey(MixAll.MASTER_ID)) {
-                        // 如果找到的 broker 节点不是主节点，则继续下次循环
+                        // 如果找到的 broker 节点不包含主节点，则继续下次循环
                         continue;
                     }
 
@@ -361,6 +361,7 @@ public class MQClientInstance {
                     // this.defaultMQProducer = new DefaultMQProducer(CLIENT_INNER_PRODUCER);
                     DefaultMQProducerImpl defaultMQProducerImpl = this.defaultMQProducer.getDefaultMQProducerImpl();
                     defaultMQProducerImpl.start(false/*  用户的生产者传的 true ，内部生产者传 false，避免循环调用！！！*/);
+
                     log.info("the client factory [{}] start OK", this.clientId);
 
                     // 设置客户的状态为运行中
@@ -461,6 +462,8 @@ public class MQClientInstance {
                     Set<SubscriptionData> subList = impl.subscriptions();
                     if (subList != null) {
                         for (SubscriptionData subData : subList) {
+
+                            // 提取消费者关心的主题
                             topicList.add(subData.getTopic());
                         }
                     }
@@ -474,6 +477,8 @@ public class MQClientInstance {
                 MQProducerInner impl = entry.getValue();
                 if (impl != null) {
                     Set<String> lst = impl.getPublishTopicList();
+
+                    // 提取生产者关心的主题
                     topicList.addAll(lst);
                 }
             }
@@ -627,6 +632,7 @@ public class MQClientInstance {
         }
     }
 
+    //  遍历客户端主题集合，从namesrv拉去最新的主题路由数据，与本地客户端的路由数据对比，判断该主题是否需要更新
     public boolean updateTopicRouteInfoFromNameServer(final String topic) {
         return updateTopicRouteInfoFromNameServer(topic, false, null);
     }
@@ -742,12 +748,14 @@ public class MQClientInstance {
     /**
      * 生产者发送消息的时候会调用该方法去 nameServer 上拿到该 主题的路由信息
      *
+     * 遍历客户端主题集合，从namesrv拉去最新的主题路由数据，与本地客户端的路由数据对比，判断该主题是否需要更新
+     *
      * @param topic 主题
      * @param isDefault 是否默认
      * @param defaultMQProducer 发送方
      * @return 成功失败
      */
-    public boolean updateTopicRouteInfoFromNameServer(final String topic, boolean isDefault, DefaultMQProducer defaultMQProducer) {
+    public boolean updateTopicRouteInfoFromNameServer(final String topic, boolean isDefault/*定时任务 false*/, DefaultMQProducer defaultMQProducer/*定时任务 null*/) {
         try {
             if (this.lockNamesrv.tryLock(LOCK_TIMEOUT_MILLIS, TimeUnit.MILLISECONDS)) {
                 try {
