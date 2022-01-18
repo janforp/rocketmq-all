@@ -82,11 +82,21 @@ public class MQClientInstance {
 
     private final InternalLogger log = ClientLogger.getLog();
 
-    // 其实就是 org.apache.rocketmq.client.producer.DefaultMQProducer
+    /**
+     * @see org.apache.rocketmq.client.producer.DefaultMQProducer 其实就是 这个，因为 DefaultMQProducer 继承了 ClientConfig
+     */
     @Getter
     private final ClientConfig clientConfig;
 
-    // 客户端Id：ip&pid
+    /**
+     * 客户端Id：ip&pid
+     *
+     * 一个 JVM 进程中，只有一个 MQClientInstance 实例，也就是说该 clientId 也是唯一的，
+     * 但是，一个 JVM 进程中可以存在多个组，也可以存在多个消费者{@link MQConsumerInner}跟生产者{@link MQProducerInner}
+     *
+     * @see MQClientInstance#producerTable 该进程中的生产者列表
+     * @see MQClientInstance#consumerTable 该进程中的消费者列表
+     */
     @Getter
     private final String clientId;
 

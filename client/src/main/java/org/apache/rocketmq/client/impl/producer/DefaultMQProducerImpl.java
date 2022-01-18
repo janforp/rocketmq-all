@@ -619,13 +619,7 @@ public class DefaultMQProducerImpl implements MQProducerInner {
 
     }
 
-    private SendResult sendDefaultImpl(
-            Message msg,
-            // 发送模式
-            final CommunicationMode communicationMode,
-            // 回调，同步发送的时候这个参数是空，只有异步的时候才有值
-            final SendCallback sendCallback,
-            final long timeout)
+    private SendResult sendDefaultImpl(Message msg, final CommunicationMode communicationMode/*发送模式*/, final SendCallback sendCallback/*回调，同步发送的时候这个参数是空，只有异步的时候才有值*/, final long timeout)
             throws MQClientException, RemotingException, MQBrokerException, InterruptedException {
 
         // 确定生产者状态是运行中，否则抛出异常
