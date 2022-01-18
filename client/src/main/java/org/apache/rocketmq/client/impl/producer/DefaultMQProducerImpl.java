@@ -330,13 +330,19 @@ public class DefaultMQProducerImpl implements MQProducerInner {
             case CREATE_JUST:
                 break;
             case RUNNING:
-                this.mQClientFactory.unregisterProducer(this.defaultMQProducer.getProducerGroup());
+                String producerGroup = this.defaultMQProducer.getProducerGroup();
+                /**
+                 * 这里发请求
+                 *
+                 * @see org.apache.rocketmq.broker.processor.ClientManageProcessor#unregisterClient(io.netty.channel.ChannelHandlerContext, org.apache.rocketmq.remoting.protocol.RemotingCommand) 这个方法处理
+                 */
+                this.mQClientFactory.unregisterProducer(producerGroup);
                 this.defaultAsyncSenderExecutor.shutdown();
                 if (shutdownFactory) {
                     this.mQClientFactory.shutdown();
                 }
 
-                log.info("the producer [{}] shutdown OK", this.defaultMQProducer.getProducerGroup());
+                log.info("the producer [{}] shutdown OK", producerGroup);
                 this.serviceState = ServiceState.SHUTDOWN_ALREADY;
                 break;
             case SHUTDOWN_ALREADY:
@@ -350,7 +356,7 @@ public class DefaultMQProducerImpl implements MQProducerInner {
     public Set<String> getPublishTopicList() {
         Set<String> topicList = new HashSet<String>();
         // ConcurrentMap<String/*topic*/, TopicPublishInfo/*该主题的发布信息*/> topicPublishInfoTable = new ConcurrentHashMap<String, TopicPublishInfo>();
-        for (String key : this.topicPublishInfoTable.keySet()) {
+        for (String key/*topic*/ : this.topicPublishInfoTable.keySet()) {
             topicList.add(key);
         }
 
@@ -1050,8 +1056,11 @@ public class DefaultMQProducerImpl implements MQProducerInner {
         }
         byte[] body = msg.getBody();
         if (body != null) {
-            if (body.length >= this.defaultMQProducer.getCompressMsgBodyOverHowmuch()) {
+            int compressMsgBodyOverHowmuch = this.defaultMQProducer.getCompressMsgBodyOverHowmuch();
+            if (body.length >= compressMsgBodyOverHowmuch) {
                 try {
+
+                    // 压缩
                     byte[] data = UtilAll.compress(body, zipCompressLevel);
                     if (data != null) {
                         msg.setBody(data);
@@ -1457,7 +1466,9 @@ public class DefaultMQProducerImpl implements MQProducerInner {
         requestHeader.setTranStateTableOffset(sendResult.getQueueOffset());
         requestHeader.setMsgId(sendResult.getMsgId());
         String remark = localException != null ? ("executeLocalTransactionBranch exception: " + localException.toString()) : null;
-        this.mQClientFactory.getMQClientAPIImpl().endTransactionOneway(brokerAddr, requestHeader, remark, this.defaultMQProducer.getSendMsgTimeout());
+        MQClientAPIImpl mqClientAPIImpl = this.mQClientFactory.getMQClientAPIImpl();
+        int sendMsgTimeout = this.defaultMQProducer.getSendMsgTimeout();
+        mqClientAPIImpl.endTransactionOneway(brokerAddr, requestHeader, remark, sendMsgTimeout);
     }
 
     public void setCallbackExecutor(final ExecutorService callbackExecutor) {

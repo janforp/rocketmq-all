@@ -3,6 +3,8 @@ package org.apache.rocketmq.broker.processor;
 import io.netty.channel.ChannelHandlerContext;
 import org.apache.rocketmq.broker.BrokerController;
 import org.apache.rocketmq.broker.client.ClientChannelInfo;
+import org.apache.rocketmq.broker.client.ConsumerManager;
+import org.apache.rocketmq.broker.client.ProducerManager;
 import org.apache.rocketmq.broker.subscription.SubscriptionGroupManager;
 import org.apache.rocketmq.common.MixAll;
 import org.apache.rocketmq.common.constant.LoggerName;
@@ -44,8 +46,6 @@ public class ClientManageProcessor extends AsyncNettyRequestProcessor implements
     /**
      * @param ctx 上下文
      * @param request 请求
-     * @return
-     * @throws RemotingCommandException
      * @see BrokerController#registerProcessor()
      */
     @Override
@@ -120,36 +120,30 @@ public class ClientManageProcessor extends AsyncNettyRequestProcessor implements
         return response;
     }
 
-    public RemotingCommand unregisterClient(ChannelHandlerContext ctx, RemotingCommand request)
-            throws RemotingCommandException {
-        final RemotingCommand response =
-                RemotingCommand.createResponseCommand(UnregisterClientResponseHeader.class);
-        final UnregisterClientRequestHeader requestHeader =
-                (UnregisterClientRequestHeader) request
-                        .decodeCommandCustomHeader(UnregisterClientRequestHeader.class);
+    public RemotingCommand unregisterClient(ChannelHandlerContext ctx, RemotingCommand request) throws RemotingCommandException {
+        final RemotingCommand response = RemotingCommand.createResponseCommand(UnregisterClientResponseHeader.class);
+        final UnregisterClientRequestHeader requestHeader = (UnregisterClientRequestHeader) request.decodeCommandCustomHeader(UnregisterClientRequestHeader.class);
 
-        ClientChannelInfo clientChannelInfo = new ClientChannelInfo(
-                ctx.channel(),
-                requestHeader.getClientID(),
-                request.getLanguage(),
-                request.getVersion());
+        ClientChannelInfo clientChannelInfo = new ClientChannelInfo(ctx.channel(), requestHeader.getClientID(), request.getLanguage(), request.getVersion());
         {
             final String group = requestHeader.getProducerGroup();
             if (group != null) {
-                this.brokerController.getProducerManager().unregisterProducer(group, clientChannelInfo);
+                ProducerManager producerManager = this.brokerController.getProducerManager();
+                producerManager.unregisterProducer(group, clientChannelInfo);
             }
         }
 
         {
             final String group = requestHeader.getConsumerGroup();
             if (group != null) {
-                SubscriptionGroupConfig subscriptionGroupConfig =
-                        this.brokerController.getSubscriptionGroupManager().findSubscriptionGroupConfig(group);
+                SubscriptionGroupManager subscriptionGroupManager = this.brokerController.getSubscriptionGroupManager();
+                SubscriptionGroupConfig subscriptionGroupConfig = subscriptionGroupManager.findSubscriptionGroupConfig(group);
                 boolean isNotifyConsumerIdsChangedEnable = true;
                 if (null != subscriptionGroupConfig) {
                     isNotifyConsumerIdsChangedEnable = subscriptionGroupConfig.isNotifyConsumerIdsChangedEnable();
                 }
-                this.brokerController.getConsumerManager().unregisterConsumer(group, clientChannelInfo, isNotifyConsumerIdsChangedEnable);
+                ConsumerManager consumerManager = this.brokerController.getConsumerManager();
+                consumerManager.unregisterConsumer(group, clientChannelInfo, isNotifyConsumerIdsChangedEnable);
             }
         }
 

@@ -1051,13 +1051,15 @@ public class MQClientInstance {
     }
 
     private void unregisterClient(final String producerGroup, final String consumerGroup) {
-        for (Entry<String, HashMap<Long, String>> entry : this.brokerAddrTable.entrySet()) {
+
+        // ConcurrentMap<String/* Broker Name */, HashMap<Long/* brokerId */, String/* address：ip:port */>> brokerAddrTable
+        for (Entry<String/* Broker Name */, HashMap<Long/* brokerId */, String/* address：ip:port */>> entry : this.brokerAddrTable.entrySet()) {
             String brokerName = entry.getKey();
-            HashMap<Long, String> oneTable = entry.getValue();
+            HashMap<Long/* brokerId */, String/* address：ip:port */> oneTable = entry.getValue();
 
             if (oneTable != null) {
-                for (Entry<Long, String> entry1 : oneTable.entrySet()) {
-                    String addr = entry1.getValue();
+                for (Entry<Long/* brokerId */, String/* address：ip:port */> entry1 : oneTable.entrySet()) {
+                    String addr/* address：ip:port */ = entry1.getValue();
                     if (addr != null) {
                         try {
                             this.mQClientAPIImpl.unregisterClient(addr, this.clientId, producerGroup, consumerGroup, 3000);

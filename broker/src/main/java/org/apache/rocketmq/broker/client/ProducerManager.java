@@ -102,6 +102,8 @@ public class ProducerManager {
 
     public synchronized void unregisterProducer(final String group, final ClientChannelInfo clientChannelInfo) {
         // 该生产者组下面的所有连接映射表
+
+        // ConcurrentHashMap<String /* group name */, ConcurrentHashMap<Channel/*生产者与broker的长连接*/, ClientChannelInfo/*生产者与broker的长连接信息*/>> groupChannelTable
         ConcurrentHashMap<Channel, ClientChannelInfo> channelTable = this.groupChannelTable.get(group);
         if (null != channelTable && !channelTable.isEmpty()) {
             // 该组下面有连接存在，则继续

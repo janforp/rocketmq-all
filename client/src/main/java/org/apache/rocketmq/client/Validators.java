@@ -51,9 +51,7 @@ public class Validators {
         }
 
         if (!regularExpressionMatcher(group, PATTERN)) {
-            throw new MQClientException(String.format(
-                    "the specified group[%s] contains illegal characters, allowing only %s", group,
-                    VALID_PATTERN_STR), null);
+            throw new MQClientException(String.format("the specified group[%s] contains illegal characters, allowing only %s", group, VALID_PATTERN_STR), null);
         }
 
     }
