@@ -846,17 +846,20 @@ public class DefaultMQProducerImpl implements MQProducerInner {
         SendMessageContext context = null;
         if (brokerAddr != null) {
             // 是否走 vip 通道？如果走，则地址换换就好了，具体的发送逻辑还是一样的
-            brokerAddr = MixAll.brokerVIPChannel(this.defaultMQProducer.isSendMessageWithVIPChannel(), brokerAddr);
+            boolean sendMessageWithVIPChannel = this.defaultMQProducer.isSendMessageWithVIPChannel();
+            brokerAddr = MixAll.brokerVIPChannel(sendMessageWithVIPChannel, brokerAddr);
 
-            // 消息
+            //  TODO ????干嘛的呢？ 消息
             byte[] prevBody = msg.getBody();
             try {
                 //for MessageBatch,ID has been set in the generating process
                 if (!(msg instanceof MessageBatch)) {
 
                     /**
-                     * 给消息生成一个唯一Id，在 msg.properties("UNIQ_KEY"m "xxxxx")
+                     * 给消息生成一个唯一Id，在 msg.properties("UNIQ_KEY"m "msgId")
                      * 服务器 broker 会给消息安装 UNIQ_KEY 建立一个 hash 索引
+                     *
+                     * broker会根据msgId建立一个HASH索引
                      */
                     MessageClientIDSetter.setUniqID(msg);
                 }
@@ -935,7 +938,8 @@ public class DefaultMQProducerImpl implements MQProducerInner {
                 // 消息的 flag
                 requestHeader.setFlag(msg.getFlag());
                 // 消息的 properties
-                requestHeader.setProperties(MessageDecoder.messageProperties2String(msg.getProperties()));
+                String properties2String = MessageDecoder.messageProperties2String(msg.getProperties());
+                requestHeader.setProperties(properties2String);
                 // 消费次数
                 requestHeader.setReconsumeTimes(0);
                 // 模型
@@ -944,7 +948,7 @@ public class DefaultMQProducerImpl implements MQProducerInner {
                 requestHeader.setBatch(msg instanceof MessageBatch);
 
                 // 消息重试的逻辑
-                if (requestHeader.getTopic().startsWith(MixAll.RETRY_GROUP_TOPIC_PREFIX)) {
+                if (requestHeader.getTopic().startsWith(MixAll.RETRY_GROUP_TOPIC_PREFIX)) { //  "%RETRY%"
                     String reconsumeTimes = MessageAccessor.getReconsumeTime(msg);
                     if (reconsumeTimes != null) {
                         requestHeader.setReconsumeTimes(Integer.valueOf(reconsumeTimes));
@@ -986,9 +990,12 @@ public class DefaultMQProducerImpl implements MQProducerInner {
                         if (timeout < costTimeAsync) {
                             throw new RemotingTooMuchRequestException("sendKernelImpl call timeout");
                         }
-                        sendResult = mqClientAPIImpl.sendMessage(brokerAddr, mq.getBrokerName(), tmpMessage, requestHeader,
+
+                        String brokerName = mq.getBrokerName();
+                        int retryTimesWhenSendAsyncFailed = this.defaultMQProducer.getRetryTimesWhenSendAsyncFailed();
+                        sendResult = mqClientAPIImpl.sendMessage(brokerAddr,brokerName, tmpMessage, requestHeader,
                                 timeout - costTimeAsync, communicationMode, sendCallback, topicPublishInfo,
-                                this.mQClientFactory, this.defaultMQProducer.getRetryTimesWhenSendAsyncFailed(), context, this);
+                                this.mQClientFactory, retryTimesWhenSendAsyncFailed, context, this);
                         break;
                     case ONEWAY:
                     case SYNC:
@@ -998,7 +1005,7 @@ public class DefaultMQProducerImpl implements MQProducerInner {
                             // 超时了，干！
                             throw new RemotingTooMuchRequestException("sendKernelImpl call timeout");
                         }
-                        // ！！！！  发送了
+                        // ！！！！  发送了，拿到服务端broker返回的结果
                         sendResult = mqClientAPIImpl.sendMessage(brokerAddr, mq.getBrokerName(), msg, requestHeader, timeout - costTimeSync, communicationMode, context, this);
                         break;
                     default:

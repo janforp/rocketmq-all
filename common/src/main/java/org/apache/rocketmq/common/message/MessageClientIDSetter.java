@@ -127,7 +127,7 @@ public class MessageClientIDSetter {
     }
 
     public static String getUniqID(final Message msg) {
-        return msg.getProperty(MessageConst.PROPERTY_UNIQ_CLIENT_MESSAGE_ID_KEYIDX);
+        return msg.getProperty(MessageConst.PROPERTY_UNIQ_CLIENT_MESSAGE_ID_KEYIDX/*UNIQ_KEY*/);
     }
 
     public static byte[] createFakeIP() {

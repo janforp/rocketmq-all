@@ -407,7 +407,7 @@ public class MQClientAPIImpl {
         long beginStartTime = System.currentTimeMillis();
         RemotingCommand request;
         String msgType = msg.getProperty(MessageConst.PROPERTY_MESSAGE_TYPE);
-        boolean isReply = msgType != null && msgType.equals(MixAll.REPLY_MESSAGE_FLAG);
+        boolean isReply = msgType != null && msgType.equals(MixAll.REPLY_MESSAGE_FLAG/*reply 回执消息？*/);
 
         if (isReply) {
             if (sendSmartMsg) {
@@ -419,9 +419,14 @@ public class MQClientAPIImpl {
                 request = RemotingCommand.createRequestCommand(RequestCode.SEND_REPLY_MESSAGE, requestHeader);
             }
         } else {
+            // 正常消息走这里
+
             if (sendSmartMsg || msg instanceof MessageBatch) {
+
+                // 节省网络传输
                 SendMessageRequestHeaderV2 requestHeaderV2 = SendMessageRequestHeaderV2.createSendMessageRequestHeaderV2(requestHeader);
-                request = RemotingCommand.createRequestCommand(msg instanceof MessageBatch ? RequestCode.SEND_BATCH_MESSAGE : RequestCode.SEND_MESSAGE_V2, requestHeaderV2);
+                int requestCode = msg instanceof MessageBatch ? RequestCode.SEND_BATCH_MESSAGE : RequestCode.SEND_MESSAGE_V2;
+                request = RemotingCommand.createRequestCommand(requestCode, requestHeaderV2);
             } else {
                 request = RemotingCommand.createRequestCommand(RequestCode.SEND_MESSAGE, requestHeader);
             }
@@ -459,6 +464,7 @@ public class MQClientAPIImpl {
     }
 
     private SendResult sendMessageSync(final String addr, final String brokerName, final Message msg, final long timeoutMillis, final RemotingCommand request) throws RemotingException, MQBrokerException, InterruptedException {
+        // 将消息发送到BROKER中
         RemotingCommand response = this.remotingClient.invokeSync(addr, request, timeoutMillis);
         assert response != null;
         return this.processSendResponse(brokerName, msg, response);
@@ -597,18 +603,18 @@ public class MQClientAPIImpl {
         }
     }
 
-    private SendResult processSendResponse(
-            final String brokerName,
-            final Message msg,
-            final RemotingCommand response
-    ) throws MQBrokerException, RemotingCommandException {
+    private SendResult processSendResponse(final String brokerName, final Message msg, final RemotingCommand response/*发送消息，BROKER服务端返回的结果*/) throws MQBrokerException, RemotingCommandException {
 
         switch (response.getCode()) {
             case ResponseCode.FLUSH_DISK_TIMEOUT:
             case ResponseCode.FLUSH_SLAVE_TIMEOUT:
             case ResponseCode.SLAVE_NOT_AVAILABLE: {
+
+                // 啥都不做？？
             }
             case ResponseCode.SUCCESS: {
+
+                // 直接到这里！！！！
                 SendStatus sendStatus = SendStatus.SEND_OK;
                 switch (response.getCode()) {
                     case ResponseCode.FLUSH_DISK_TIMEOUT:
@@ -628,17 +634,20 @@ public class MQClientAPIImpl {
                         break;
                 }
 
-                SendMessageResponseHeader responseHeader =
-                        (SendMessageResponseHeader) response.decodeCommandCustomHeader(SendMessageResponseHeader.class);
+                // 解析服务端结果，解码得到对象
+                SendMessageResponseHeader responseHeader = (SendMessageResponseHeader) response.decodeCommandCustomHeader(SendMessageResponseHeader.class);
 
                 //If namespace not null , reset Topic without namespace.
                 String topic = msg.getTopic();
                 if (StringUtils.isNotEmpty(this.clientConfig.getNamespace())) {
+                    // 发送的时候TOPIC加上了NAMESPACE,返回的时候逆向操作
                     topic = NamespaceUtil.withoutNamespace(topic, this.clientConfig.getNamespace());
                 }
 
-                MessageQueue messageQueue = new MessageQueue(topic, brokerName, responseHeader.getQueueId());
+                Integer queueId = responseHeader.getQueueId();
+                MessageQueue messageQueue = new MessageQueue(topic, brokerName, queueId);
 
+                // return msg.getProperty(MessageConst.PROPERTY_UNIQ_CLIENT_MESSAGE_ID_KEYIDX/*UNIQ_KEY*/);
                 String uniqMsgId = MessageClientIDSetter.getUniqID(msg);
                 if (msg instanceof MessageBatch) {
                     StringBuilder sb = new StringBuilder();
@@ -647,14 +656,19 @@ public class MQClientAPIImpl {
                     }
                     uniqMsgId = sb.toString();
                 }
-                SendResult sendResult = new SendResult(sendStatus,
-                        uniqMsgId,
-                        responseHeader.getMsgId(), messageQueue, responseHeader.getQueueOffset());
-                sendResult.setTransactionId(responseHeader.getTransactionId());
-                String regionId = response.getExtFields().get(MessageConst.PROPERTY_MSG_REGION);
-                String traceOn = response.getExtFields().get(MessageConst.PROPERTY_TRACE_SWITCH);
+
+                // 组装结果
+                String msgId = responseHeader.getMsgId();
+                Long queueOffset = responseHeader.getQueueOffset();
+                SendResult sendResult = new SendResult(sendStatus, uniqMsgId, msgId, messageQueue, queueOffset);
+
+                String transactionId = responseHeader.getTransactionId();
+                sendResult.setTransactionId(transactionId);
+
+                String regionId = response.getExtFields().get(MessageConst.PROPERTY_MSG_REGION/*MSG_REGION*/);
+                String traceOn = response.getExtFields().get(MessageConst.PROPERTY_TRACE_SWITCH/*TRACE_ON*/);
                 if (regionId == null || regionId.isEmpty()) {
-                    regionId = MixAll.DEFAULT_TRACE_REGION_ID;
+                    regionId = MixAll.DEFAULT_TRACE_REGION_ID/*DefaultRegion*/;
                 }
                 if (traceOn != null && traceOn.equals("false")) {
                     sendResult.setTraceOn(false);
