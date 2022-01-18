@@ -80,6 +80,8 @@ public class NettyRemotingClient extends NettyRemotingAbstract implements Remoti
     private final Lock lockChannelTables = new ReentrantLock();
 
     /**
+     * 维护通信通道
+     *
      * key:服务器地址
      * value:客户端与服务器连接的 channel 封装对象
      */

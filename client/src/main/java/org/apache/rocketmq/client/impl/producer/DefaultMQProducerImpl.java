@@ -114,11 +114,13 @@ public class DefaultMQProducerImpl implements MQProducerInner {
     // 该对象最终传递给 NettyRemotingClient,留给用户扩展
     private final RPCHook rpcHook;
 
-    // 缺省的异步发送消息线程池
+    // 缺省的异步发送消息线程池,执行异步发送任务
     private final ExecutorService defaultAsyncSenderExecutor;
 
     /**
      * 定时任务：执行 RequestFutureTable.scanExpireRequest()
+     *
+     * @see RequestFutureTable#scanExpiredRequest()
      */
     private final Timer timer = new Timer("RequestHouseKeepingService", true);
 
@@ -1484,12 +1486,12 @@ public class DefaultMQProducerImpl implements MQProducerInner {
             this.sendDefaultImpl(msg, CommunicationMode.ASYNC, new SendCallback() {
                 @Override
                 public void onSuccess(SendResult sendResult) {
-                    requestResponseFuture.setSendReqeustOk(true);
+                    requestResponseFuture.setSendRequestOk(true);
                 }
 
                 @Override
                 public void onException(Throwable e) {
-                    requestResponseFuture.setSendReqeustOk(false);
+                    requestResponseFuture.setSendRequestOk(false);
                     requestResponseFuture.putResponseMessage(null);
                     requestResponseFuture.setCause(e);
                 }
@@ -1521,7 +1523,7 @@ public class DefaultMQProducerImpl implements MQProducerInner {
         this.sendDefaultImpl(msg, CommunicationMode.ASYNC, new SendCallback() {
             @Override
             public void onSuccess(SendResult sendResult) {
-                requestResponseFuture.setSendReqeustOk(true);
+                requestResponseFuture.setSendRequestOk(true);
             }
 
             @Override
@@ -1545,12 +1547,12 @@ public class DefaultMQProducerImpl implements MQProducerInner {
             this.sendSelectImpl(msg, selector, arg, CommunicationMode.ASYNC, new SendCallback() {
                 @Override
                 public void onSuccess(SendResult sendResult) {
-                    requestResponseFuture.setSendReqeustOk(true);
+                    requestResponseFuture.setSendRequestOk(true);
                 }
 
                 @Override
                 public void onException(Throwable e) {
-                    requestResponseFuture.setSendReqeustOk(false);
+                    requestResponseFuture.setSendRequestOk(false);
                     requestResponseFuture.putResponseMessage(null);
                     requestResponseFuture.setCause(e);
                 }
@@ -1583,7 +1585,7 @@ public class DefaultMQProducerImpl implements MQProducerInner {
         this.sendSelectImpl(msg, selector, arg, CommunicationMode.ASYNC, new SendCallback() {
             @Override
             public void onSuccess(SendResult sendResult) {
-                requestResponseFuture.setSendReqeustOk(true);
+                requestResponseFuture.setSendRequestOk(true);
             }
 
             @Override
@@ -1598,7 +1600,7 @@ public class DefaultMQProducerImpl implements MQProducerInner {
     public Message request(final Message msg, final MessageQueue mq, final long timeout) throws MQClientException, RemotingException, MQBrokerException, InterruptedException, RequestTimeoutException {
         long beginTimestamp = System.currentTimeMillis();
         prepareSendRequest(msg, timeout);
-        final String correlationId = msg.getProperty(MessageConst.PROPERTY_CORRELATION_ID);
+        final String correlationId = msg.getProperty(MessageConst.PROPERTY_CORRELATION_ID/*CORRELATION_ID*/);
 
         try {
             final RequestResponseFuture requestResponseFuture = new RequestResponseFuture(correlationId, timeout, null);
@@ -1608,12 +1610,12 @@ public class DefaultMQProducerImpl implements MQProducerInner {
             this.sendKernelImpl(msg, mq, CommunicationMode.ASYNC, new SendCallback() {
                 @Override
                 public void onSuccess(SendResult sendResult) {
-                    requestResponseFuture.setSendReqeustOk(true);
+                    requestResponseFuture.setSendRequestOk(true);
                 }
 
                 @Override
                 public void onException(Throwable e) {
-                    requestResponseFuture.setSendReqeustOk(false);
+                    requestResponseFuture.setSendRequestOk(false);
                     requestResponseFuture.putResponseMessage(null);
                     requestResponseFuture.setCause(e);
                 }
@@ -1645,7 +1647,7 @@ public class DefaultMQProducerImpl implements MQProducerInner {
         this.sendKernelImpl(msg, mq, CommunicationMode.ASYNC, new SendCallback() {
             @Override
             public void onSuccess(SendResult sendResult) {
-                requestResponseFuture.setSendReqeustOk(true);
+                requestResponseFuture.setSendRequestOk(true);
             }
 
             @Override
@@ -1659,7 +1661,7 @@ public class DefaultMQProducerImpl implements MQProducerInner {
     private void requestFail(final String correlationId) {
         RequestResponseFuture responseFuture = RequestFutureTable.getRequestFutureTable().remove(correlationId);
         if (responseFuture != null) {
-            responseFuture.setSendReqeustOk(false);
+            responseFuture.setSendRequestOk(false);
             responseFuture.putResponseMessage(null);
             try {
                 responseFuture.executeRequestCallback();

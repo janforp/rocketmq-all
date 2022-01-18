@@ -1,5 +1,6 @@
 package org.apache.rocketmq.client.producer;
 
+import lombok.Getter;
 import org.apache.rocketmq.client.common.ClientErrorCode;
 import org.apache.rocketmq.client.exception.RequestTimeoutException;
 import org.apache.rocketmq.client.log.ClientLogger;
@@ -15,11 +16,8 @@ public class RequestFutureTable {
 
     private static final InternalLogger log = ClientLogger.getLog();
 
+    @Getter
     private static final ConcurrentHashMap<String, RequestResponseFuture> requestFutureTable = new ConcurrentHashMap<String, RequestResponseFuture>();
-
-    public static ConcurrentHashMap<String, RequestResponseFuture> getRequestFutureTable() {
-        return requestFutureTable;
-    }
 
     public static void scanExpiredRequest() {
         final List<RequestResponseFuture> rfList = new LinkedList<RequestResponseFuture>();

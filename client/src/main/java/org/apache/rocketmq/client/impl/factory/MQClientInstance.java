@@ -426,7 +426,7 @@ public class MQClientInstance {
         }, 1, 1, TimeUnit.MINUTES);
     }
 
-    public void updateTopicRouteInfoFromNameServer() {
+    private void updateTopicRouteInfoFromNameServer() {
 
         // 客户端关心的主题的集合，分别从消费者跟生产者中提取
         Set<String> topicList = new HashSet<String>();

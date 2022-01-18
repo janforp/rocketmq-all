@@ -9,9 +9,18 @@ import java.util.concurrent.TimeUnit;
 
 public class RequestResponseFuture {
 
+    // 相关标识
     @Getter
     private final String correlationId;
 
+    /**
+     * * public interface RequestCallback {
+     * *
+     * *     void onSuccess(final Message message);
+     * *
+     * *     void onException(final Throwable e);
+     * * }
+     */
     @Getter
     private final RequestCallback requestCallback;
 
@@ -21,6 +30,7 @@ public class RequestResponseFuture {
     @Getter
     private final Message requestMsg = null;
 
+    // 超时时间
     @Getter
     @Setter
     private long timeoutMillis;
@@ -33,6 +43,9 @@ public class RequestResponseFuture {
     @Setter
     private volatile Message responseMsg = null;
 
+    // 发送请求是否成功
+    @Getter
+    @Setter
     private volatile boolean sendRequestOk = true;
 
     @Getter
@@ -60,22 +73,16 @@ public class RequestResponseFuture {
         return diff > this.timeoutMillis;
     }
 
+    // 等待结果，阻塞
     public Message waitResponseMessage(final long timeout) throws InterruptedException {
-        this.countDownLatch.await(timeout, TimeUnit.MILLISECONDS);
+        boolean await = this.countDownLatch.await(timeout, TimeUnit.MILLISECONDS);
+        System.out.println(await);
         return this.responseMsg;
     }
 
+    // 设置结果，唤醒
     public void putResponseMessage(final Message responseMsg) {
         this.responseMsg = responseMsg;
         this.countDownLatch.countDown();
     }
-
-    public boolean isSendRequestOk() {
-        return sendRequestOk;
-    }
-
-    public void setSendReqeustOk(boolean sendReqeustOk) {
-        this.sendRequestOk = sendReqeustOk;
-    }
-
 }

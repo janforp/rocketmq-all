@@ -152,6 +152,8 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * 封装了 broker 与 namesrv 之间的所有逻辑！！！
+ *
+ * 主要功能转化commandRemoting对象
  */
 @SuppressWarnings("all")
 public class MQClientAPIImpl {
