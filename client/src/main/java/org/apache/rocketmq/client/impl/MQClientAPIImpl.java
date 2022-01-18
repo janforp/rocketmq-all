@@ -411,6 +411,8 @@ public class MQClientAPIImpl {
 
         if (isReply) {
             if (sendSmartMsg) {
+
+                // 节省宽带
                 SendMessageRequestHeaderV2 requestHeaderV2 = SendMessageRequestHeaderV2.createSendMessageRequestHeaderV2(requestHeader);
                 request = RemotingCommand.createRequestCommand(RequestCode.SEND_REPLY_MESSAGE_V2, requestHeaderV2);
             } else {
