@@ -202,7 +202,7 @@ public class MappedFile extends ReferenceResource {
      * TODO
      * 清理文件，释放资源
      */
-    public static void clean(final ByteBuffer buffer) {
+    public static void clean(final ByteBuffer buffer/*释放这个资源的内存*/) {
         if (buffer == null || !buffer.isDirect() || buffer.capacity() == 0) {
             return;
         }
