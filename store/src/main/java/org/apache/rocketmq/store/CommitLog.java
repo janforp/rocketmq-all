@@ -156,8 +156,9 @@ public class CommitLog {
     }
 
     public boolean load() {
-
         // 加载目录下的文件，创建mp
+        // this.mappedFileQueue = new MappedFileQueue(storePathCommitLog,/*commitlog目录*/mappedFileSizeCommitLog,/*1G*/allocateMappedFileService/*里面有自己的线程，创建文件的时候可以通过该对象实现*/);
+        // 具体加载哪个目录由该对象的构造方法决定
         boolean result = this.mappedFileQueue.load();
         log.info("load commit log " + (result ? "OK" : "Failed"));
         return result;
