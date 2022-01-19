@@ -1483,10 +1483,10 @@ public class DefaultMessageStore implements MessageStore {
 
     private void recover(final boolean lastExitOK) {
         // 最大offset
-        long maxPhyOffsetOfConsumeQueue = this.recoverConsumeQueue();
+        long maxPhyOffsetOfConsumeQueue = this.recoverConsumeQueue()/*先恢复 consumeQueue*/;
 
+        // 再恢复 commitLog
         if (lastExitOK) {
-
             // 正常退出
             this.commitLog.recoverNormally(maxPhyOffsetOfConsumeQueue);
         } else {

@@ -16,6 +16,11 @@ public class StoreCheckpoint {
 
     private final MappedByteBuffer mappedByteBuffer;
 
+    /**
+     * 最后一次刷盘成功的时间
+     *
+     * @see CommitLog.FlushRealTimeService#run() 异步刷盘
+     */
     @Getter
     @Setter
     private volatile long physicMsgTimestamp = 0;

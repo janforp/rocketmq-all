@@ -67,6 +67,7 @@ public class CommitLog {
     /**
      * @see GroupCommitService 同步刷盘
      * @see FlushRealTimeService 默认是异步刷盘
+     * @see CommitLog#start() 该对象的 start 方法会启动刷盘服务
      */
     // 刷盘服务：里面有自己的线程，实现异步刷盘
     private final FlushCommitLogService flushCommitLogService;
@@ -108,6 +109,8 @@ public class CommitLog {
     // 写锁开始时间
 
     /**
+     * commitLog 写入是串行的，所以需要加锁！！！
+     *
      * 开始写到时候赋值，写完成的时候恢复为0
      *
      * @see CommitLog#putMessage(org.apache.rocketmq.store.MessageExtBrokerInner)
@@ -116,8 +119,8 @@ public class CommitLog {
     private volatile long beginTimeInLock = 0;
 
     /**
-     * @see PutMessageReentrantLock
-     * @see PutMessageSpinLock
+     * @see PutMessageReentrantLock 重入锁
+     * @see PutMessageSpinLock 自旋锁，线程不会挂起
      */
     // 锁的实现分为：自旋锁(消耗cpu)跟重入锁
     protected final PutMessageLock putMessageLock;
@@ -154,6 +157,10 @@ public class CommitLog {
 
     }
 
+    /**
+     * load -> recover -> start
+     */
+
     public boolean load() {
         // 加载目录下的文件，创建mp
         // this.mappedFileQueue = new MappedFileQueue(storePathCommitLog,/*commitlog目录*/mappedFileSizeCommitLog,/*1G*/allocateMappedFileService/*里面有自己的线程，创建文件的时候可以通过该对象实现*/);
@@ -164,6 +171,8 @@ public class CommitLog {
     }
 
     public void start() {
+
+        // 该服务内部有自己的线程
         this.flushCommitLogService.start();
 
         if (defaultMessageStore.getMessageStoreConfig().isTransientStorePoolEnable()) {
@@ -282,7 +291,7 @@ public class CommitLog {
                         log.info("recover last 3 physics file over, last mapped file " + mappedFile.getFileName());
                         break;
                     } else {
-                        // 还没有到该目录下的最后一个文件，继续刷盘下一个文件
+                        // 还没有到该目录下的最后一个文件，继续恢复下一个文件
                         mappedFile = mappedFiles.get(index);
                         byteBuffer = mappedFile.sliceByteBuffer();
                         // 获取待恢复 mf 文件名作为 处理起始偏移量（目录恢复位点）
@@ -1518,7 +1527,7 @@ public class CommitLog {
     }
 
     /**
-     * 异步刷盘
+     * 异步落盘
      */
     class FlushRealTimeService extends FlushCommitLogService {
 
@@ -1540,28 +1549,35 @@ public class CommitLog {
                  * 4.调用外部类 CommitLog.mappedFileQueue.flush()进行刷盘，注意传递参数：int flushPhysicQueueLeastPages(一般4，如果是强制刷盘则传0)
                  */
 
+                MessageStoreConfig messageStoreConfig = CommitLog.this.defaultMessageStore.getMessageStoreConfig();
                 /**
                  * 控制线程休眠方式
                  * true:使用 Sleep休眠
                  * false：使用 countDownLatch.wait(...)休眠
                  * 默认是 false
                  */
-                boolean flushCommitLogTimed = CommitLog.this.defaultMessageStore.getMessageStoreConfig().isFlushCommitLogTimed();
+                boolean flushCommitLogTimed = messageStoreConfig.isFlushCommitLogTimed();
 
                 // 刷盘间隔时间：500
-                int interval = CommitLog.this.defaultMessageStore.getMessageStoreConfig().getFlushIntervalCommitLog();
+                int interval = messageStoreConfig.getFlushIntervalCommitLog();
                 // 刷盘脏页最小值：4
-                int flushPhysicQueueLeastPages = CommitLog.this.defaultMessageStore.getMessageStoreConfig().getFlushCommitLogLeastPages();
+                int flushPhysicQueueLeastPages = messageStoreConfig.getFlushCommitLogLeastPages();
                 // 强制刷盘间隔时间：1000 * 10
-                int flushPhysicQueueThoroughInterval = CommitLog.this.defaultMessageStore.getMessageStoreConfig().getFlushCommitLogThoroughInterval();
+                int flushPhysicQueueThoroughInterval = messageStoreConfig.getFlushCommitLogThoroughInterval();
 
                 boolean printFlushProgress = false;
 
                 // Print flush progress
                 long currentTimeMillis = System.currentTimeMillis();
-                if (currentTimeMillis >= (this.lastFlushTimestamp + flushPhysicQueueThoroughInterval)) {
+                if (currentTimeMillis >= (this.lastFlushTimestamp + flushPhysicQueueThoroughInterval)/*到了强制刷盘的时间了*/) {
+
+                    // 本次肯定会刷盘，所以把最后一次刷盘的时间设置为当前时间
                     this.lastFlushTimestamp = currentTimeMillis;
+
+                    // 强制刷盘
                     flushPhysicQueueLeastPages = 0;
+
+                    // 决定是否打印
                     printFlushProgress = (printTimes++ % 10) == 0;
                 }
 
@@ -1569,9 +1585,9 @@ public class CommitLog {
 
                     // 线程休眠方式
                     if (flushCommitLogTimed) {
-                        Thread.sleep(interval);
+                        Thread.sleep(interval/*刷盘间隔时间*/);
                     } else {
-                        this.waitForRunning(interval);
+                        this.waitForRunning(interval/*刷盘间隔时间*/);
                     }
 
                     if (printFlushProgress) {
@@ -1579,6 +1595,7 @@ public class CommitLog {
                     }
 
                     long begin = System.currentTimeMillis();
+
                     // 刷盘，传入0表示强制刷盘
                     CommitLog.this.mappedFileQueue.flush(flushPhysicQueueLeastPages);
 
@@ -1586,7 +1603,8 @@ public class CommitLog {
                     long storeTimestamp = CommitLog.this.mappedFileQueue.getStoreTimestamp();
                     if (storeTimestamp > 0) {
                         // 存储到 checkPoint 文件
-                        CommitLog.this.defaultMessageStore.getStoreCheckpoint().setPhysicMsgTimestamp(storeTimestamp);
+                        StoreCheckpoint storeCheckpoint = CommitLog.this.defaultMessageStore.getStoreCheckpoint();
+                        storeCheckpoint.setPhysicMsgTimestamp(storeTimestamp);
                     }
                     long past = System.currentTimeMillis() - begin;
                     if (past > 500) {
@@ -1604,7 +1622,7 @@ public class CommitLog {
             boolean result = false;
             for (int i = 0; i < RETRY_TIMES_OVER && !result; i++) {
                 // 强制刷盘，保证在停机之前数据都持久化了
-                result = CommitLog.this.mappedFileQueue.flush(0);
+                result = CommitLog.this.mappedFileQueue.flush(0/*强制刷盘 10 次*/);
                 CommitLog.log.info(this.getServiceName() + " service shutdown, retry " + (i + 1) + " times " + (result ? "OK" : "Not OK"));
             }
 
