@@ -19,6 +19,8 @@ import java.util.concurrent.CopyOnWriteArrayList;
 
 /**
  * MappedFile 的管理对象
+ *
+ * commitLog跟 conusmeQueue 都通过这个对象来控制
  */
 @SuppressWarnings("all")
 public class MappedFileQueue {
