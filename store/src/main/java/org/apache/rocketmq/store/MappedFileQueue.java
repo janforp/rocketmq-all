@@ -188,6 +188,7 @@ public class MappedFileQueue {
         this.deleteExpiredFile(willRemoveFiles);
     }
 
+    // 将删除文件的 mf 从 queue 中移除
     void deleteExpiredFile(List<MappedFile> files/*willRemoveFiles*/) {
 
         if (!files.isEmpty()) {
@@ -486,6 +487,8 @@ public class MappedFileQueue {
     /**
      * 该方法为 CommitLog 删除过期文件使用，根据文件保留时长决定释放删除文件
      *
+     * commitLog 文件有一定的有效时间，当超过这个时间就会删除，一般删除都会是第一个文件，当commitLog 的第一个文件被删除的时候 ，commitLog 的 minOffset 也会变大，这个时候就要根据最新的 minOffset 去 consumeQueu 文件中删除过期文件，调用{@link MappedFileQueue#deleteExpiredFileByOffset(long, int)}方法
+     *
      * @param expiredTime 过期时间
      * @param deleteFilesInterval 删除2个文件的时间间隔
      * @param intervalForcibly mf.destroy(intervalForcibly)
@@ -493,7 +496,7 @@ public class MappedFileQueue {
      * @return 删除的数量
      */
     @SuppressWarnings("all")
-    public int deleteExpiredFileByTime(final long expiredTime, final int deleteFilesInterval, final long intervalForcibly, final boolean cleanImmediately) {
+    public int deleteExpiredFileByTime(final long expiredTime/*72h*/, final int deleteFilesInterval, final long intervalForcibly, final boolean cleanImmediately) {
 
         // 复制
         Object[] mfs = this.copyMappedFiles(0);
@@ -515,14 +518,13 @@ public class MappedFileQueue {
                 // 上次修改时间 + 过期时间 = 当前文件存活时间截止点
                 long liveMaxTimestamp = mappedFile.getLastModifiedTimestamp() + expiredTime;
 
-                if (System.currentTimeMillis() >= liveMaxTimestamp/*文件存活时间达到上限*/ || cleanImmediately /*目录 disk 占用率达到上限的时候会设置该参数为 true ，强制删除*/) {
+                if (System.currentTimeMillis() >= liveMaxTimestamp/*文件存活时间达到上限，应该删除了*/ || cleanImmediately /*目录 disk 占用率达到配置的上限的时候会设置该参数为 true ，强制删除*/) {
                     // 如果当前文件已经很久没修改了，或者要求立即删除，则进入该分支
                     if (mappedFile.destroy(intervalForcibly)) {
                         // 成功，加入删除列表
                         files.add(mappedFile);
                         deleteCount++;
-                        if (files.size() >= DELETE_FILES_BATCH_MAX) {
-                            // 如果超过了每次删除的最大数量，则停止了
+                        if (files.size() >= DELETE_FILES_BATCH_MAX/* 如果超过了每次删除的最大数量，则停止了*/) {
                             break;
                         }
 
@@ -558,11 +560,13 @@ public class MappedFileQueue {
      * @param unitSize 每个数据单元的固定大小
      * @return 删除数量
      */
-    public int deleteExpiredFileByOffset(long offset, int unitSize) {
+    public int deleteExpiredFileByOffset(long offset/*commitLog 目录下最小的物理偏移量*/, int unitSize/*每个数据单元的固定大小*/) {
         Object[] mfs = this.copyMappedFiles(0);
 
+        // 待删除文件列表
         List<MappedFile> files = new ArrayList<MappedFile>();
         int deleteCount = 0;
+
         if (null != mfs) {
 
             // 当前数组长度 - 1，因为当前正在顺序写的文件肯定是不能删除的
@@ -581,13 +585,15 @@ public class MappedFileQueue {
 
                     // 读取最后一个数据单元的前八个字节(cqData)，其实就是消息的偏移量
                     ByteBuffer byteBuffer = result.getByteBuffer();
+
+                    // CQData 的前8个字节是 物理偏移量
                     long maxOffsetInLogicQueue = byteBuffer.getLong();
 
                     // 释放
                     result.release();
 
                     // 如果true则说明：当前mf内所有的cqData都是过期数据
-                    destroy = maxOffsetInLogicQueue < offset;
+                    destroy = (maxOffsetInLogicQueue < offset/*当前mf内所有的cqData都是过期数据*/);
                     if (destroy) {
                         log.info("physic min offset " + offset + ", logics in current mappedFile max offset " + maxOffsetInLogicQueue + ", delete it");
                     }
@@ -608,7 +614,7 @@ public class MappedFileQueue {
             }
         }
 
-        // 从队列中删除
+        // 将删除文件的 mf 从 queue 中移除
         deleteExpiredFile(files);
 
         return deleteCount;
@@ -624,6 +630,7 @@ public class MappedFileQueue {
         boolean result = true;
 
         // 获取当前正在刷盘的文件，大概率就是当前正在顺序写的文件
+        // 获取刷盘位点所在的文件mappedFile
         MappedFile mappedFile = this.findMappedFileByOffset(this.flushedWhere, this.flushedWhere == 0);
         if (mappedFile != null) {
 
@@ -639,7 +646,7 @@ public class MappedFileQueue {
             // 赋值执行刷盘位点
             this.flushedWhere = where;
             if (0 == flushLeastPages) {
-                // 强制刷盘保存时间
+                // 强制刷盘保存时间 TODO ????????
                 this.storeTimestamp = tmpTimeStamp;
             }
         }
@@ -679,8 +686,8 @@ public class MappedFileQueue {
             if (firstMappedFile != null && lastMappedFile != null) {
                 if (offset < firstMappedFile.getFileFromOffset() || offset >= lastMappedFile.getFileFromOffset() + this.mappedFileSize) {
                     // 传入的 偏移量 是否能够通过校验，进来说明不通过，瞎几把传的，打印日志
-                    LOG_ERROR.warn("Offset not matched. Request offset: {}, firstOffset: {}, lastOffset: {}, mappedFileSize: {}, mappedFiles count: {}", offset, firstMappedFile.getFileFromOffset(),
-                            lastMappedFile.getFileFromOffset() + this.mappedFileSize, this.mappedFileSize, this.mappedFiles.size());
+                    String msg = "Offset not matched. Request offset: {}, firstOffset: {}, lastOffset: {}, mappedFileSize: {}, mappedFiles count: {}";
+                    LOG_ERROR.warn(msg, offset, firstMappedFile.getFileFromOffset(), lastMappedFile.getFileFromOffset() + this.mappedFileSize, this.mappedFileSize, this.mappedFiles.size());
                 } else {
                     // 传入的 偏移量 通过校验
 
@@ -707,6 +714,8 @@ public class MappedFileQueue {
                     // 遍历全部的 mappedFile ，根据偏移量查询
                     for (MappedFile tmpMappedFile : this.mappedFiles) {
                         if (offset >= tmpMappedFile.getFileFromOffset() && offset < tmpMappedFile.getFileFromOffset() + this.mappedFileSize) {
+
+                            // 被包含了
                             return tmpMappedFile;
                         }
                     }
