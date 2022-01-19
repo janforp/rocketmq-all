@@ -41,6 +41,7 @@ public class MappedFileQueue {
     private final String storePath;
 
     // 如果管理的是 MappedFile 则是 1G,如果是consumerQueue则为六百万字节
+    // 目录下每个文件的大小
     @Getter
     private final int mappedFileSize;
 
@@ -59,7 +60,7 @@ public class MappedFileQueue {
     @Getter
     private long flushedWhere = 0;
 
-    // 一般不用这个
+    // 一般不用这个，使用 flushedWhere 即可
     @Setter
     @Getter
     private long committedWhere = 0;
@@ -235,6 +236,7 @@ public class MappedFileQueue {
 
                 // 理论上说，当前目录下的每个文件大小都是 mappedFileSize
                 if (file.length() != this.mappedFileSize) {
+                    // 一般不会进来
                     log.warn(file + "\t" + file.length() + " length not matched message store config value, please check it manually");
                     return false;
                 }
@@ -245,7 +247,7 @@ public class MappedFileQueue {
                     MappedFile mappedFile = new MappedFile(filePath, mappedFileSize);
 
                     // 设置位点
-                    // 这里都不是准确值，准确值需要在 recover 节点设置
+                    // 这里不是准确值，准确值需要在 recover 方法中恢复 节点设置
                     mappedFile.setWrotePosition(this.mappedFileSize);
                     mappedFile.setFlushedPosition(this.mappedFileSize);
                     mappedFile.setCommittedPosition(this.mappedFileSize);
@@ -299,19 +301,18 @@ public class MappedFileQueue {
         if (mappedFileLast == null) {
             // 情况1：list 内没有 mappedFile
 
-            // createOffset 取值必须是 mappedFileSize 倍数或者 0
-
             /**
+             * createOffset 取值必须是 mappedFileSize 倍数或者 0
              * 举例：
              * mappedFileSize = 100 的时候
              * 1. startOffset = 101， l1 = 101 % 100 = 1,    则 createOffset = 101 - 1 = 100
              * 2. startOffset = 330， l1 = 330 % 100 = 30，   则 createOffset = 330 - 30 = 300
              */
-            long l = startOffset % this.mappedFileSize;
-            createOffset = startOffset - l;
+            long page = startOffset % this.mappedFileSize;
+            createOffset = startOffset - page;
         }
 
-        if (mappedFileLast != null && mappedFileLast.isFull()) {
+        if (mappedFileLast != null && mappedFileLast.isFull() /*最后一个文件存在，但是写满了*/) {
             // 情况2.list 中最后一个 mappedFile (当前顺序写的对象)已经写满了
 
             // createOffset 为上一个文件名 + mappedFileSize
@@ -333,7 +334,7 @@ public class MappedFileQueue {
             if (this.allocateMappedFileService != null) {
                 // 如果该服务不为空，则使用该服务去创建 mappedFile 对象
                 // 使用该对象创建的好处：当 mappedFileSize >= 1g 的时候，该服务会执行它的预热方法，在物理内存上真正的创建空间，后面通过 mappedFile 写的时候速度会快些
-                mappedFile = this.allocateMappedFileService.putRequestAndReturnMappedFile(nextFilePath, nextNextFilePath, this.mappedFileSize);
+                mappedFile = this.allocateMappedFileService.putRequestAndReturnMappedFile/*提交创建文件请求，并且返回*/(nextFilePath, nextNextFilePath, this.mappedFileSize);
             } else {
                 try {
                     // 自己创建
@@ -619,7 +620,7 @@ public class MappedFileQueue {
      * @param flushLeastPages 0：强制刷盘，>0 脏页数据必须达到该值的时候才刷盘
      * @return true：本次刷盘无数据落盘，false:本次刷盘有数据落盘
      */
-    public boolean flush(final int flushLeastPages) {
+    public boolean flush(final int flushLeastPages/*0：强制刷盘，>0 脏页数据必须达到该值的时候才刷盘*/) {
         boolean result = true;
 
         // 获取当前正在刷盘的文件，大概率就是当前正在顺序写的文件

@@ -44,6 +44,8 @@ public class AllocateMappedFileService extends ServiceThread {
     /**
      * 提交创建任务的接口，该方法会阻塞，直到第一个文件创建成功
      *
+     * 该方法创建的文件 大于等于1g 的是会预热
+     *
      * @param nextFilePath 全路径
      * @param nextNextFilePath 全路径
      * @param fileSize 大小
@@ -220,6 +222,10 @@ public class AllocateMappedFileService extends ServiceThread {
                     FlushDiskType flushDiskType = messageStoreConfig.getFlushDiskType();
                     // 1024 / 4 * 16 = 16
                     int flushLeastPagesWhenWarmMapedFile = messageStoreConfig.getFlushLeastPagesWhenWarmMapedFile();
+
+                    /**
+                     * 预热
+                     */
                     mappedFile.warmMappedFile(flushDiskType, flushLeastPagesWhenWarmMapedFile);
                 }
 
