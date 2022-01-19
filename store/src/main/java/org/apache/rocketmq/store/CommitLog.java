@@ -85,6 +85,8 @@ public class CommitLog {
      * value:偏移量 (key:队列id，value:该队列的偏移量)
      *
      * @see DefaultAppendMessageCallback#doAppend(long, java.nio.ByteBuffer, int, org.apache.rocketmq.store.MessageExtBrokerInner)
+     *
+     * CommitLog.this.topicQueueTable.put(key, ++queueOffset) 队列添加了一条消息，则逻辑偏移量++------逻辑偏移量
      */
     protected HashMap<String/* topic-queueid */, Long/* 该队列的逻辑offset */> topicQueueTable = new HashMap<String, Long>(1024);
 
@@ -473,7 +475,7 @@ public class CommitLog {
     protected static int calMsgLength(int sysFlag, int bodyLength, int topicLength, int propertiesLength) {
         int bornhostLength = (sysFlag & MessageSysFlag.BORNHOST_V6_FLAG) == 0 ? 8 : 20;
         int storehostAddressLength = (sysFlag & MessageSysFlag.STOREHOSTADDRESS_V6_FLAG) == 0 ? 8 : 20;
-        final int msgLen = 4 //TOTALSIZE
+        final int msgLen = 4 //TOTALSIZE（msgLen）
                 + 4 //MAGICCODE
                 + 4 //BODYCRC
                 + 4 //QUEUEID
@@ -994,6 +996,8 @@ public class CommitLog {
                         beginTimeInLock = 0;
                         return new PutMessageResult(PutMessageStatus.CREATE_MAPEDFILE_FAILED, result);
                     }
+
+                    // 创建文件之后再次调用添加消息接口
                     result = mappedFile.appendMessage(msg, this.appendMessageCallback);
                     break;
                 case MESSAGE_SIZE_EXCEEDED:
@@ -1728,9 +1732,9 @@ public class CommitLog {
         // 文件结尾最少有8个字节
         private static final int END_FILE_MIN_BLANK_LENGTH = 4 + 4;
 
-        private final ByteBuffer msgIdMemory;
+        private final ByteBuffer msgIdMemory;//16位
 
-        private final ByteBuffer msgIdV6Memory;
+        private final ByteBuffer msgIdV6Memory;// 28
 
         // Store the message content
         @Getter
@@ -1753,26 +1757,35 @@ public class CommitLog {
 
         /**
          * 向 commitLog 中追加消息
+         *
+         * result = cb.doAppend(this.getFileFromOffset(), byteBuffer, this.fileSize - currentPos, (MessageExtBrokerInner) messageExt);
+         *
+         * @see MappedFile#appendMessagesInner(org.apache.rocketmq.common.message.MessageExt, org.apache.rocketmq.store.AppendMessageCallback)
          */
         public AppendMessageResult doAppend(final long fileFromOffset/*commitLog文件名*/, final ByteBuffer byteBuffer, final int maxBlank/*该文件剩余的可写入的字节数*/, final MessageExtBrokerInner msgInner) {
             // STORETIMESTAMP + STOREHOSTADDRESS + OFFSET <br>
 
             // PHY OFFSET
             // 计算得到这条消息的物理 offset
-            long wroteOffset = fileFromOffset + byteBuffer.position();
+            long wroteOffset = fileFromOffset + byteBuffer.position()/*byteBuffer有内容的地方*/;
 
             int sysflag = msgInner.getSysFlag();
 
             int bornHostLength = (sysflag & MessageSysFlag.BORNHOST_V6_FLAG) == 0 ? 4 + 4 : 16 + 4;
             int storeHostLength = (sysflag & MessageSysFlag.STOREHOSTADDRESS_V6_FLAG) == 0 ? 4 + 4 : 16 + 4;
-            ByteBuffer bornHostHolder = ByteBuffer.allocate(bornHostLength);
-            ByteBuffer storeHostHolder = ByteBuffer.allocate(storeHostLength);
 
+            // 缓存 发送消息机器 ip
+            ByteBuffer bornHostHolder = ByteBuffer.allocate(bornHostLength);
+            // 缓存 存储ip
+            ByteBuffer storeHostHolder = ByteBuffer.allocate(storeHostLength);
+            // TODO ??
             this.resetByteBuffer(storeHostHolder, storeHostLength);
 
             // 创建消息 id
             String msgId;
             if ((sysflag & MessageSysFlag.STOREHOSTADDRESS_V6_FLAG) == 0) {
+
+                // 把 生成 消息的 storeHost 存储到 storeHostHolder 并且返回
                 ByteBuffer storeHostBytes = msgInner.getStoreHostBytes(storeHostHolder);
                 msgId = MessageDecoder.createMessageId(this.msgIdMemory, storeHostBytes, wroteOffset);
             } else {
@@ -1782,12 +1795,19 @@ public class CommitLog {
 
             // Record ConsumeQueue information
             keyBuilder.setLength(0);
-            keyBuilder.append(msgInner.getTopic());
+            String msgInnerTopic = msgInner.getTopic();
+            keyBuilder.append(msgInnerTopic);
             keyBuilder.append('-');
-            keyBuilder.append(msgInner.getQueueId());
+            int innerQueueId = msgInner.getQueueId();
+            keyBuilder.append(innerQueueId);
+
+            // topic-queueId
             String key = keyBuilder.toString();
+
+            // HashMap<String/* topic-queueid */, Long/* 该队列的逻辑offset */> topicQueueTable
             Long queueOffset = CommitLog.this.topicQueueTable.get(key);
             if (null == queueOffset) {
+                // 首次写入消息到该主题下的该队列
                 queueOffset = 0L;
                 CommitLog.this.topicQueueTable.put(key, queueOffset);
             }
@@ -1810,8 +1830,8 @@ public class CommitLog {
             /**
              * Serialize message
              */
-            final byte[] propertiesData = msgInner.getPropertiesString() == null ? null : msgInner.getPropertiesString().getBytes(MessageDecoder.CHARSET_UTF8);
-
+            String propertiesString = msgInner.getPropertiesString();
+            final byte[] propertiesData = propertiesString == null ? null : propertiesString.getBytes(MessageDecoder.CHARSET_UTF8);
             final int propertiesLength = propertiesData == null ? 0 : propertiesData.length;
 
             if (propertiesLength > Short.MAX_VALUE) {
@@ -1822,9 +1842,30 @@ public class CommitLog {
             final byte[] topicData = msgInner.getTopic().getBytes(MessageDecoder.CHARSET_UTF8);
             final int topicLength = topicData.length;
 
-            final int bodyLength = msgInner.getBody() == null ? 0 : msgInner.getBody().length;
+            byte[] body = msgInner.getBody();
+            final int bodyLength = body == null ? 0 : body.length;
 
             // 计数消息长度
+            /**
+             * final int msgLen = 4 //TOTALSIZE
+             *                 + 4 //MAGICCODE
+             *                 + 4 //BODYCRC
+             *                 + 4 //QUEUEID
+             *                 + 4 //FLAG
+             *                 + 8 //QUEUEOFFSET
+             *                 + 8 //PHYSICALOFFSET
+             *                 + 4 //SYSFLAG
+             *                 + 8 //BORNTIMESTAMP
+             *                 + bornhostLength //BORNHOST
+             *                 + 8 //STORETIMESTAMP
+             *                 + storehostAddressLength //STOREHOSTADDRESS
+             *                 + 4 //RECONSUMETIMES
+             *                 + 8 //Prepared Transaction Offset
+             *                 + 4 + (bodyLength > 0 ? bodyLength : 0) //BODY
+             *                 + 1 + topicLength //TOPIC
+             *                 + 2 + (propertiesLength > 0 ? propertiesLength : 0) //propertiesLength
+             *                 + 0;
+             */
             final int msgLen = calMsgLength(msgInner.getSysFlag(), bodyLength, topicLength, propertiesLength);
 
             // Exceeds the maximum message
@@ -1848,11 +1889,32 @@ public class CommitLog {
                 byteBuffer.put(this.msgStoreItemMemory.array(), 0, maxBlank);
 
                 // 返回结果表示已经到文件尾
+                // 拿到结果之后判断，如果发现是文件尾了，则新建文件再次写入新文件
                 return new AppendMessageResult(AppendMessageStatus.END_OF_FILE, wroteOffset, maxBlank, msgId, msgInner.getStoreTimestamp(), queueOffset, CommitLog.this.defaultMessageStore.now() - beginTimeMills);
             }
 
             // 还没到文件尾，这条消息可以写入
 
+            /**
+             *   4 //TOTALSIZE
+             * + 4 //MAGICCODE
+             * + 4 //BODYCRC
+             * + 4 //QUEUEID
+             * + 4 //FLAG
+             * + 8 //QUEUEOFFSET
+             * + 8 //PHYSICALOFFSET
+             * + 4 //SYSFLAG
+             * + 8 //BORNTIMESTAMP
+             * + bornhostLength //BORNHOST
+             * + 8 //STORETIMESTAMP
+             * + storehostAddressLength //STOREHOSTADDRESS
+             * + 4 //RECONSUMETIMES
+             * + 8 //Prepared Transaction Offset
+             * + 4 + (bodyLength > 0 ? bodyLength : 0) //BODY
+             * + 1 + topicLength //TOPIC
+             * + 2 + (propertiesLength > 0 ? propertiesLength : 0) //propertiesLength
+             * + 0;
+             */
             // Initialization of storage space
             this.resetByteBuffer(msgStoreItemMemory, msgLen);
             // 1 TOTALSIZE

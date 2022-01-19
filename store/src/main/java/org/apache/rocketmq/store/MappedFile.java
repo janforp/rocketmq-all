@@ -37,7 +37,7 @@ public class MappedFile extends ReferenceResource {
 
     protected static final InternalLogger log = InternalLoggerFactory.getLogger(LoggerName.STORE_LOGGER_NAME);
 
-    // 内存页大小
+    // 内存页大小 4K
     public static final int OS_PAGE_SIZE = 1024 * 4;
 
     // 当前进程下，所有的 MappedFile 占用的总的虚拟内存的大小
@@ -46,7 +46,11 @@ public class MappedFile extends ReferenceResource {
     // 当前进程下，所有的 MappedFile 对象的个数
     private static final AtomicInteger TOTAL_MAPPED_FILES = new AtomicInteger(0);
 
-    // 当前数据写入到 MappedFile 的位点，写入点
+    /**
+     * 当前数据写入到 MappedFile 的位点，写入点
+     *
+     * @see MappedFile#appendMessagesInner(org.apache.rocketmq.common.message.MessageExt, org.apache.rocketmq.store.AppendMessageCallback)
+     */
     protected final AtomicInteger wrotePosition = new AtomicInteger(0);
 
     /**
@@ -55,7 +59,11 @@ public class MappedFile extends ReferenceResource {
     protected final AtomicInteger committedPosition = new AtomicInteger(0);
     // 0 ------- 落盘数据(安全数据) --------- flushedPos ------- 脏页(不安全的数据) ------- wrotePos -------- 空闲 -------.....
 
-    // 刷盘位点，落盘点
+    /**
+     * 刷盘位点，落盘点
+     *
+     * @see MappedFile#flush(int)
+     */
     private final AtomicInteger flushedPosition = new AtomicInteger(0);
 
     // 文件大小
@@ -63,13 +71,12 @@ public class MappedFile extends ReferenceResource {
     protected int fileSize;
 
     // 文件访问通道
-    @Getter
-    protected FileChannel fileChannel;
 
     /**
-     * Message will put to here first, and then reput to FileChannel if writeBuffer is not null.
+     * @see MappedFile#file 该文件的通道
      */
-    protected ByteBuffer writeBuffer = null;
+    @Getter
+    protected FileChannel fileChannel;
 
     /**
      * 瞬态存储池
@@ -82,14 +89,31 @@ public class MappedFile extends ReferenceResource {
     private String fileName;
 
     // 文件名称转long 偏移量
+
+    /**
+     * this.fileFromOffset = Long.parseLong(this.file.getName()); // 通过文件名称赋值
+     */
     @Getter
     private long fileFromOffset;
 
     // 文件
+
+    /**
+     * this.file = new File(fileName); // 创建文件
+     */
     @Getter
     private File file;
 
     // 内存映射缓冲区，访问虚拟内存
+
+    /**
+     * Message will put to here first, and then reput to FileChannel if writeBuffer is not null.
+     *
+     * @see MappedFile#init(java.lang.String, int, org.apache.rocketmq.store.TransientStorePool)
+     *
+     * 内存池的回城
+     */
+    protected ByteBuffer writeBuffer = null;
 
     /**
      * 总结
@@ -97,10 +121,15 @@ public class MappedFile extends ReferenceResource {
      * 如果当文件超出1.5G限制时，可以通过position参数重新map文件后面的内容。
      * MappedByteBuffer在处理大文件时的确性能很高，但也存在一些问题，如内存占用、文件关闭不确定，被其打开的文件只有在垃圾回收的才会被关闭，而且这个时间点是不确定的。
      */
+    //this.mappedByteBuffer = this.fileChannel.map/*FileChannel提供了map方法把文件映射到虚拟内存*/(MapMode.READ_WRITE, 0/*文件映射时的起始位置。*/, fileSize);
     @Getter
     private MappedByteBuffer mappedByteBuffer;
 
-    // 该文件最近msg 的存储时间
+    /**
+     * 该文件最近msg 的存储时间
+     *
+     * this.storeTimestamp = result.getStoreTimestamp();
+     */
     @Getter
     private volatile long storeTimestamp = 0;
 
@@ -135,6 +164,7 @@ public class MappedFile extends ReferenceResource {
     }
 
     /**
+     * TODO
      * 释放堆外内存
      */
     public static void clean(final ByteBuffer buffer) {
@@ -149,6 +179,7 @@ public class MappedFile extends ReferenceResource {
         invoke(cleaner, "clean");
     }
 
+    // TODO
     private static Object invoke(final Object target, final String methodName, final Class<?>... args) {
         return AccessController.doPrivileged((PrivilegedAction<Object>) () -> {
             try {
@@ -169,6 +200,7 @@ public class MappedFile extends ReferenceResource {
         }
     }
 
+    // TODO
     private static ByteBuffer viewed(ByteBuffer buffer) {
         String methodName = "viewedBuffer";
         Method[] methods = buffer.getClass().getMethods();
@@ -187,10 +219,12 @@ public class MappedFile extends ReferenceResource {
         }
     }
 
+    // 当前进程下，所有的 MappedFile 对象的个数
     public static int getTotalMappedFiles() {
         return TOTAL_MAPPED_FILES.get();
     }
 
+    // 当前进程下，所有的 MappedFile 占用的总的虚拟内存的大小
     public static long getTotalMappedVirtualMemory() {
         return TOTAL_MAPPED_VIRTUAL_MEMORY.get();
     }
@@ -278,7 +312,7 @@ public class MappedFile extends ReferenceResource {
 
             // 使用内存映射创建切片
             ByteBuffer byteBuffer = writeBuffer != null ? writeBuffer.slice() : this.mappedByteBuffer.slice();
-            byteBuffer.position(currentPos); // 设置写入点
+            byteBuffer.position(currentPos); // 设置写入点为 currentPos，则下次写入内容的时候从 currentPos + 1 开始
             AppendMessageResult result;
             if (messageExt instanceof MessageExtBrokerInner) {
                 // 向内存映射追加数据，具体由该回调对象控制
@@ -290,8 +324,11 @@ public class MappedFile extends ReferenceResource {
                 return new AppendMessageResult(AppendMessageStatus.UNKNOWN_ERROR);
             }
 
+            // 本次总共追加（写入）的总字节数量
+            int wroteBytes = result.getWroteBytes();
+
             // 更新数据写入的位点
-            this.wrotePosition.addAndGet(result.getWroteBytes());
+            this.wrotePosition.addAndGet(wroteBytes);
 
             // 保存最后一条消息的存储时间
             this.storeTimestamp = result.getStoreTimestamp();
@@ -313,8 +350,11 @@ public class MappedFile extends ReferenceResource {
 
         if ((currentPos + data.length) <= this.fileSize) { // 条件成立：说明文件还没有满，可以继续写入
             try {
+                // 设置写入位点
                 this.fileChannel.position(currentPos);
-                this.fileChannel.write(ByteBuffer.wrap(data));
+                ByteBuffer byteBuffer = ByteBuffer.wrap(data);
+                // 通过文件通道写入
+                this.fileChannel.write(byteBuffer);
             } catch (Throwable e) {
                 log.error("Error occurred when append message to mappedFile.", e);
             }
@@ -329,6 +369,8 @@ public class MappedFile extends ReferenceResource {
 
     /**
      * Content of data from offset to offset + length will be wrote to file.
+     *
+     * data 中的部分数据写入当前对象对应的文件中
      *
      * @param offset The offset of the subarray to be used.
      * @param length The length of the subarray to be used.
@@ -355,7 +397,8 @@ public class MappedFile extends ReferenceResource {
      * @return The current flushed position 当前刷盘点
      */
     public int flush(final int flushLeastPages) {
-        if (this.isAbleToFlush(flushLeastPages)) {
+        boolean ableToFlush = this.isAbleToFlush(flushLeastPages);
+        if (ableToFlush) {
             if (this.hold()) { // 引用计数 +1，保证刷盘过程中不会释放资源！！！！！！！
 
                 // 获取数据写入位点
@@ -396,7 +439,9 @@ public class MappedFile extends ReferenceResource {
             //no need to commit data to file channel, so just regard wrotePosition as committedPosition.
             return this.wrotePosition.get();
         }
-        if (this.isAbleToCommit(commitLeastPages)) {
+
+        boolean ableToCommit = this.isAbleToCommit(commitLeastPages);
+        if (ableToCommit) {
             if (this.hold()) {
                 commit0(commitLeastPages);
                 this.release();

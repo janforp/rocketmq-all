@@ -13,6 +13,9 @@ public class PutMessageResult {
     @Setter
     private PutMessageStatus putMessageStatus;
 
+    /**
+     * 追加消息内容到 commitLog 文件的结果
+     */
     @Getter
     @Setter
     private AppendMessageResult appendMessageResult;
