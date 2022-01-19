@@ -103,10 +103,8 @@ public class MessageClientIDSetter {
     }
 
     public static String createUniqID() {
-        StringBuilder sb = new StringBuilder(LEN * 2);
-        sb.append(FIX_STRING);
-        sb.append(UtilAll.bytes2string(createUniqIDBuffer()));
-        return sb.toString();
+        byte[] uniqIDBuffer = createUniqIDBuffer();
+        return FIX_STRING + UtilAll.bytes2string(uniqIDBuffer);
     }
 
     private static byte[] createUniqIDBuffer() {
@@ -121,8 +119,10 @@ public class MessageClientIDSetter {
     }
 
     public static void setUniqID(final Message msg) {
-        if (msg.getProperty(MessageConst.PROPERTY_UNIQ_CLIENT_MESSAGE_ID_KEYIDX) == null) {
-            msg.putProperty(MessageConst.PROPERTY_UNIQ_CLIENT_MESSAGE_ID_KEYIDX, createUniqID());
+        if (msg.getProperty(MessageConst.PROPERTY_UNIQ_CLIENT_MESSAGE_ID_KEYIDX/*UNIQ_KEY*/) == null) {
+
+            String uniqID = createUniqID();
+            msg.putProperty(MessageConst.PROPERTY_UNIQ_CLIENT_MESSAGE_ID_KEYIDX, uniqID);
         }
     }
 

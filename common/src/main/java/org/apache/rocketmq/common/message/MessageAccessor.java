@@ -53,7 +53,7 @@ public class MessageAccessor {
     }
 
     public static String getReconsumeTime(final Message msg) {
-        return msg.getProperty(MessageConst.PROPERTY_RECONSUME_TIME);
+        return msg.getProperty(MessageConst.PROPERTY_RECONSUME_TIME/*RECONSUME_TIME*/);
     }
 
     public static void setMaxReconsumeTimes(final Message msg, String maxReconsumeTimes) {
@@ -61,7 +61,7 @@ public class MessageAccessor {
     }
 
     public static String getMaxReconsumeTimes(final Message msg) {
-        return msg.getProperty(MessageConst.PROPERTY_MAX_RECONSUME_TIMES);
+        return msg.getProperty(MessageConst.PROPERTY_MAX_RECONSUME_TIMES/*MAX_RECONSUME_TIMES*/);
     }
 
     public static void setConsumeStartTimeStamp(final Message msg, String propertyConsumeStartTimeStamp) {

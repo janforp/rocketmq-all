@@ -833,6 +833,7 @@ public class DefaultMQProducerImpl implements MQProducerInner {
         }
     }
 
+    // 发送 核心 实现
     private SendResult sendKernelImpl(final Message msg, final MessageQueue mq, final CommunicationMode communicationMode, final SendCallback sendCallback, final TopicPublishInfo topicPublishInfo, final long timeout)
             throws MQClientException, RemotingException, MQBrokerException, InterruptedException {
         long beginStartTime = System.currentTimeMillis();
@@ -865,8 +866,9 @@ public class DefaultMQProducerImpl implements MQProducerInner {
                 }
 
                 boolean topicWithNamespace = false;
-                if (null != this.mQClientFactory.getClientConfig().getNamespace()) {
-                    msg.setInstanceId(this.mQClientFactory.getClientConfig().getNamespace());
+                ClientConfig clientConfig = this.mQClientFactory.getClientConfig();
+                if (null != clientConfig.getNamespace()) {
+                    msg.setInstanceId(clientConfig.getNamespace());
                     topicWithNamespace = true;
                 }
 
@@ -880,7 +882,8 @@ public class DefaultMQProducerImpl implements MQProducerInner {
                     msgBodyCompressed = true;
                 }
 
-                final String tranMsg = msg.getProperty(MessageConst.PROPERTY_TRANSACTION_PREPARED);
+                // 事务消息特有的属性
+                final String tranMsg = msg.getProperty(MessageConst.PROPERTY_TRANSACTION_PREPARED/*TRAN_MSG*/);
                 if (tranMsg != null && Boolean.parseBoolean(tranMsg)) {
                     sysFlag |= MessageSysFlag.TRANSACTION_PREPARED_TYPE;
                 }
@@ -914,7 +917,8 @@ public class DefaultMQProducerImpl implements MQProducerInner {
                         context.setMsgType(MessageType.Trans_Msg_Half);
                     }
 
-                    if (msg.getProperty("__STARTDELIVERTIME") != null || msg.getProperty(MessageConst.PROPERTY_DELAY_TIME_LEVEL) != null) {
+                    if (msg.getProperty("__STARTDELIVERTIME") != null || msg.getProperty(MessageConst.PROPERTY_DELAY_TIME_LEVEL/*DELAY*/) != null) {
+                        // 延迟
                         context.setMsgType(MessageType.Delay_Msg);
                     }
                     this.executeSendMessageHookBefore(context);
@@ -948,13 +952,17 @@ public class DefaultMQProducerImpl implements MQProducerInner {
                 requestHeader.setBatch(msg instanceof MessageBatch);
 
                 // 消息重试的逻辑
-                if (requestHeader.getTopic().startsWith(MixAll.RETRY_GROUP_TOPIC_PREFIX)) { //  "%RETRY%"
+                if (requestHeader.getTopic().startsWith(MixAll.RETRY_GROUP_TOPIC_PREFIX/*%RETRY%*/)) {
+                    // return msg.getProperty(MessageConst.PROPERTY_RECONSUME_TIME/*RECONSUME_TIME*/);
                     String reconsumeTimes = MessageAccessor.getReconsumeTime(msg);
                     if (reconsumeTimes != null) {
-                        requestHeader.setReconsumeTimes(Integer.valueOf(reconsumeTimes));
-                        MessageAccessor.clearProperty(msg, MessageConst.PROPERTY_RECONSUME_TIME);
+                        // 重试次数
+                        Integer reTime = Integer.valueOf(reconsumeTimes);
+                        requestHeader.setReconsumeTimes(reTime);
+                        MessageAccessor.clearProperty(msg, MessageConst.PROPERTY_RECONSUME_TIME/*RECONSUME_TIME*/);
                     }
 
+                    // return msg.getProperty(MessageConst.PROPERTY_MAX_RECONSUME_TIMES/*MAX_RECONSUME_TIMES*/);
                     String maxReconsumeTimes = MessageAccessor.getMaxReconsumeTimes(msg);
                     if (maxReconsumeTimes != null) {
                         requestHeader.setMaxReconsumeTimes(Integer.valueOf(maxReconsumeTimes));

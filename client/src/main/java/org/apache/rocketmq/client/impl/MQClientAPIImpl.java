@@ -389,6 +389,12 @@ public class MQClientAPIImpl {
         return sendMessage(addr, brokerName, msg, requestHeader, timeoutMillis, communicationMode, null, null, null, 0, context, producer);
     }
 
+    /**
+     * @see RequestCode.SEND_REPLY_MESSAGE_V2
+     * @see RequestCode.SEND_REPLY_MESSAGE
+     * @see RequestCode.SEND_BATCH_MESSAGE
+     * @see RequestCode.SEND_MESSAGE_V2
+     */
     public SendResult sendMessage(
             final String addr,  // broker 地址
             final String brokerName, // 名称
@@ -406,12 +412,11 @@ public class MQClientAPIImpl {
 
         long beginStartTime = System.currentTimeMillis();
         RemotingCommand request;
-        String msgType = msg.getProperty(MessageConst.PROPERTY_MESSAGE_TYPE);
+        String msgType = msg.getProperty(MessageConst.PROPERTY_MESSAGE_TYPE/*MSG_TYPE*/);
         boolean isReply = msgType != null && msgType.equals(MixAll.REPLY_MESSAGE_FLAG/*reply 回执消息？*/);
 
         if (isReply) {
             if (sendSmartMsg) {
-
                 // 节省宽带
                 SendMessageRequestHeaderV2 requestHeaderV2 = SendMessageRequestHeaderV2.createSendMessageRequestHeaderV2(requestHeader);
                 request = RemotingCommand.createRequestCommand(RequestCode.SEND_REPLY_MESSAGE_V2, requestHeaderV2);
@@ -484,7 +489,9 @@ public class MQClientAPIImpl {
             final SendMessageContext context,
             final DefaultMQProducerImpl producer
     ) throws InterruptedException, RemotingException {
+
         final long beginStartTime = System.currentTimeMillis();
+
         this.remotingClient.invokeAsync(addr, request, timeoutMillis, new InvokeCallback() {
             @Override
             public void operationComplete(ResponseFuture responseFuture) {
