@@ -6,9 +6,11 @@ import java.util.concurrent.atomic.AtomicLong;
 
 public abstract class ReferenceResource {
 
-    // 引用计数，新建的时候就是1
-    // 提供查询服务的时候 +1
-    // 当=0的时候，说明该资源可以释放了，没有任何其他程序依赖他了
+    /**
+     * 引用计数，新建的时候就是1
+     * 提供查询服务{@link org.apache.rocketmq.store.MappedFile#selectMappedBuffer(int, int)}的时候 +1
+     * 当=0的时候，说明该资源可以释放了，没有任何其他程序依赖他了
+     */
     protected final AtomicLong refCount = new AtomicLong(1);
 
     // 是否存活，默认是

@@ -11,12 +11,14 @@ public class SelectMappedBufferResult {
     @Getter
     private final long startOffset;
 
+    // 切片
     @Getter
     private final ByteBuffer byteBuffer;
 
     @Getter
     private int size;
 
+    // 切片归属的文件
     private MappedFile mappedFile;
 
     public void setSize(final int s) {

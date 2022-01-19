@@ -29,15 +29,21 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 
 /**
+ * 0.....落盘数据.....flushedPosition.....脏页数据.....wrotePosition.......空闲部分.....文件结尾
+ *
  * commitLog 顺序写的文件
  * consumerQueue
  * indexFile
+ *
+ * 系统调用：
+ * mmap 零拷贝
  */
+@SuppressWarnings("all")
 public class MappedFile extends ReferenceResource {
 
     protected static final InternalLogger log = InternalLoggerFactory.getLogger(LoggerName.STORE_LOGGER_NAME);
 
-    // 内存页大小 4K
+    // 操作系统页大小 4K， PAGE_CACHE
     public static final int OS_PAGE_SIZE = 1024 * 4;
 
     // 当前进程下，所有的 MappedFile 占用的总的虚拟内存的大小
@@ -46,6 +52,16 @@ public class MappedFile extends ReferenceResource {
     // 当前进程下，所有的 MappedFile 对象的个数
     private static final AtomicInteger TOTAL_MAPPED_FILES = new AtomicInteger(0);
 
+    /**
+     * @see MappedFile#wrotePosition
+     * @see MappedFile#committedPosition 跟 {@link MappedFile#wrotePosition} 相同的功能，什么时候用这个字段呢？只有当前文件不使用{@link MappedFile#mappedByteBuffer} 的时候才用 committedPosition，而是用 {@link MappedFile#writeBuffer}的时候
+     *
+     * 从开始到 flushedPosition 这段数据是保证落盘的，从 flushedPosition 到 wrotePosition 之间的这部分数据是未落盘的！称为脏页数据，从 wrotePosition 到 最后 是空闲部分
+     *
+     * 0.....落盘数据.....flushedPosition.....脏页数据.....wrotePosition.......空闲部分.....文件结尾
+     *
+     * @see MappedFile#flushedPosition
+     */
     /**
      * 当前数据写入到 MappedFile 的位点，写入点
      *
@@ -60,7 +76,8 @@ public class MappedFile extends ReferenceResource {
     // 0 ------- 落盘数据(安全数据) --------- flushedPos ------- 脏页(不安全的数据) ------- wrotePos -------- 空闲 -------.....
 
     /**
-     * 刷盘位点，落盘点
+     * 刷盘位点，刷盘点
+     * 从开始到 flushedPosition 这段数据是保证落盘的，从 flushedPosition 到 wrotePosition 之间的这部分数据是未落盘的！称为脏页数据，从 wrotePosition 到 最后 是空闲部分
      *
      * @see MappedFile#flush(int)
      */
@@ -73,6 +90,9 @@ public class MappedFile extends ReferenceResource {
     // 文件访问通道
 
     /**
+     * RandomAccessFile randomAccessFile = new RandomAccessFile(this.file, "rw");
+     * this.fileChannel = randomAccessFile.getChannel();
+     *
      * @see MappedFile#file 该文件的通道
      */
     @Getter
@@ -84,7 +104,15 @@ public class MappedFile extends ReferenceResource {
      */
     protected TransientStorePool transientStorePool = null;
 
-    // 文件名称(commitLog:文件名就是第一条消息的物理偏移量，consumerQueue：文件名也是第一条消息的偏移量，indexFile:文件名就是 年月日时分秒)
+    /**
+     * 文件名称
+     * <P></P>
+     * commitLog:文件名就是第一条消息的物理偏移量，
+     * <P></P>
+     * consumerQueue：文件名也是第一条消息的偏移量，
+     * <P></P>
+     * indexFile:文件名就是 年月日时分秒
+     */
     @Getter
     private String fileName;
 
@@ -116,10 +144,17 @@ public class MappedFile extends ReferenceResource {
     protected ByteBuffer writeBuffer = null;
 
     /**
+     * 该对象{@link MappedFile#mappedByteBuffer}会在当前进程的虚拟空间内开辟一片内存空间，大小跟文件大小{@link MappedFile#file} 是 一比一的，该虚拟空间由该对象控制！！！！通过该对象{@link MappedFile#mappedByteBuffer}可以对文件进行任意位置的读写
+     *
+     * 虚拟内存不一定真正的在物理内存上开辟来空间，而是在你访问的时候去开辟（通过缺页异常）
+     *
+     *
      * 总结
      * MappedByteBuffer使用虚拟内存，因此分配(map)的内存大小不受JVM的-Xmx参数限制，但是也是有大小限制的。
      * 如果当文件超出1.5G限制时，可以通过position参数重新map文件后面的内容。
      * MappedByteBuffer在处理大文件时的确性能很高，但也存在一些问题，如内存占用、文件关闭不确定，被其打开的文件只有在垃圾回收的才会被关闭，而且这个时间点是不确定的。
+     *
+     * @see MappedFile#fileChannel
      */
     //this.mappedByteBuffer = this.fileChannel.map/*FileChannel提供了map方法把文件映射到虚拟内存*/(MapMode.READ_WRITE, 0/*文件映射时的起始位置。*/, fileSize);
     @Getter
@@ -649,6 +684,11 @@ public class MappedFile extends ReferenceResource {
      * @return The max position which have valid data
      */
     public int getReadPosition() {
+        /**
+         * @see MappedFile#wrotePosition
+         * @see MappedFile#committedPosition 跟 {@link MappedFile#wrotePosition} 相同的功能，什么时候用这个字段呢？只有当前文件不使用{@link MappedFile#mappedByteBuffer} 的时候才用 committedPosition，而是用 {@link MappedFile#writeBuffer}的时候
+         *
+         */
         return this.writeBuffer == null ? this.wrotePosition.get() : this.committedPosition.get();
     }
 
@@ -681,6 +721,8 @@ public class MappedFile extends ReferenceResource {
             if (type == FlushDiskType.SYNC_FLUSH) {
                 if ((i / OS_PAGE_SIZE) - (flush / OS_PAGE_SIZE) >= pages) {
                     flush = i;
+
+                    // 落盘
                     mappedByteBuffer.force();
                 }
             }
