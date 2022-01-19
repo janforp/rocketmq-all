@@ -586,6 +586,8 @@ public class NettyRemotingClient extends NettyRemotingAbstract implements Remoti
     @SneakyThrows
     public void invokeAsync(String addr/*服务端地址*/, RemotingCommand request/*请求数据*/, long timeoutMillis, InvokeCallback invokeCallback) {
         long beginStartTime = System.currentTimeMillis();
+
+        // 拿到跟服务端的连接
         final Channel channel = this.getAndCreateChannel(addr);
         if (channel != null && channel.isActive()) {
             doBeforeRpcHooks(addr, request);

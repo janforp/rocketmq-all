@@ -560,7 +560,8 @@ public class DefaultMQProducerImpl implements MQProducerInner {
      * DEFAULT ASYNC -------------------------------------------------------
      */
     public void send(Message msg, SendCallback sendCallback) throws MQClientException, RemotingException, InterruptedException {
-        send(msg, sendCallback, this.defaultMQProducer.getSendMsgTimeout());
+        int sendMsgTimeout = this.defaultMQProducer.getSendMsgTimeout();
+        send(msg, sendCallback, sendMsgTimeout);
     }
 
     /**
@@ -575,6 +576,8 @@ public class DefaultMQProducerImpl implements MQProducerInner {
     @Deprecated
     public void send(final Message msg, final SendCallback sendCallback, final long timeout) throws MQClientException, RemotingException, InterruptedException {
         final long beginStartTime = System.currentTimeMillis();
+
+        // return null == asyncSenderExecutor ? defaultAsyncSenderExecutor : asyncSenderExecutor;
         ExecutorService executor = this.getAsyncSenderExecutor();
         try {
             executor.submit(new Runnable() {
@@ -588,6 +591,8 @@ public class DefaultMQProducerImpl implements MQProducerInner {
                             sendCallback.onException(e);
                         }
                     } else {
+
+                        // 超时异常
                         sendCallback.onException(new RemotingTooMuchRequestException("DEFAULT ASYNC send call timeout"));
                     }
                 }
@@ -983,7 +988,7 @@ public class DefaultMQProducerImpl implements MQProducerInner {
                             //Fix bug:https://github.com/apache/rocketmq-externals/issues/66
                             tmpMessage = MessageAccessor.cloneMessage(msg);
                             messageCloned = true;
-                            msg.setBody(prevBody);
+                            msg.setBody(prevBody/*压缩之前的消息体*/);
                         }
 
                         if (topicWithNamespace) {
@@ -1001,9 +1006,9 @@ public class DefaultMQProducerImpl implements MQProducerInner {
 
                         String brokerName = mq.getBrokerName();
                         int retryTimesWhenSendAsyncFailed = this.defaultMQProducer.getRetryTimesWhenSendAsyncFailed();
-                        sendResult = mqClientAPIImpl.sendMessage(brokerAddr,brokerName, tmpMessage, requestHeader,
-                                timeout - costTimeAsync, communicationMode, sendCallback, topicPublishInfo,
-                                this.mQClientFactory, retryTimesWhenSendAsyncFailed, context, this);
+                        sendResult = mqClientAPIImpl.sendMessage(
+                                brokerAddr, brokerName, tmpMessage, requestHeader, timeout - costTimeAsync,
+                                communicationMode, sendCallback, topicPublishInfo, this.mQClientFactory, retryTimesWhenSendAsyncFailed, context, this);
                         break;
                     case ONEWAY:
                     case SYNC:
