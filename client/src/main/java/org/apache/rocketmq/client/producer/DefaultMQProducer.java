@@ -439,7 +439,9 @@ public class DefaultMQProducer extends ClientConfig implements MQProducer {
     @Override
     public SendResult send(Message msg, MessageQueue mq) throws MQClientException, RemotingException, MQBrokerException, InterruptedException {
         msg.setTopic(withNamespace(msg.getTopic()));
-        return this.defaultMQProducerImpl.send(msg, queueWithNamespace(mq));
+
+        MessageQueue messageQueue = queueWithNamespace(mq);
+        return this.defaultMQProducerImpl.send(msg, messageQueue);
     }
 
     /**
@@ -474,7 +476,8 @@ public class DefaultMQProducer extends ClientConfig implements MQProducer {
     @Override
     public void send(Message msg, MessageQueue mq, SendCallback sendCallback) throws MQClientException, RemotingException, InterruptedException {
         msg.setTopic(withNamespace(msg.getTopic()));
-        this.defaultMQProducerImpl.send(msg, queueWithNamespace(mq), sendCallback);
+        MessageQueue messageQueue = queueWithNamespace(mq);
+        this.defaultMQProducerImpl.send(msg, messageQueue, sendCallback);
     }
 
     /**

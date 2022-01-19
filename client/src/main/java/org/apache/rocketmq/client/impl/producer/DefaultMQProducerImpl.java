@@ -1154,6 +1154,8 @@ public class DefaultMQProducerImpl implements MQProducerInner {
         Validators.checkMessage(msg, this.defaultMQProducer);
 
         if (!msg.getTopic().equals(mq.getTopic())) {
+            // 消息的 topic 跟 队列的 topic 不一样，报错
+
             throw new MQClientException("message's topic not equal mq's topic", null);
         }
 
@@ -1249,6 +1251,7 @@ public class DefaultMQProducerImpl implements MQProducerInner {
 
     private SendResult sendSelectImpl(Message msg, MessageQueueSelector selector, Object arg, final CommunicationMode communicationMode, final SendCallback sendCallback, final long timeout)
             throws MQClientException, RemotingException, MQBrokerException, InterruptedException {
+
         long beginStartTime = System.currentTimeMillis();
         this.makeSureStateOK();
         Validators.checkMessage(msg, this.defaultMQProducer);
