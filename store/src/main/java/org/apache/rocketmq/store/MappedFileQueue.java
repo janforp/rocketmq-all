@@ -18,7 +18,7 @@ import java.util.ListIterator;
 import java.util.concurrent.CopyOnWriteArrayList;
 
 /**
- * MappedFile 的管理对象
+ * MappedFile 的管理对象，MappedFile容器
  *
  * commitLog跟 conusmeQueue 都通过这个对象来控制
  */
@@ -59,6 +59,7 @@ public class MappedFileQueue {
     @Getter
     private long flushedWhere = 0;
 
+    // 一般不用这个
     @Setter
     @Getter
     private long committedWhere = 0;
@@ -450,7 +451,7 @@ public class MappedFileQueue {
     public long getMaxOffset() {
         MappedFile mappedFile = getLastMappedFile();
         if (mappedFile != null) {
-            return mappedFile.getFileFromOffset() + mappedFile.getReadPosition();
+            return mappedFile.getFileFromOffset() + mappedFile.getReadPosition()/*wrotePositon*/;
         }
         return 0;
     }
@@ -737,6 +738,12 @@ public class MappedFileQueue {
         return mappedFileFirst;
     }
 
+    /**
+     * 查询包含该 offset 的 mappedFile
+     *
+     * @param offset
+     * @return
+     */
     public MappedFile findMappedFileByOffset(final long offset) {
         return findMappedFileByOffset(offset, false);
     }
