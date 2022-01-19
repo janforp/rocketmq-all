@@ -99,7 +99,6 @@ public class CommitLog {
      *
      * CommitLog.this.topicQueueTable.put(key, ++queueOffset) 队列添加了一条消息，则逻辑偏移量++------逻辑偏移量
      */
-
     @Setter
     @Getter
     protected HashMap<String/* topic-queueid */, Long/* 该队列的逻辑offset ，逻辑偏移量*/> topicQueueTable = new HashMap<String, Long>(1024);
