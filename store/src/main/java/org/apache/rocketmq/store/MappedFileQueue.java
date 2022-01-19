@@ -9,6 +9,7 @@ import org.apache.rocketmq.logging.InternalLoggerFactory;
 
 import java.io.File;
 import java.io.IOException;
+import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Iterator;
@@ -86,6 +87,12 @@ public class MappedFileQueue {
         }
     }
 
+    /**
+     * 查询当前文件列表中，修改时间 >= 传入时间的第一个文件
+     *
+     * @param timestamp 修改时间
+     * @return 当前文件列表中，修改时间 >= 传入时间的第一个文件
+     */
     public MappedFile getMappedFileByTime(final long timestamp) {
         Object[] mfs = this.copyMappedFiles(0);
 
@@ -103,6 +110,7 @@ public class MappedFileQueue {
             }
         }
 
+        // 如果都不满足，则返回最后一个文件
         return (MappedFile) mfs[mfs.length - 1];
     }
 
@@ -117,25 +125,60 @@ public class MappedFileQueue {
         return mfs;
     }
 
+    /**
+     * 删除脏文件，删除
+     *
+     * 意思就是删除 最小偏移量在 offset 之后的文件，因为后面可能是脏文件，出问题了
+     *
+     *
+     * 0  .......  n
+     * n+1......... 2n
+     * n+2 ......... 3n
+     * ...
+     * m .......... mn
+     *
+     * 传入的 offset 是 n+10
+     *
+     * 则删除 n+2 以及之后的文件剩余文件为
+     * 0  .......  n
+     * n+1......... 2n
+     *
+     * @param offset 物理偏移量
+     */
     public void truncateDirtyFiles(long offset) {
 
         // 待删除的列表
         List<MappedFile> willRemoveFiles = new ArrayList<MappedFile>();
 
+        // 遍历所有的文件
         for (MappedFile file : this.mappedFiles) {
 
             // 该文件的最后一个字节的偏移量
-            long fileTailOffset = file.getFileFromOffset()/*文件名称转long，*/ + this.mappedFileSize;
+            long fileTailOffset = file.getFileFromOffset()/*文件名称转long，*/ + this.mappedFileSize/*每个文件的大小*/;
             if (fileTailOffset > offset  /*如果该文件的最大偏移量 > 传入的offset*/) {
+                // 存在下面2个情况：
+                // fileFromOffset ..................................... offset ............................. fileTailOffset
+                // ......... offset .......上一个文件的结尾   fileFromOffset .................................................................. fileTailOffset
+
                 if (offset >= file.getFileFromOffset()) {
+                    // 情况1，传入的 offset 被包含在当前文件中
+                    // fileFromOffset ..................................... offset ............................. fileTailOffset
+
                     file.setWrotePosition((int) (offset % this.mappedFileSize));
                     file.setCommittedPosition((int) (offset % this.mappedFileSize));
                     file.setFlushedPosition((int) (offset % this.mappedFileSize));
                 } else {
+                    // 情况2，传入的 offset 在当前文件之前了
+                    // ......... offset .......上一个文件的结尾   fileFromOffset .................................................................. fileTailOffset
+
                     file.destroy(1000);
                     willRemoveFiles.add(file);
                 }
             }
+
+            // 情况3
+            // fileFromOffset .................................................................. fileTailOffset 文件尾巴  ..... offset ....
+            // 如果文件的最大偏移量 小于 传入的 offset 则该文件不动
         }
 
         this.deleteExpiredFile(willRemoveFiles);
@@ -195,7 +238,8 @@ public class MappedFileQueue {
 
                 try {
                     // 根据当前文件的路径创建对象
-                    MappedFile mappedFile = new MappedFile(file.getPath(), mappedFileSize);
+                    String filePath = file.getPath();
+                    MappedFile mappedFile = new MappedFile(filePath, mappedFileSize);
 
                     // 设置位点
                     // 这里都不是准确值，准确值需要在 recover 节点设置
@@ -205,7 +249,7 @@ public class MappedFileQueue {
 
                     // 加入集合
                     this.mappedFiles.add(mappedFile);
-                    log.info("load " + file.getPath() + " OK");
+                    log.info("load " + filePath + " OK");
                 } catch (IOException e) {
                     log.error("load file " + file + " error", e);
                     return false;
@@ -221,6 +265,7 @@ public class MappedFileQueue {
             return 0;
         }
 
+        // 刷盘位点
         long committed = this.flushedWhere;
         if (committed != 0) {
             MappedFile mappedFile = this.getLastMappedFile(0, false);
@@ -244,13 +289,23 @@ public class MappedFileQueue {
         // 1.list 内没有 mappedFile
         // 2.list 中最后一个 mappedFile (当前顺序写的对象)已经写满了
         long createOffset = -1;
+
+        // 最后一个文件
         MappedFile mappedFileLast = getLastMappedFile();
 
         if (mappedFileLast == null) {
             // 情况1：list 内没有 mappedFile
 
             // createOffset 取值必须是 mappedFileSize 倍数或者 0
-            createOffset = startOffset - (startOffset % this.mappedFileSize);
+
+            /**
+             * 举例：
+             * mappedFileSize = 100 的时候
+             * 1. startOffset = 101， l1 = 101 % 100 = 1,    则 createOffset = 101 - 1 = 100
+             * 2. startOffset = 330， l1 = 330 % 100 = 30，   则 createOffset = 330 - 30 = 300
+             */
+            long l = startOffset % this.mappedFileSize;
+            createOffset = startOffset - l;
         }
 
         if (mappedFileLast != null && mappedFileLast.isFull()) {
@@ -329,12 +384,21 @@ public class MappedFileQueue {
         return mappedFileLast;
     }
 
+    /**
+     * TODO 这个方法干嘛呢
+     *
+     * @param offset
+     * @return
+     */
     public boolean resetOffset(long offset) {
         MappedFile mappedFileLast = getLastMappedFile();
 
         if (mappedFileLast != null) {
-            long lastOffset = mappedFileLast.getFileFromOffset() +
-                    mappedFileLast.getWrotePosition();
+
+            // 最后一个文件的写入位点的物理偏移量
+            long lastOffset = mappedFileLast.getFileFromOffset() + mappedFileLast.getWrotePosition()/*最后一个文件的写入位点*/;
+
+            // TODO ????
             long diff = lastOffset - offset;
 
             final int maxDiff = this.mappedFileSize * 2;
@@ -345,7 +409,7 @@ public class MappedFileQueue {
 
         ListIterator<MappedFile> iterator = this.mappedFiles.listIterator();
 
-        while (iterator.hasPrevious()) {
+        while (iterator.hasPrevious()/*从后往前遍历*/) {
             mappedFileLast = iterator.previous();
             if (offset >= mappedFileLast.getFileFromOffset()) {
                 int where = (int) (offset % mappedFileLast.getFileSize());
@@ -367,7 +431,8 @@ public class MappedFileQueue {
 
         if (!this.mappedFiles.isEmpty()) {
             try {
-                return this.mappedFiles.get(0).getFileFromOffset();
+                MappedFile mappedFile = this.mappedFiles.get(0);
+                return mappedFile.getFileFromOffset();
             } catch (IndexOutOfBoundsException e) {
                 //continue;
             } catch (Exception e) {
@@ -506,11 +571,13 @@ public class MappedFileQueue {
                 MappedFile mappedFile = (MappedFile) mfs[i];
 
                 // 获取当前文件最后一个数据单元
-                SelectMappedBufferResult result = mappedFile.selectMappedBuffer(this.mappedFileSize - unitSize);
+                int pos = this.mappedFileSize - unitSize;
+                SelectMappedBufferResult result = mappedFile.selectMappedBuffer(pos);
                 if (result != null) {
 
                     // 读取最后一个数据单元的前八个字节(cqData)，其实就是消息的偏移量
-                    long maxOffsetInLogicQueue = result.getByteBuffer().getLong();
+                    ByteBuffer byteBuffer = result.getByteBuffer();
+                    long maxOffsetInLogicQueue = byteBuffer.getLong();
 
                     // 释放
                     result.release();
