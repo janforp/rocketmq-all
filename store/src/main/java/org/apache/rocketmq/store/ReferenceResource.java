@@ -13,7 +13,7 @@ public abstract class ReferenceResource {
      */
     protected final AtomicLong refCount = new AtomicLong(1);
 
-    // 是否存活，默认是
+    // 是否存活，默认是true，调用 shutdown 之后变为 false
     @Getter
     protected volatile boolean available = true;
 
@@ -40,11 +40,12 @@ public abstract class ReferenceResource {
                 return true;
             } else {
 
-                // 越界
+                // 越界，一般不会发生
                 this.refCount.getAndDecrement();
             }
         }
 
+        // 不可用了
         return false;
     }
 
@@ -57,11 +58,14 @@ public abstract class ReferenceResource {
     public void shutdown(final long intervalForcibly) {
         if (this.available) {
             this.available = false;
+
+            // 第一次关闭资源的时间
             this.firstShutdownTimestamp = System.currentTimeMillis();
             //引用计数 - 1，可能释放资源，也可能没有释放资源，具体要看引用计数是否为零
             this.release();
         } else if (this.getRefCount() > 0) {
             if ((System.currentTimeMillis() - this.firstShutdownTimestamp) >= intervalForcibly) {
+                // 强制关闭
                 this.refCount.set(-1000 - this.getRefCount());
                 this.release();
             }
@@ -81,7 +85,7 @@ public abstract class ReferenceResource {
 
         // 如果执行到这里：说明当前资源已经没有其他引用了，可以回收了
         synchronized (this) {
-            this.cleanupOver = this.cleanup(value);
+            this.cleanupOver = this.cleanup(value)/*回收*/;
         }
     }
 

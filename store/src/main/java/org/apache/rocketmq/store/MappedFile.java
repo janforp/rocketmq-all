@@ -70,7 +70,7 @@ public class MappedFile extends ReferenceResource {
     protected final AtomicInteger wrotePosition = new AtomicInteger(0);
 
     /**
-     * 主从同步的时候用
+     * 跟 wrotePosition 一样的作用
      */
     protected final AtomicInteger committedPosition = new AtomicInteger(0);
     // 0 ------- 落盘数据(安全数据) --------- flushedPos ------- 脏页(不安全的数据) ------- wrotePos -------- 空闲 -------.....
@@ -100,7 +100,7 @@ public class MappedFile extends ReferenceResource {
 
     /**
      * 瞬态存储池
-     * 内存池！！！！
+     * 内存池！！！！一般不用
      */
     protected TransientStorePool transientStorePool = null;
 
@@ -139,7 +139,7 @@ public class MappedFile extends ReferenceResource {
      *
      * @see MappedFile#init(java.lang.String, int, org.apache.rocketmq.store.TransientStorePool)
      *
-     * 内存池的回城
+     * 内存池的回城，一般不用，跟{@link MappedFile#transientStorePool} 配套使用
      */
     protected ByteBuffer writeBuffer = null;
 
@@ -200,7 +200,7 @@ public class MappedFile extends ReferenceResource {
 
     /**
      * TODO
-     * 释放堆外内存
+     * 清理文件，释放资源
      */
     public static void clean(final ByteBuffer buffer) {
         if (buffer == null || !buffer.isDirect() || buffer.capacity() == 0) {
@@ -346,8 +346,8 @@ public class MappedFile extends ReferenceResource {
         if (currentPos < this.fileSize) { // 条件成立：说明文件还没有满，可以继续写入
 
             // 使用内存映射创建切片
-            ByteBuffer byteBuffer = writeBuffer != null ? writeBuffer.slice() : this.mappedByteBuffer.slice();
-            byteBuffer.position(currentPos); // 设置写入点为 currentPos，则下次写入内容的时候从 currentPos + 1 开始
+            ByteBuffer byteBuffer = writeBuffer != null ? writeBuffer.slice() : this.mappedByteBuffer.slice()/*一般用这个，他的pos跟limit没动*/;
+            byteBuffer.position(currentPos/*设置切片的写入位点为 currentPos，则下次写入内容的时候从 currentPos + 1 开始*/);
             AppendMessageResult result;
             if (messageExt instanceof MessageExtBrokerInner) {
                 // 向内存映射追加数据，具体由该回调对象控制
@@ -434,7 +434,8 @@ public class MappedFile extends ReferenceResource {
     public int flush(final int flushLeastPages) {
         boolean ableToFlush = this.isAbleToFlush(flushLeastPages);
         if (ableToFlush) {
-            if (this.hold()) { // 引用计数 +1，保证刷盘过程中不会释放资源！！！！！！！
+
+            if (this.hold()/*引用计数 +1，保证刷盘过程中不会释放资源！！！！！！！*/) {
 
                 // 获取数据写入位点
                 int value = getReadPosition();
@@ -454,7 +455,7 @@ public class MappedFile extends ReferenceResource {
                     log.error("Error occurred when force data to disk.", e);
                 }
 
-                // 写入位点赋值给 刷盘点
+                // 写入位点赋值给 刷盘点,刷盘点跟写入点平齐了
                 this.flushedPosition.set(value);
 
                 // 刷盘完成之后就引用计数-1
@@ -467,6 +468,37 @@ public class MappedFile extends ReferenceResource {
 
         // 返回最小的刷盘点
         return this.getFlushedPosition();
+    }
+
+    /**
+     * 判断是否可以刷盘
+     *
+     * @param flushLeastPages 刷盘的最小页数，当为0的时候则属于强制刷盘，大于0的时候需要脏页数据达到 传入的值的时候才进行物理刷盘
+     * @return 是否可以刷盘
+     */
+    private boolean isAbleToFlush(final int flushLeastPages/*盘的最小页数，当为0的时候则属于强制刷盘，大于0的时候需要脏页数据达到 传入的值的时候才进行物理刷盘*/) {
+
+        // 当前刷盘位点
+        int flush = this.flushedPosition.get();
+        // 当前写入位点
+        int write = getReadPosition();
+
+        if (this.isFull()) {
+            // 当前文件已经满了，返回 true 告诉调用方 必须要刷盘了
+            return true;
+        }
+
+        if (flushLeastPages > 0) {
+            // 刷盘的最小页数，当为0的时候则属于强制刷盘，大于0的时候需要脏页数据达到 传入的值的时候才进行物理刷盘
+            // 如果 脏页 >= flushLeastPages 则刷盘
+
+            int dirtyPages = (write / OS_PAGE_SIZE) - (flush / OS_PAGE_SIZE);
+
+            return dirtyPages >= flushLeastPages;
+        }
+
+        // 执行到这里，说明传入的 flushLeastPages <= 0 的。则只要由脏数据就刷盘
+        return write > flush;
     }
 
     public int commit(final int commitLeastPages) {
@@ -512,34 +544,6 @@ public class MappedFile extends ReferenceResource {
         }
     }
 
-    /**
-     * 判断是否可以刷盘
-     *
-     * @param flushLeastPages 刷盘的最小页数，当为0的时候则属于强制刷盘，大于0的时候需要脏页数据达到 传入的值的时候才进行物理刷盘
-     * @return 是否可以刷盘
-     */
-    private boolean isAbleToFlush(final int flushLeastPages) {
-
-        // 当前刷盘位点
-        int flush = this.flushedPosition.get();
-        // 当前写入位点
-        int write = getReadPosition();
-
-        if (this.isFull()) {
-            // 当前文件已经满了，返回 true 告诉调用方 必须要刷盘了
-            return true;
-        }
-
-        if (flushLeastPages > 0) {
-            // 刷盘的最小页数，当为0的时候则属于强制刷盘，大于0的时候需要脏页数据达到 传入的值的时候才进行物理刷盘
-            // 如果 脏页 >= flushLeastPages 则刷盘
-            return ((write / OS_PAGE_SIZE) - (flush / OS_PAGE_SIZE)) >= flushLeastPages;
-        }
-
-        // 执行到这里，说明传入的 flushLeastPages <= 0 的。则只要由脏数据就刷盘
-        return write > flush;
-    }
-
     protected boolean isAbleToCommit(final int commitLeastPages) {
         int flush = this.committedPosition.get();
         int write = this.wrotePosition.get();
@@ -564,6 +568,7 @@ public class MappedFile extends ReferenceResource {
     }
 
     public boolean isFull() {
+        // 写满了
         return this.fileSize == this.wrotePosition.get();
     }
 
@@ -589,24 +594,41 @@ public class MappedFile extends ReferenceResource {
     /**
      * 该方法以 pos 为开始位点，到 有效数据为止，创建一个切片 byteBuffer 供业务访问数据
      *
-     * @param pos 数据起始位点
-     * @return 结果
+     * 其实就是得到了 pos 到 wrotePos 这段字节数组到内容
+     *
+     * @param pos 返回切片数据起始位点
+     * @return 结果 pos - wrotePos 之间的切片
      */
     public SelectMappedBufferResult selectMappedBuffer(int pos) {
 
-        // 获取有效数据位点(wrotePos)
+        // 获取写入位点
         int readPosition = getReadPosition();
+
         if (pos < readPosition && pos >= 0) { // pos 是有效数据访问内的位点
-            // 条件成功：说明 pos 处于有效数据之前
+            // 条件成立：说明 pos 处于有效数据之前
 
-            if (this.hold()) { // 引用数据+1，避免资源回收
+            if (this.hold()/*引用数据+1，避免资源回收，外部要用了*/) {
 
-                // 复制！！！！
+                // 切片
                 ByteBuffer byteBuffer = this.mappedByteBuffer.slice();
                 byteBuffer.position(pos);
-                int size = readPosition - pos;
+                int size = readPosition/*写入位点*/ - pos;
                 ByteBuffer byteBufferNew = byteBuffer.slice();
                 byteBufferNew.limit(size);
+
+                /**
+                 * 0...........wrotePos.......结尾
+                 *
+                 * 0... pos ...wrotePos.......结尾
+                 *
+                 * slice
+                 *
+                 * 0...position(pos).......
+                 * size = wrotePos - pos 其实就是 pos 到 写入位点这段内容
+                 * limit = size
+                 *
+                 * 其实就是得到了 pos 到 wrotePos 这段字节数组到内容
+                 */
                 return new SelectMappedBufferResult(this.fileFromOffset + pos, byteBufferNew, size, this);
             }
         }
@@ -623,15 +645,22 @@ public class MappedFile extends ReferenceResource {
     @Override
     public boolean cleanup(final long currentRef) {
         if (this.isAvailable()) {
+
+            // 还没有关闭呢
+
             log.error("this file[REF:" + currentRef + "] " + this.fileName + " have not shutdown, stop unmapping.");
             return false;
         }
 
         if (this.isCleanupOver()) {
+
+            // 已经清理完成
+
             log.error("this file[REF:" + currentRef + "] " + this.fileName + " have cleanup, do not do it again.");
             return true;
         }
 
+        // 执行清理逻辑
         clean(this.mappedByteBuffer);
 
         // 当前进程下，所有的 MappedFile 占用的总的虚拟内存的大小

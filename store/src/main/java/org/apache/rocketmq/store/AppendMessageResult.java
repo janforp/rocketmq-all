@@ -11,6 +11,14 @@ import lombok.ToString;
 public class AppendMessageResult {
 
     // Return code
+
+    /**
+     * PUT_OK,
+     * END_OF_FILE,
+     * MESSAGE_SIZE_EXCEEDED,
+     * PROPERTIES_SIZE_EXCEEDED,
+     * UNKNOWN_ERROR,
+     */
     @Getter
     @Setter
     private AppendMessageStatus status;
