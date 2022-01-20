@@ -63,22 +63,33 @@ public class DefaultMessageStore implements MessageStore {
 
     private final IndexService indexService;
 
-    private final ConcurrentMap<String/* topic */, ConcurrentMap<Integer/* queueId */, ConsumeQueue>> consumeQueueTable;
+    /**
+     * 消费者的索引 {@link ConsumeQueue}
+     */
+    private final ConcurrentMap<String/* topic */, ConcurrentMap<Integer/* queueId */, ConsumeQueue/*cq*/>> consumeQueueTable;
 
     // 刷新 ConsumeQueue 队列的服务
     private final FlushConsumeQueueService flushConsumeQueueService;
 
-    // 清理过去文件
+    /**
+     * 清理过期 commitLog 文件的服务
+     *
+     * @see Executors#newSingleThreadScheduledExecutor(java.util.concurrent.ThreadFactory) 在该线程池中执行删除
+     */
     private final CleanCommitLogService cleanCommitLogService;
 
-    // 清理 cq 文件
+    /**
+     * 清理过期 cq 文件
+     *
+     * @see Executors#newSingleThreadScheduledExecutor(java.util.concurrent.ThreadFactory) 在该线程池中执行删除
+     */
     private final CleanConsumeQueueService cleanConsumeQueueService;
 
     // 分配内存映射文件的服务
     @Getter
     private final AllocateMappedFileService allocateMappedFileService;
 
-    // TODO 分发？？？分发到 consumerQueue
+    // 消息分发 ，分发到 consumerQueue 以及 IndexFile
     private final ReputMessageService reputMessageService;
 
     @Getter
@@ -1789,6 +1800,9 @@ public class DefaultMessageStore implements MessageStore {
 
     class CleanConsumeQueueService {
 
+        /**
+         * 上次清理的时候的最小物理偏移量
+         */
         private long lastPhysicalMinOffset = 0;
 
         public void run() {
@@ -1852,7 +1866,7 @@ public class DefaultMessageStore implements MessageStore {
 
             long logicsMsgTimestamp = 0;
 
-            int flushConsumeQueueThoroughInterval = DefaultMessageStore.this.getMessageStoreConfig().getFlushConsumeQueueThoroughInterval()/*默认60s*/;
+            int flushConsumeQueueThoroughInterval = DefaultMessageStore.this.getMessageStoreConfig().getFlushConsumeQueueThoroughInterval()/*强行刷盘周期，默认60s*/;
             long currentTimeMillis = System.currentTimeMillis();
             if (currentTimeMillis >= (this.lastFlushTimestamp + flushConsumeQueueThoroughInterval)) {
                 this.lastFlushTimestamp = currentTimeMillis;
@@ -1894,7 +1908,7 @@ public class DefaultMessageStore implements MessageStore {
                 try {
 
                     // 配置文件中的刷新 CQ 的间隔时间
-                    int interval = DefaultMessageStore.this.getMessageStoreConfig().getFlushIntervalConsumeQueue();
+                    int interval = DefaultMessageStore.this.getMessageStoreConfig().getFlushIntervalConsumeQueue()/* 默认 1 秒 */;
                     this.waitForRunning(interval);
                     this.doFlush(1);
                 } catch (Exception e) {
@@ -1916,7 +1930,7 @@ public class DefaultMessageStore implements MessageStore {
     class ReputMessageService extends ServiceThread {
 
         /**
-         * 分发位点，通过他可以知道从commitLog的哪个位置开始工作
+         * 分发位点，通过他可以知道从commitLog的哪个位置开始工作(分发工作)
          */
         @Getter
         @Setter
@@ -1955,38 +1969,54 @@ public class DefaultMessageStore implements MessageStore {
                 this.reputFromOffset = DefaultMessageStore.this.commitLog.getMinOffset();
             }
             for (boolean doNext = true; this.isCommitLogAvailable() && doNext; /*啥都不干*/) {
-                if (DefaultMessageStore.this.getMessageStoreConfig().isDuplicationEnable() && this.reputFromOffset >= DefaultMessageStore.this.getConfirmOffset()) {
+                MessageStoreConfig messageStoreConfig = DefaultMessageStore.this.getMessageStoreConfig();
+                if (messageStoreConfig.isDuplicationEnable() && this.reputFromOffset >= DefaultMessageStore.this.getConfirmOffset()) {
                     // TODO ????
                     break;
                 }
-
                 // 得到 reputFromOffset 所在的 commitLog 文件的 从 reputFromOffset 位点开始往后的内容
-                SelectMappedBufferResult result = DefaultMessageStore.this.commitLog.getData(reputFromOffset);
+                SelectMappedBufferResult result/*分发位点所在的文件的数据，从分发位点到文件结尾的数据*/ = DefaultMessageStore.this.commitLog.getData(reputFromOffset);
                 if (result != null) {
                     try {
-                        this.reputFromOffset = result.getStartOffset();
+                        this.reputFromOffset/*分发位点，通过他可以知道从commitLog的哪个位置开始工作(分发工作)*/ = result.getStartOffset();
 
-                        for (int readSize = 0; readSize < result.getSize() && doNext; ) {
+                        for (int readSize = 0; readSize < result.getSize() && doNext; /*循环读取 result 中的每条消息 */) {
+
                             ByteBuffer resultByteBuffer = result.getByteBuffer();
 
                             // 从commitLog缓存中拿到一条消息
+                            // 循环读取 result 中的每条消息
                             DispatchRequest dispatchRequest = DefaultMessageStore.this.commitLog.checkMessageAndReturnSize(resultByteBuffer, false, false);
                             int size = dispatchRequest.getBufferSize() == -1 ? dispatchRequest.getMsgSize() : dispatchRequest.getBufferSize();
 
                             if (dispatchRequest.isSuccess()) {
                                 if (size > 0) {
+
+                                    /**
+                                     * 提交给发放器，包括 comsumeQueue 以及 indexFile
+                                     *
+                                     * @see CommitLogDispatcherBuildConsumeQueue
+                                     * @see CommitLogDispatcherBuildIndex
+                                     */
                                     DefaultMessageStore.this.doDispatch(dispatchRequest);
 
-                                    if (BrokerRole.SLAVE != DefaultMessageStore.this.getMessageStoreConfig().getBrokerRole() && DefaultMessageStore.this.brokerConfig.isLongPollingEnable()) {
-                                        DefaultMessageStore.this.messageArrivingListener.arriving(dispatchRequest.getTopic(),
-                                                dispatchRequest.getQueueId(), dispatchRequest.getConsumeQueueOffset() + 1,
-                                                dispatchRequest.getTagsCode(), dispatchRequest.getStoreTimestamp(),
-                                                dispatchRequest.getBitMap(), dispatchRequest.getPropertiesMap());
+                                    if (BrokerRole.SLAVE != messageStoreConfig.getBrokerRole() && DefaultMessageStore.this.brokerConfig.isLongPollingEnable()) {
+                                        String topic = dispatchRequest.getTopic();
+                                        int queueId = dispatchRequest.getQueueId();
+                                        long logicOffset = dispatchRequest.getConsumeQueueOffset() + 1;
+                                        long tagsCode = dispatchRequest.getTagsCode();
+                                        long storeTimestamp = dispatchRequest.getStoreTimestamp();
+                                        byte[] bitMap = dispatchRequest.getBitMap();
+                                        Map<String, String> propertiesMap = dispatchRequest.getPropertiesMap();
+                                        DefaultMessageStore.this.messageArrivingListener.arriving(topic, queueId, logicOffset, tagsCode, storeTimestamp, bitMap, propertiesMap);
                                     }
 
                                     this.reputFromOffset += size;
-                                    readSize += size;
-                                    if (DefaultMessageStore.this.getMessageStoreConfig().getBrokerRole() == BrokerRole.SLAVE) {
+
+                                    // readSize 向前推进一条消息的长度！！！
+                                    readSize = readSize + size;
+                                    if (messageStoreConfig.getBrokerRole() == BrokerRole.SLAVE) {
+                                        // 统计相关
                                         DefaultMessageStore.this.storeStatsService.getSinglePutMessageTopicTimesTotal(dispatchRequest.getTopic()).incrementAndGet();
                                         DefaultMessageStore.this.storeStatsService.getSinglePutMessageTopicSizeTotal(dispatchRequest.getTopic()).addAndGet(dispatchRequest.getMsgSize());
                                     }
@@ -2003,7 +2033,8 @@ public class DefaultMessageStore implements MessageStore {
                                     doNext = false;
                                     // If user open the dledger pattern or the broker is master node,
                                     // it will not ignore the exception and fix the reputFromOffset variable
-                                    if (DefaultMessageStore.this.getMessageStoreConfig().isEnableDLegerCommitLog() || DefaultMessageStore.this.brokerConfig.getBrokerId() == MixAll.MASTER_ID) {
+                                    long brokerId = DefaultMessageStore.this.brokerConfig.getBrokerId();
+                                    if (messageStoreConfig.isEnableDLegerCommitLog() || brokerId == MixAll.MASTER_ID) {
                                         log.error("[BUG]dispatch message to consume queue error, COMMITLOG OFFSET: {}", this.reputFromOffset);
                                         this.reputFromOffset += result.getSize() - readSize;
                                     }

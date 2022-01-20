@@ -10,6 +10,9 @@ import java.nio.MappedByteBuffer;
 import java.nio.channels.FileChannel;
 import java.nio.channels.FileChannel.MapMode;
 
+/**
+ * 安全点
+ */
 public class StoreCheckpoint {
 
     private final FileChannel fileChannel;

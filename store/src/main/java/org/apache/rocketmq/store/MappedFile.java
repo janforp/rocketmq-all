@@ -726,6 +726,8 @@ public class MappedFile extends ReferenceResource {
     }
 
     /**
+     * 预热，会真实的在内存中开辟空间，避免发生缺页异常
+     *
      * 内存映射文件预热，
      *
      * 既然空文件和写入1G字节虚拟内存映射都是1G大小，写入1G大小的意义呢？

@@ -31,6 +31,7 @@ public class AllocateMappedFileService extends ServiceThread {
 
     private final ConcurrentMap<String/*filePath 全路径*/, AllocateRequest/*filePath 创建的请求*/> requestTable = new ConcurrentHashMap<>();
 
+    // 优先队列，存放请求
     private final PriorityBlockingQueue<AllocateRequest> requestQueue = new PriorityBlockingQueue<>();
 
     private volatile boolean hasException = false;
@@ -65,13 +66,18 @@ public class AllocateMappedFileService extends ServiceThread {
             }
         }
 
+        // 把请求封装成一个请求大小
         AllocateRequest nextReq = new AllocateRequest(nextFilePath, fileSize);
+
+        //  ConcurrentMap<String/*filePath 全路径*/, AllocateRequest/*filePath 创建的请求*/> requestTable
         boolean nextPutOK = this.requestTable.putIfAbsent(nextFilePath, nextReq) == null/*返回null，说明不是重复的请求*/;
 
         if (nextPutOK/*这次是一个新的请求*/) {
             if (canSubmitRequests <= 0) {
                 // 内存池不够了
                 log.warn("[NOTIFYME]TransientStorePool is not enough, so create mapped file error, " + "RequestQueueSize : {}, StorePoolSize: {}", this.requestQueue.size(), this.messageStore.getTransientStorePool().availableBufferNums());
+
+                //  ConcurrentMap<String/*filePath 全路径*/, AllocateRequest/*filePath 创建的请求*/> requestTable
                 this.requestTable.remove(nextFilePath);
                 return null;
             }
@@ -87,6 +93,8 @@ public class AllocateMappedFileService extends ServiceThread {
 
         // 再次新建一个请求
         AllocateRequest nextNextReq = new AllocateRequest(nextNextFilePath, fileSize);
+
+        //  ConcurrentMap<String/*filePath 全路径*/, AllocateRequest/*filePath 创建的请求*/> requestTable
         boolean nextNextPutOK = this.requestTable.putIfAbsent(nextNextFilePath, nextNextReq) == null/*返回null，说明不是重复的请求*/;
         if (nextNextPutOK/*这次是一个新的请求*/) {
             if (canSubmitRequests <= 0) {
@@ -222,9 +230,8 @@ public class AllocateMappedFileService extends ServiceThread {
                     FlushDiskType flushDiskType = messageStoreConfig.getFlushDiskType();
                     // 1024 / 4 * 16 = 16
                     int flushLeastPagesWhenWarmMapedFile = messageStoreConfig.getFlushLeastPagesWhenWarmMapedFile();
-
                     /**
-                     * 预热
+                     * 预热，会真实的在内存中开辟空间，避免发生缺页异常
                      */
                     mappedFile.warmMappedFile(flushDiskType, flushLeastPagesWhenWarmMapedFile);
                 }
@@ -243,7 +250,6 @@ public class AllocateMappedFileService extends ServiceThread {
             log.warn(this.getServiceName() + " service has exception. ", e);
             this.hasException = true;
             if (null != req) {
-
                 // 再次放进去
                 requestQueue.offer(req);
                 try {
@@ -255,6 +261,8 @@ public class AllocateMappedFileService extends ServiceThread {
             }
         } finally {
             if (req != null && isSuccess) {
+
+                // 唤醒阻塞的线程
                 req.getCountDownLatch().countDown();
             }
         }
@@ -268,6 +276,7 @@ public class AllocateMappedFileService extends ServiceThread {
         @Setter
         private String filePath;
 
+        // 要创建文件的大小
         @Getter
         @Setter
         private int fileSize;
