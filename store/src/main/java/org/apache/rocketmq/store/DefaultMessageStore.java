@@ -221,7 +221,9 @@ public class DefaultMessageStore implements MessageStore {
             result = result && this.loadConsumeQueue();
             // 到这里 commitLog 跟 cq 中到位点没有恢复
             if (result) {
-                this.storeCheckpoint = new StoreCheckpoint(StorePathConfigHelper.getStoreCheckpoint(this.messageStoreConfig.getStorePathRootDir()));
+                String storePathRootDir = this.messageStoreConfig.getStorePathRootDir();
+                String storeCheckpoint = StorePathConfigHelper.getStoreCheckpoint(storePathRootDir);
+                this.storeCheckpoint = new StoreCheckpoint(storeCheckpoint);
                 // 索引
                 this.indexService.load(lastExitOK);
                 // 恢复
@@ -263,10 +265,14 @@ public class DefaultMessageStore implements MessageStore {
 
             // ConcurrentMap<String/* topic */, ConcurrentMap<Integer/* queueId */, ConsumeQueue>> consumeQueueTable;
             for (ConcurrentMap<Integer/* queueId */, ConsumeQueue> maps : this.consumeQueueTable.values()) {
-                for (ConsumeQueue logic : maps.values()) {
-                    if (logic.getMaxPhysicOffset() > maxPhysicalPosInLogicQueue) {
+                Collection<ConsumeQueue> consumeQueues = maps.values();
+                for (ConsumeQueue logic : consumeQueues) {
+
+                    long maxPhysicOffsetInLogic = logic.getMaxPhysicOffset();
+
+                    if (maxPhysicOffsetInLogic > maxPhysicalPosInLogicQueue) {
                         // 循环找到最大的 offset
-                        maxPhysicalPosInLogicQueue = logic.getMaxPhysicOffset();
+                        maxPhysicalPosInLogicQueue = maxPhysicOffsetInLogic;
                     }
                 }
             }
@@ -312,7 +318,7 @@ public class DefaultMessageStore implements MessageStore {
         this.commitLog.start();
         this.storeStatsService.start();
 
-        // 标志是否正常退出的问题 ../store/abort文件
+        // 创建标志是否正常退出的问题 /Users/zhuchenjian/Documents/code/learn/rocketmq/rocketmq-all/conf/home/broker/store/abort
         this.createTempFile();
         this.addScheduleTask();
 
@@ -1294,12 +1300,10 @@ public class DefaultMessageStore implements MessageStore {
 
         ConsumeQueue logic = map.get(queueId);
         if (null == logic) {
-            ConsumeQueue newLogic = new ConsumeQueue(
-                    topic,
-                    queueId,
-                    StorePathConfigHelper.getStorePathConsumeQueue(this.messageStoreConfig.getStorePathRootDir()),
-                    this.getMessageStoreConfig().getMappedFileSizeConsumeQueue(),
-                    this);
+            String storePathRootDir = this.messageStoreConfig.getStorePathRootDir();
+            String storePathConsumeQueue = StorePathConfigHelper.getStorePathConsumeQueue(storePathRootDir);
+            int fileSizeConsumeQueue = this.getMessageStoreConfig().getMappedFileSizeConsumeQueue();
+            ConsumeQueue newLogic = new ConsumeQueue(topic, queueId, storePathConsumeQueue, fileSizeConsumeQueue, this);
             ConsumeQueue oldLogic = map.putIfAbsent(queueId, newLogic);
             if (oldLogic != null) {
                 logic = oldLogic;
@@ -1402,6 +1406,7 @@ public class DefaultMessageStore implements MessageStore {
 
     private void addScheduleTask() {
 
+        // 清理
         this.scheduledExecutorService.scheduleAtFixedRate(DefaultMessageStore.this::cleanFilesPeriodically, 1000 * 60, this.messageStoreConfig.getCleanResourceInterval(), TimeUnit.MILLISECONDS);
 
         this.scheduledExecutorService.scheduleAtFixedRate(DefaultMessageStore.this::checkSelf, 1, 10, TimeUnit.MINUTES);
@@ -1432,13 +1437,16 @@ public class DefaultMessageStore implements MessageStore {
     private void checkSelf() {
         this.commitLog.checkSelf();
 
-        Iterator<Entry<String, ConcurrentMap<Integer, ConsumeQueue>>> it = this.consumeQueueTable.entrySet().iterator();
+        // ConcurrentMap<String/* topic */, ConcurrentMap<Integer/* queueId */, ConsumeQueue/*cq*/>> consumeQueueTable;
+        Iterator<Entry<String/* topic */, ConcurrentMap<Integer/* queueId */, ConsumeQueue/*cq*/>>> it = this.consumeQueueTable.entrySet().iterator();
         while (it.hasNext()) {
-            Entry<String, ConcurrentMap<Integer, ConsumeQueue>> next = it.next();
-            Iterator<Entry<Integer, ConsumeQueue>> itNext = next.getValue().entrySet().iterator();
+            Entry<String/* topic */, ConcurrentMap<Integer/* queueId */, ConsumeQueue/*cq*/>> next = it.next();
+            Iterator<Entry<Integer/* queueId */, ConsumeQueue>> itNext = next.getValue().entrySet().iterator();
             while (itNext.hasNext()) {
-                Entry<Integer, ConsumeQueue> cq = itNext.next();
-                cq.getValue().checkSelf();
+                Entry<Integer/* queueId */, ConsumeQueue/*cq*/> cq = itNext.next();
+
+                ConsumeQueue value = cq.getValue();
+                value.checkSelf();
             }
         }
     }
