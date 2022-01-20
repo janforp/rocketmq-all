@@ -58,6 +58,7 @@ public class DefaultMessageStore implements MessageStore {
     private final MessageStoreConfig messageStoreConfig;
 
     // CommitLog
+    @Getter
     private final CommitLog commitLog;
 
     private final IndexService indexService;
@@ -96,6 +97,7 @@ public class DefaultMessageStore implements MessageStore {
     @Getter
     private final RunningFlags runningFlags = new RunningFlags();
 
+    @Getter
     private final SystemClock systemClock = new SystemClock();
 
     private final ScheduledExecutorService scheduledExecutorService = Executors.newSingleThreadScheduledExecutor(new ThreadFactoryImpl("StoreScheduledThread"));
@@ -170,10 +172,11 @@ public class DefaultMessageStore implements MessageStore {
         this.dispatcherList.addLast(new CommitLogDispatcherBuildIndex());
 
         // 文件： /Users/zhuchenjian/Documents/code/learn/rocketmq/rocketmq-all/conf/home/broker/store/lock
-        File file = new File(StorePathConfigHelper.getLockFile(messageStoreConfig.getStorePathRootDir()));
+        String lockFile = StorePathConfigHelper.getLockFile(messageStoreConfig.getStorePathRootDir());
+        File file = new File(lockFile);
         // 创建 lock 文件
         MappedFile.ensureDirOK(file.getParent());
-        lockFile = new RandomAccessFile(file, "rw");
+        this.lockFile = new RandomAccessFile(file, "rw");
     }
 
     public void truncateDirtyLogicFiles(long phyOffset) {
@@ -579,14 +582,6 @@ public class DefaultMessageStore implements MessageStore {
     @Override
     public long lockTimeMills() {
         return this.commitLog.lockTimeMills();
-    }
-
-    public SystemClock getSystemClock() {
-        return systemClock;
-    }
-
-    public CommitLog getCommitLog() {
-        return commitLog;
     }
 
     public GetMessageResult getMessage(final String group, final String topic, final int queueId, final long offset/*客户端拉消息使用的位点*/, final int maxMsgNums/*默认32*/, final MessageFilter messageFilter/*一般是按tagCode过滤*/) {
