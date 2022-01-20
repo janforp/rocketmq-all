@@ -1543,14 +1543,23 @@ public class DefaultMessageStore implements MessageStore {
         return consumeQueueTable;
     }
 
+    /**
+     * @see ReputMessageService#doReput()
+     */
     public void doDispatch(DispatchRequest req) {
         for (CommitLogDispatcher dispatcher : this.dispatcherList) {
+
+            // 把一条消息分发到 consumequeue 以及 indexFile 中
             dispatcher.dispatch(req);
         }
     }
 
     public void putMessagePositionInfo(DispatchRequest dispatchRequest) {
-        ConsumeQueue cq = this.findConsumeQueue(dispatchRequest.getTopic(), dispatchRequest.getQueueId());
+        String topic = dispatchRequest.getTopic();
+        int queueId = dispatchRequest.getQueueId();
+
+        // 找到 主题 跟 队列所在的 消费队列
+        ConsumeQueue cq = this.findConsumeQueue(topic, queueId);
         cq.putMessagePositionInfoWrapper(dispatchRequest);
     }
 
@@ -1935,29 +1944,38 @@ public class DefaultMessageStore implements MessageStore {
         }
 
         public long behind() {
-            return DefaultMessageStore.this.commitLog.getMaxOffset() - this.reputFromOffset;
+            // cmmitLog 文件上的最大的物理偏移量
+            long commitLogMaxOffset = DefaultMessageStore.this.commitLog.getMaxOffset();
+            return commitLogMaxOffset - this.reputFromOffset;
         }
 
         private boolean isCommitLogAvailable() {
-            return this.reputFromOffset < DefaultMessageStore.this.commitLog.getMaxOffset();
+            // cmmitLog 文件上的最大的物理偏移量
+            long commitLogMaxOffset = DefaultMessageStore.this.commitLog.getMaxOffset();
+            return this.reputFromOffset < commitLogMaxOffset;
         }
 
         private void doReput() {
-            if (this.reputFromOffset < DefaultMessageStore.this.commitLog.getMinOffset()) {
+            if (this.reputFromOffset < DefaultMessageStore.this.commitLog.getMinOffset()/*开始分发的偏移量不能小于 commitLog 文件的最小偏移量*/) {
                 this.reputFromOffset = DefaultMessageStore.this.commitLog.getMinOffset();
             }
-            for (boolean doNext = true; this.isCommitLogAvailable() && doNext; ) {
+            for (boolean doNext = true; this.isCommitLogAvailable() && doNext; /*啥都不干*/) {
                 if (DefaultMessageStore.this.getMessageStoreConfig().isDuplicationEnable() && this.reputFromOffset >= DefaultMessageStore.this.getConfirmOffset()) {
+                    // TODO ????
                     break;
                 }
 
+                // 得到 reputFromOffset 所在的 commitLog 文件的 从 reputFromOffset 位点开始往后的内容
                 SelectMappedBufferResult result = DefaultMessageStore.this.commitLog.getData(reputFromOffset);
                 if (result != null) {
                     try {
                         this.reputFromOffset = result.getStartOffset();
 
                         for (int readSize = 0; readSize < result.getSize() && doNext; ) {
-                            DispatchRequest dispatchRequest = DefaultMessageStore.this.commitLog.checkMessageAndReturnSize(result.getByteBuffer(), false, false);
+                            ByteBuffer resultByteBuffer = result.getByteBuffer();
+
+                            // 从commitLog缓存中拿到一条消息
+                            DispatchRequest dispatchRequest = DefaultMessageStore.this.commitLog.checkMessageAndReturnSize(resultByteBuffer, false, false);
                             int size = dispatchRequest.getBufferSize() == -1 ? dispatchRequest.getMsgSize() : dispatchRequest.getBufferSize();
 
                             if (dispatchRequest.isSuccess()) {

@@ -20,6 +20,7 @@ public class StoreCheckpoint {
      * 最后一次刷盘成功的时间
      *
      * @see CommitLog.FlushRealTimeService#run() 异步刷盘
+     * @see ConsumeQueue#putMessagePositionInfoWrapper(org.apache.rocketmq.store.DispatchRequest)
      */
     @Getter
     @Setter
@@ -27,6 +28,7 @@ public class StoreCheckpoint {
 
     /**
      * @see DefaultMessageStore.FlushConsumeQueueService
+     * @see ConsumeQueue#putMessagePositionInfoWrapper(org.apache.rocketmq.store.DispatchRequest)
      */
     @Getter
     @Setter

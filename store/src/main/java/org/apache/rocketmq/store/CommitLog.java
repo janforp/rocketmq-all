@@ -104,6 +104,9 @@ public class CommitLog {
     @Getter
     protected HashMap<String/* topic-queueid */, Long/* 该队列的逻辑offset ，逻辑偏移量*/> topicQueueTable = new HashMap<String, Long>(1024);
 
+    /**
+     * TODO ????
+     */
     protected volatile long confirmOffset = -1L;
 
     // 写锁开始时间
@@ -218,10 +221,16 @@ public class CommitLog {
     }
 
     public SelectMappedBufferResult getData(final long offset, final boolean returnFirstOnNotFound) {
+
+        // commitLog 文件的大小 1G
         int mappedFileSize = this.defaultMessageStore.getMessageStoreConfig().getMappedFileSizeCommitLog();
+
+        // 找到 包含 offset 的文件
         MappedFile mappedFile = this.mappedFileQueue.findMappedFileByOffset(offset, returnFirstOnNotFound);
         if (mappedFile != null) {
             int pos = (int) (offset % mappedFileSize);
+
+            // 其实就是得到了 pos 到 wrotePos 这段字节数组到内容
             return mappedFile.selectMappedBuffer(pos);
         }
 

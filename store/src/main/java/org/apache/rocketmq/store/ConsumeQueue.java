@@ -407,8 +407,9 @@ public class ConsumeQueue {
         boolean canWrite = this.defaultMessageStore.getRunningFlags().isCQWriteable();
 
         // 最多30次
-        for (int i = 0; i < maxRetries && canWrite; i++) {
+        for (int i = 0; i < maxRetries && canWrite/*当前存储模块是否可写*/; i++) {
 
+            // 消息 tag 的 hash
             long tagsCode = request.getTagsCode();
             if (isExtWriteEnable()) {
                 // 一般不进来
@@ -426,9 +427,16 @@ public class ConsumeQueue {
             }
 
             // 正常情况返回 true
-            boolean result = this.putMessagePositionInfo(request.getCommitLogOffset(), request.getMsgSize(), tagsCode, request.getConsumeQueueOffset());
+            long commitLogOffset = request.getCommitLogOffset();
+            // 消息大小
+            int msgSize = request.getMsgSize();
+            // 在消费队列中的偏移量
+            long consumeQueueOffset = request.getConsumeQueueOffset();
+            boolean result = this.putMessagePositionInfo(commitLogOffset, msgSize, tagsCode, consumeQueueOffset);
             if (result) {
                 if (this.defaultMessageStore.getMessageStoreConfig().getBrokerRole() == BrokerRole.SLAVE || this.defaultMessageStore.getMessageStoreConfig().isEnableDLegerCommitLog()) {
+
+                    // 更新 checkPoint 的时间
                     this.defaultMessageStore.getStoreCheckpoint().setPhysicMsgTimestamp(request.getStoreTimestamp());
                 }
 
@@ -458,9 +466,11 @@ public class ConsumeQueue {
      * @param tagsCode 当前msg的tagCode
      * @param cqOffset 当前msg 的 逻辑偏移量 (ConsumerQueue 内的偏移量，转化成 真是物理偏移量的算法：消息的逻辑偏移量 * 20)
      */
-    private boolean putMessagePositionInfo(final long offset, final int size, final long tagsCode, final long cqOffset) {
+    private boolean putMessagePositionInfo(final long offset, final int size, final long tagsCode, final long cqOffset/*消息的逻辑偏移量 * 20*/) {
 
         if (offset + size <= this.maxPhysicOffset) {
+
+            // 重复了？
             log.warn("Maybe try to build consume queue repeatedly maxPhysicOffset={} phyOffset={}", maxPhysicOffset, offset);
             return true;
         }
@@ -469,7 +479,7 @@ public class ConsumeQueue {
         this.byteBufferIndex.limit(CQ_STORE_UNIT_SIZE/*20*/);
 
         // 20 个字节加入到临时缓冲区
-        this.byteBufferIndex.putLong(offset);
+        this.byteBufferIndex.putLong(offset); // commitLog 偏移量
         this.byteBufferIndex.putInt(size);
         this.byteBufferIndex.putLong(tagsCode);
 
@@ -501,15 +511,13 @@ public class ConsumeQueue {
 
                 if (expectLogicOffset != currentLogicOffset) {
                     // 错误的插入
-                    LOG_ERROR.warn(
-                            "[BUG]logic queue order maybe wrong, expectLogicOffset: {} currentLogicOffset: {} Topic: {} QID: {} Diff: {}",
-                            expectLogicOffset, currentLogicOffset, this.topic, this.queueId, expectLogicOffset - currentLogicOffset
-                    );
+                    String msg = "[BUG]logic queue order maybe wrong, expectLogicOffset: {} currentLogicOffset: {} Topic: {} QID: {} Diff: {}";
+                    LOG_ERROR.warn(msg, expectLogicOffset, currentLogicOffset, this.topic, this.queueId, expectLogicOffset - currentLogicOffset);
                 }
             }
 
             this.maxPhysicOffset = offset + size;
-            // 追加数据到 commitLog mf 文件
+            // 追加数据到 consumeQueue mf 文件
             return mappedFile.appendMessage(this.byteBufferIndex.array());
         }
         return false;
