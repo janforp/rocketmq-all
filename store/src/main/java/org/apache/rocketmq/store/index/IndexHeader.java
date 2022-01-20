@@ -1,5 +1,7 @@
 package org.apache.rocketmq.store.index;
 
+import lombok.Getter;
+
 import java.nio.ByteBuffer;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
@@ -17,59 +19,60 @@ public class IndexHeader {
     /**
      * 开始时间存储从第零个字节开始，共占用8字节
      */
-    private static int beginTimestampIndex = 0;
+    private static final int beginTimestampIndex = 0;
 
     /**
      * 最后存储时间存储从第8个字节开始，共占用8字节
      */
-    private static int endTimestampIndex = 8;
+    private static final int endTimestampIndex = 8;
 
     /**
      * 开始物理偏移量从第16个字节，共占用8字节
      */
-    private static int beginPhyoffsetIndex = 16;
+    private static final int beginPhyoffsetIndex = 16;
 
     /**
      * 结束物理偏移量从第24个字节，共占用8字节
      */
-    private static int endPhyoffsetIndex = 24;
+    private static final int endPhyoffsetIndex = 24;
 
     /**
      * hashSlotcount从第32个字节，共占用4字节
      *
      * hash槽
      */
-    private static int hashSlotcountIndex = 32;
+    private static final int hashSlotcountIndex = 32;
 
     /**
      * indexCount从第36个字节，共占用4字节
      */
-    private static int indexCountIndex = 36;
+    private static final int indexCountIndex = 36;
 
     /**
      * 共40个字节的缓冲
      */
     private final ByteBuffer byteBuffer;
 
-    private AtomicLong beginTimestamp = new AtomicLong(0);
+    private final AtomicLong beginTimestamp = new AtomicLong(0);
 
-    private AtomicLong endTimestamp = new AtomicLong(0);
+    private final AtomicLong endTimestamp = new AtomicLong(0);
 
-    private AtomicLong beginPhyOffset = new AtomicLong(0);
+    private final AtomicLong beginPhyOffset = new AtomicLong(0);
 
-    private AtomicLong endPhyOffset = new AtomicLong(0);
+    private final AtomicLong endPhyOffset = new AtomicLong(0);
 
     /**
      * 槽位数
      */
-    private AtomicInteger hashSlotCount = new AtomicInteger(0);
+    @Getter
+    private final AtomicInteger hashSlotCount = new AtomicInteger(0);
 
     // 从1开始，索引的数量
 
     /**
      * 记录该文件当前使用的索引个数
      */
-    private AtomicInteger indexCount = new AtomicInteger(1);
+    private final AtomicInteger indexCount = new AtomicInteger(1);
 
     public IndexHeader(final ByteBuffer byteBuffer) {
         this.byteBuffer = byteBuffer;
@@ -135,10 +138,6 @@ public class IndexHeader {
     public void setEndPhyOffset(long endPhyOffset) {
         this.endPhyOffset.set(endPhyOffset);
         this.byteBuffer.putLong(endPhyoffsetIndex, endPhyOffset);
-    }
-
-    public AtomicInteger getHashSlotCount() {
-        return hashSlotCount;
     }
 
     public void incHashSlotCount() {

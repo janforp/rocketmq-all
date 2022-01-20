@@ -1,14 +1,14 @@
 package org.apache.rocketmq.store.index;
 
-import java.io.IOException;
-import java.nio.ByteBuffer;
-import java.nio.MappedByteBuffer;
-import java.util.List;
-
 import org.apache.rocketmq.common.constant.LoggerName;
 import org.apache.rocketmq.logging.InternalLogger;
 import org.apache.rocketmq.logging.InternalLoggerFactory;
 import org.apache.rocketmq.store.MappedFile;
+
+import java.io.IOException;
+import java.nio.ByteBuffer;
+import java.nio.MappedByteBuffer;
+import java.util.List;
 
 /**
  * ../store/index/....
@@ -51,6 +51,10 @@ public class IndexFile {
     private final MappedFile mappedFile;
 
     // 从 mf 中获取的内存映射缓冲区
+
+    /**
+     * this.mappedByteBuffer = this.mappedFile.getMappedByteBuffer();
+     */
     private final MappedByteBuffer mappedByteBuffer;
 
     /**
@@ -65,7 +69,7 @@ public class IndexFile {
     public IndexFile(final String fileName, final int hashSlotNum, final int indexNum, final long endPhyOffset, final long endTimestamp) throws IOException {
         // 一个 indexFile 对象对应文件的大小
         // 40 + 500w * 4 + 2000w * 4
-        int fileTotalSize = IndexHeader.INDEX_HEADER_SIZE + (hashSlotNum * hashSlotSize) + (indexNum * indexSize);
+        int fileTotalSize = IndexHeader.INDEX_HEADER_SIZE /*40*/ + (hashSlotNum * hashSlotSize /*500w * 4*/) + (indexNum * indexSize /*2000w * 4*/);
 
         // 创建文件
         this.mappedFile = new MappedFile(fileName, fileTotalSize);

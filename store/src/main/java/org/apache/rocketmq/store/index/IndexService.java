@@ -255,7 +255,11 @@ public class IndexService {
 
             // 系统唯一索引，为消息创建唯一索引
             if (req.getUniqKey() != null) {
-                indexFile = putKey(indexFile, req, buildKey(topic, req.getUniqKey()));
+
+                String uniqKey = req.getUniqKey();
+                String key = buildKey(topic, uniqKey);
+
+                indexFile = putKey(indexFile, req, key);
                 if (indexFile == null) {
                     log.error("putKey error commitlog {} uniqkey {}", req.getCommitLogOffset(), req.getUniqKey());
                     return;
@@ -264,10 +268,13 @@ public class IndexService {
 
             // 自定义 keys 创建索引
             if (keys != null && keys.length() > 0) {
+
+                // 按空格分开
                 String[] keyset = keys.split(MessageConst.KEY_SEPARATOR);
                 for (String key : keyset) {
                     if (key.length() > 0) {
-                        indexFile = putKey(indexFile, req, buildKey(topic, key));
+                        String buildKey = buildKey(topic, key);
+                        indexFile = putKey(indexFile, req, buildKey);
                         if (indexFile == null) {
                             log.error("putKey error commitlog {} uniqkey {}", req.getCommitLogOffset(), req.getUniqKey());
                             return;
@@ -309,7 +316,7 @@ public class IndexService {
     public IndexFile retryGetAndCreateIndexFile() {
         IndexFile indexFile = null;
 
-        for (int times = 0; times < MAX_TRY_IDX_CREATE; times++) {
+        for (int times = 0; times < MAX_TRY_IDX_CREATE/*3*/; times++) {
             indexFile = this.getAndCreateLastIndexFile();
             if (null != indexFile) {
                 break;
@@ -331,7 +338,7 @@ public class IndexService {
         return indexFile;
     }
 
-    public IndexFile getAndCreateLastIndexFile() {
+    private IndexFile getAndCreateLastIndexFile() {
         IndexFile indexFile = null;
         IndexFile prevIndexFile = null;
         long lastUpdateEndPhyOffset = 0;
