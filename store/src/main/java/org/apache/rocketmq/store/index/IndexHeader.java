@@ -10,7 +10,7 @@ import java.util.concurrent.atomic.AtomicLong;
  * IndexFile 的头
  * 头共40个字节
  *
- * 8k --- 8k --- 8k --- 8k --- 4k -- 4k
+ * 8k(beginTimestamp) --- 8k(endTimestamp) --- 8k(beginPhyOffset) --- 8k(endPhyOffset) --- 4k(hashSlotCount) -- 4k(indexCount)
  */
 public class IndexHeader {
 
@@ -53,12 +53,24 @@ public class IndexHeader {
      */
     private final ByteBuffer byteBuffer;
 
+    /**
+     * beginTimestamp : 该索引文件的第一个消息(Message)的存储时间(落盘时间) 物理位置(pos: 0-7) 8bytes
+     */
     private final AtomicLong beginTimestamp = new AtomicLong(0);
 
+    /**
+     * endTimestamp : 该索引文件的最后一个消息(Message)的存储时间(落盘时间) 物理位置(pos: 8-15) 8bytes
+     */
     private final AtomicLong endTimestamp = new AtomicLong(0);
 
+    /**
+     * beginPhyoffset : 该索引文件第一个消息(Message)的在CommitLog(消息存储文件)的物理位置偏移量(可以通过该物理偏移直接获取到该消息) 物理位置(pos: 16-23) 8bytes
+     */
     private final AtomicLong beginPhyOffset = new AtomicLong(0);
 
+    /**
+     * endPhyoffset : 该索引文件最后一个消息(Message)的在CommitLog(消息存储文件)的物理位置偏移量 (pos: 24-31) 8bytes
+     */
     private final AtomicLong endPhyOffset = new AtomicLong(0);
 
     /**
@@ -71,6 +83,8 @@ public class IndexHeader {
 
     /**
      * 记录该文件当前使用的索引个数
+     *
+     * indexCount : 该索引文件目前的索引个数 (pos: 36-39) 4bytes
      */
     private final AtomicInteger indexCount = new AtomicInteger(1);
 

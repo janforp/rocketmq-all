@@ -54,6 +54,8 @@ public class IndexFile {
 
     /**
      * this.mappedByteBuffer = this.mappedFile.getMappedByteBuffer();
+     *
+     * @see IndexFile#IndexFile(java.lang.String, int, int, long, long)
      */
     private final MappedByteBuffer mappedByteBuffer;
 
@@ -165,7 +167,12 @@ public class IndexFile {
                 } else if (timeDiff < 0) {
                     timeDiff = 0;
                 }
-
+                /*
+                 * key hash value: message key的hash值（key = topic + “#” + KEY，然后针对 key 计算 hashcode）
+                 * phyOffset: message在CommitLog的物理文件地址, 可以直接查询到该消息(索引的核心机制)
+                 * timeDiff: message的落盘时间与header里的beginTimestamp的差值(为了节省存储空间，如果直接存message的落盘时间就得8bytes)
+                 * prevIndex: hash冲突处理的关键之处, 相同hash值上一个消息索引的index(如果当前消息索引是该hash值的第一个索引，则prevIndex=0, 也是消息索引查找时的停止条件)，每个slot位置的第一个消息的prevIndex就是0的。
+                 */
                 // 索引条目写入的开始位置 = 40 + （500w * 4） + (索引下标 * 20)
                 int absIndexPos = IndexHeader.INDEX_HEADER_SIZE + this.hashSlotNum * hashSlotSize + this.indexHeader.getIndexCount() * indexSize;
 
