@@ -784,7 +784,10 @@ public class MappedFile extends ReferenceResource {
         }
         log.info("mapped file warm-up done. mappedFile={}, costTime={}", this.getFileName(), System.currentTimeMillis() - beginTime);
 
-        // 内存锁定
+        /**
+         * 内存锁定
+         * 这样内存不会到swap区，会一直占用物理内存
+         */
         this.mlock();
     }
 

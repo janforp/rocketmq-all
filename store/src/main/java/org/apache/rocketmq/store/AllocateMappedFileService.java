@@ -188,6 +188,8 @@ public class AllocateMappedFileService extends ServiceThread {
             req = this.requestQueue.take();
             AllocateRequest expectedRequest = this.requestTable.get(req.getFilePath());
             if (null == expectedRequest) {
+
+                // 超时了
                 log.warn("this mmap request expired, maybe cause timeout " + req.getFilePath() + " " + req.getFileSize());
                 return true;
             }
@@ -214,6 +216,8 @@ public class AllocateMappedFileService extends ServiceThread {
                         mappedFile = new MappedFile(req.getFilePath(), req.getFileSize(), transientStorePool);
                     }
                 } else {
+
+                    // 创建mf对象
                     mappedFile = new MappedFile(req.getFilePath(), req.getFileSize());
                 }
 
@@ -261,9 +265,9 @@ public class AllocateMappedFileService extends ServiceThread {
             }
         } finally {
             if (req != null && isSuccess) {
-
                 // 唤醒阻塞的线程
-                req.getCountDownLatch().countDown();
+                CountDownLatch countDownLatch = req.getCountDownLatch();
+                countDownLatch.countDown();
             }
         }
         return true;

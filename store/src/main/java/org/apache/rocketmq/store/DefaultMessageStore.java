@@ -215,14 +215,16 @@ public class DefaultMessageStore implements MessageStore {
             if (null != scheduleMessageService) {
                 result = this.scheduleMessageService.load();
             }
-            // load Commit Log
+            // load Commit Log，数据位点咩有恢复
             result = result && this.commitLog.load();
-            // load Consume Queue
+            // load Consume Queue，数据位点咩有恢复
             result = result && this.loadConsumeQueue();
             // 到这里 commitLog 跟 cq 中到位点没有恢复
             if (result) {
                 String storePathRootDir = this.messageStoreConfig.getStorePathRootDir();
                 String storeCheckpoint = StorePathConfigHelper.getStoreCheckpoint(storePathRootDir);
+
+                // 加载 checkPoint
                 this.storeCheckpoint = new StoreCheckpoint(storeCheckpoint);
                 // 索引
                 this.indexService.load(lastExitOK);
@@ -299,12 +301,15 @@ public class DefaultMessageStore implements MessageStore {
              *  2. DLedger committedPos may be missing, so here just require dispatchBehindBytes <= 0
              */
             while (true) {
-                if (dispatchBehindBytes() <= 0) {
+                if (dispatchBehindBytes() <= 0/*commitLogMaxOffset - this.reputFromOffset; 主线程在这等待同步完成*/) {
                     break;
                 }
                 Thread.sleep(1000);
                 log.info("Try to finish doing reput the messages fall behind during the starting, reputOffset={} maxOffset={} behind={}", this.reputMessageService.getReputFromOffset(), this.getMaxPhyOffset(), this.dispatchBehindBytes());
             }
+
+            // 同步完成之后，重新构建映射表
+            // ConcurrentMap<String/* topic */, ConcurrentMap<Integer/* queueId */, ConsumeQueue/*cq*/>> consumeQueueTable;
             this.recoverTopicQueueTable();
         }
 
@@ -318,7 +323,8 @@ public class DefaultMessageStore implements MessageStore {
         this.commitLog.start();
         this.storeStatsService.start();
 
-        // 创建标志是否正常退出的问题 /Users/zhuchenjian/Documents/code/learn/rocketmq/rocketmq-all/conf/home/broker/store/abort
+        // 创建标志是否正常退出的问题
+        // /Users/zhuchenjian/Documents/code/learn/rocketmq/rocketmq-all/conf/home/broker/store/abort
         this.createTempFile();
         this.addScheduleTask();
 
@@ -590,6 +596,9 @@ public class DefaultMessageStore implements MessageStore {
 
     @Override
     public boolean isOSPageCacheBusy() {
+
+        // commitLog 锁定时间过长！！！！
+
         long begin = this.getCommitLog().getBeginTimeInLock();
         long diff = this.systemClock.now() - begin;
 
@@ -1397,6 +1406,7 @@ public class DefaultMessageStore implements MessageStore {
      * @throws IOException
      */
     private void createTempFile() throws IOException {
+        // /users/zhuchenjian/store/abort
         String fileName = StorePathConfigHelper.getAbortFile(this.messageStoreConfig.getStorePathRootDir());
         File file = new File(fileName);
         MappedFile.ensureDirOK(file.getParent());
@@ -1458,30 +1468,44 @@ public class DefaultMessageStore implements MessageStore {
     }
 
     private boolean loadConsumeQueue() {
-        File dirLogic = new File(StorePathConfigHelper.getStorePathConsumeQueue(this.messageStoreConfig.getStorePathRootDir()));
+        // /Users/zhuchenjian/Documents/code/learn/rocketmq/rocketmq-all/conf/home/broker/store/consumequeue 目录
+        String storePathConsumeQueue = StorePathConfigHelper.getStorePathConsumeQueue(this.messageStoreConfig.getStorePathRootDir());
+
+        // consumequeue/ 目录
+        File dirLogic = new File(storePathConsumeQueue);
+        // consumequeue/ 目录下面的topic目录列表
         File[] fileTopicList = dirLogic.listFiles();
         if (fileTopicList != null) {
-
+            // 遍历consumequeue 目录下面的topic目录列表
             for (File fileTopic : fileTopicList) {
+                // 文件名称：主题
                 String topic = fileTopic.getName();
-
+                // 拿到该主题下面的个队列目录如：0/,1/,2/,3/......等，如：
+                // /Users/zhuchenjian/Documents/code/learn/rocketmq/rocketmq-all/conf/home/broker/store/consumequeue/order/0
+                // /Users/zhuchenjian/Documents/code/learn/rocketmq/rocketmq-all/conf/home/broker/store/consumequeue/order/1
+                // /Users/zhuchenjian/Documents/code/learn/rocketmq/rocketmq-all/conf/home/broker/store/consumequeue/order/3
+                // /Users/zhuchenjian/Documents/code/learn/rocketmq/rocketmq-all/conf/home/broker/store/consumequeue/order/2
                 File[] fileQueueIdList = fileTopic.listFiles();
                 if (fileQueueIdList != null) {
                     for (File fileQueueId : fileQueueIdList) {
+                        // /Users/zhuchenjian/Documents/code/learn/rocketmq/rocketmq-all/conf/home/broker/store/consumequeue/order/0
+                        // /Users/zhuchenjian/Documents/code/learn/rocketmq/rocketmq-all/conf/home/broker/store/consumequeue/order/1
+                        // /Users/zhuchenjian/Documents/code/learn/rocketmq/rocketmq-all/conf/home/broker/store/consumequeue/order/3
+                        // /Users/zhuchenjian/Documents/code/learn/rocketmq/rocketmq-all/conf/home/broker/store/consumequeue/order/2
                         int queueId;
                         try {
-                            // 队列id
-                            queueId = Integer.parseInt(fileQueueId.getName());
+                            // 队列id如0,1,2,3......
+                            String fileQueueIdName = fileQueueId.getName();
+                            queueId = Integer.parseInt(fileQueueIdName);
                         } catch (NumberFormatException e) {
                             continue;
                         }
-
+                        /* 6000000 KB =  5.72 MB*/
+                        int mappedFileSizeConsumeQueue = this.getMessageStoreConfig().getMappedFileSizeConsumeQueue();
                         // 创建 cq 对象
-                        ConsumeQueue logic = new ConsumeQueue(
-                                topic, queueId, StorePathConfigHelper.getStorePathConsumeQueue(this.messageStoreConfig.getStorePathRootDir()), // /users/zhuchenjian/store/consumequeue
-                                this.getMessageStoreConfig().getMappedFileSizeConsumeQueue() /* 6000000 KB =  5.72 MB*/, this);
-
-                        // 存储到 consumeQueueTable
+                        ConsumeQueue logic = new ConsumeQueue(topic, queueId, storePathConsumeQueue, mappedFileSizeConsumeQueue /* 6000000 KB =  5.72 MB*/, this);
+                        // 存储到 consumeQueueTable 映射表
+                        // ConcurrentMap<String/* topic */, ConcurrentMap<Integer/* queueId */, ConsumeQueue/*cq*/>> consumeQueueTable;
                         this.putConsumeQueue(topic, queueId, logic);
                         if (!logic.load()) {
                             return false;
@@ -1490,14 +1514,12 @@ public class DefaultMessageStore implements MessageStore {
                 }
             }
         }
-
         log.info("load logics queue all over, OK");
-
         return true;
     }
 
     private void recover(final boolean lastExitOK) {
-        // 最大offset
+        // consumequeue中的最大offset
         long maxPhyOffsetOfConsumeQueue = this.recoverConsumeQueue()/*先恢复 consumeQueue*/;
 
         // 再恢复 commitLog
@@ -1541,8 +1563,12 @@ public class DefaultMessageStore implements MessageStore {
         long minPhyOffset = this.commitLog.getMinOffset();
         for (ConcurrentMap<Integer, ConsumeQueue> maps : this.consumeQueueTable.values()) {
             for (ConsumeQueue logic : maps.values()) {
+                // topic-queueId
                 String key = logic.getTopic() + "-" + logic.getQueueId();
-                table.put(key, logic.getMaxOffsetInQueue());
+
+                // 队列的最大逻辑偏移量？
+                long maxOffsetInQueue = logic.getMaxOffsetInQueue();
+                table.put(key, maxOffsetInQueue);
                 logic.correctMinOffset(minPhyOffset);
             }
         }
@@ -1884,7 +1910,7 @@ public class DefaultMessageStore implements MessageStore {
 
             int flushConsumeQueueThoroughInterval = DefaultMessageStore.this.getMessageStoreConfig().getFlushConsumeQueueThoroughInterval()/*强行刷盘周期，默认60s*/;
             long currentTimeMillis = System.currentTimeMillis();
-            if (currentTimeMillis >= (this.lastFlushTimestamp + flushConsumeQueueThoroughInterval)) {
+            if (currentTimeMillis >= (this.lastFlushTimestamp + flushConsumeQueueThoroughInterval/*强行刷盘周期，默认60s*/)) {
                 this.lastFlushTimestamp = currentTimeMillis;
 
                 // 满足了强制刷盘的条件
@@ -1905,7 +1931,7 @@ public class DefaultMessageStore implements MessageStore {
                 }
             }
 
-            if (0 == flushConsumeQueueLeastPages) {
+            if (0 == flushConsumeQueueLeastPages/*强制刷盘*/) {
                 if (logicsMsgTimestamp > 0) {
                     StoreCheckpoint storeCheckpoint = DefaultMessageStore.this.getStoreCheckpoint();
                     storeCheckpoint.setLogicsMsgTimestamp(logicsMsgTimestamp);
@@ -1994,24 +2020,18 @@ public class DefaultMessageStore implements MessageStore {
                 if (result != null) {
                     try {
                         this.reputFromOffset/*分发位点，通过他可以知道从commitLog的哪个位置开始工作(分发工作)*/ = result.getStartOffset();
-
                         for (int readSize = 0; readSize < result.getSize() && doNext; /*循环读取 result 中的每条消息 */) {
-
                             ByteBuffer resultByteBuffer = result.getByteBuffer();
-
                             // 从commitLog缓存中拿到一条消息
                             // 循环读取 result 中的每条消息
-                            DispatchRequest dispatchRequest = DefaultMessageStore.this.commitLog.checkMessageAndReturnSize(resultByteBuffer, false, false);
+                            DispatchRequest dispatchRequest/*封装了一条消息*/ = DefaultMessageStore.this.commitLog.checkMessageAndReturnSize(resultByteBuffer, false, false);
                             int size = dispatchRequest.getBufferSize() == -1 ? dispatchRequest.getMsgSize() : dispatchRequest.getBufferSize();
-
                             if (dispatchRequest.isSuccess()) {
                                 if (size > 0) {
-
                                     /**
                                      * 提交给发放器，包括 comsumeQueue 以及 indexFile
-                                     *
-                                     * @see CommitLogDispatcherBuildConsumeQueue
-                                     * @see CommitLogDispatcherBuildIndex
+                                     * @see CommitLogDispatcherBuildConsumeQueue 生成 consumeQueue 文件
+                                     * @see CommitLogDispatcherBuildIndex 生成 indexFile
                                      */
                                     DefaultMessageStore.this.doDispatch(dispatchRequest);
 

@@ -12,6 +12,9 @@ public class RunningFlags {
 
     private static final int DISK_FULL_BIT = 1 << 4;
 
+    /**
+     * 主要是这个字段，表示很多状态！！！！
+     */
     private volatile int flagBits = 0;
 
     public RunningFlags() {

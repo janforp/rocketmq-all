@@ -252,9 +252,7 @@ public class CommitLog {
         final List<MappedFile> mappedFiles = this.mappedFileQueue.getMappedFiles();
         if (!mappedFiles.isEmpty()) {
             // 进入恢复逻辑
-
             // Began to recover from the last third file
-
             // 从倒数第三个
             int index = mappedFiles.size() - 3;
             if (index < 0) {
@@ -321,7 +319,8 @@ public class CommitLog {
             // 执行到这里。所有待恢复的数据 已经被检查一遍了
 
             // 再加 mappedFileOffset 之前，processOffset 是最后一个文件的文件名，再加上 mappedFileOffset，则表示 commitLog 的全局位点
-            processOffset += mappedFileOffset;
+            // long processOffset = mappedFile.getFileFromOffset();
+            processOffset = processOffset + mappedFileOffset;
             this.mappedFileQueue.setFlushedWhere(processOffset);
             this.mappedFileQueue.setCommittedWhere(processOffset);
             // 调整 mfq 内当前正在顺序写的mf 的刷盘点和写入点
