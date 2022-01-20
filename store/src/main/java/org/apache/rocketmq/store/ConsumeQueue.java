@@ -364,7 +364,7 @@ public class ConsumeQueue {
         return result;
     }
 
-    public int deleteExpiredFile(long offset) {
+    public int deleteExpiredFile(long offset /*删除 minOffset 之前的数据*/) {
         int cnt = this.mappedFileQueue.deleteExpiredFileByOffset(offset, CQ_STORE_UNIT_SIZE);
         this.correctMinOffset(offset);
         return cnt;
@@ -384,8 +384,7 @@ public class ConsumeQueue {
 
                         if (offsetPy >= phyMinOffset) {
                             this.minLogicOffset = mappedFile.getFileFromOffset() + i;
-                            log.info("Compute logical min offset: {}, topic: {}, queueId: {}",
-                                    this.getMinOffsetInQueue(), this.topic, this.queueId);
+                            log.info("Compute logical min offset: {}, topic: {}, queueId: {}", this.getMinOffsetInQueue(), this.topic, this.queueId);
                             // This maybe not take effect, when not every consume queue has extend file.
                             if (isExtAddr(tagsCode)) {
                                 minExtAddr = tagsCode;

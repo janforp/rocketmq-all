@@ -34,6 +34,7 @@ import java.net.InetSocketAddress;
 import java.net.SocketAddress;
 import java.nio.ByteBuffer;
 import java.nio.channels.FileLock;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Iterator;
@@ -1817,6 +1818,13 @@ public class DefaultMessageStore implements MessageStore {
             int deleteLogicsFilesInterval = DefaultMessageStore.this.getMessageStoreConfig().getDeleteConsumeQueueFilesInterval();
             // commitLog 文件中的最小时间戳
             long minOffset = DefaultMessageStore.this.commitLog.getMinOffset();
+
+            /**
+             * commitLog文件：         ........................前面的 commitLog 文件都已经删除了......................... minOffset(对齐位点)................ maxOffset
+             * consumeQueue文件：      ... lastPhysicalMinOffset .................................................... minOffset(对齐位点) ............... maxOffset
+             *
+             * 通过上面看出来，明显看得出 consumeQueue文件 中存储了部分已经删除的消息索引
+             */
             if (minOffset/* commitLog 文件中的最小时间戳*/ > this.lastPhysicalMinOffset/*consumequeue中的最小offset*/) {
 
                 // 删除 minOffset 之前的 cq 数据
@@ -1825,10 +1833,10 @@ public class DefaultMessageStore implements MessageStore {
                 ConcurrentMap<String/* topic */, ConcurrentMap<Integer/* queueId */, ConsumeQueue>> tables = DefaultMessageStore.this.consumeQueueTable;
 
                 for (ConcurrentMap<Integer/* queueId */, ConsumeQueue> maps : tables.values()) {
-
+                    Collection<ConsumeQueue> consumeQueues = maps.values();
                     // 遍历每个 ConsumeQueue
-                    for (ConsumeQueue logic : maps.values()) {
-                        int deleteCount = logic.deleteExpiredFile(minOffset);
+                    for (ConsumeQueue logic : consumeQueues) {
+                        int deleteCount = logic.deleteExpiredFile(minOffset/*删除 minOffset 之前的数据*/);
                         if (deleteCount > 0 && deleteLogicsFilesInterval > 0) {
                             try {
                                 Thread.sleep(deleteLogicsFilesInterval);
@@ -1880,7 +1888,6 @@ public class DefaultMessageStore implements MessageStore {
             ConcurrentMap<String/* topic */, ConcurrentMap<Integer/* queueId */, ConsumeQueue>> tables = DefaultMessageStore.this.consumeQueueTable;
 
             for (ConcurrentMap<Integer/* queueId */, ConsumeQueue> maps : tables.values()) {
-
                 // 遍历每个 cq
                 for (ConsumeQueue cq : maps.values()) {
                     boolean result = false;
