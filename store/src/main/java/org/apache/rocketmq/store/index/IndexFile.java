@@ -14,14 +14,11 @@ import java.util.List;
  * ../store/index/....
  * 文件命名：当前时间
  *
- * 索引文件的
- * 1.前40个字节是头
- * 2.
- * 3.
- * 4.
- * 5.
- * 6.
+ * <a href="https://www.jianshu.com/p/e0befd11aee0">文档</a>
+ *
+ * 这个数据结构的设计很经典！！！！
  */
+@SuppressWarnings("all")
 public class IndexFile {
 
     private static final InternalLogger log = InternalLoggerFactory.getLogger(LoggerName.STORE_LOGGER_NAME);
@@ -141,7 +138,7 @@ public class IndexFile {
 
             // 计数得到 hash 值（正数）
             int keyHash = indexKeyHashMethod(key);
-            // 取模得到 key 对应 hash槽位 下标
+            // 取模得到 key 对应 hash槽位 下标（注意：该slot上可能已经存储了另外一个索引的位置）
             int slotPos = keyHash % this.hashSlotNum/*该文件共能存储多少个 hash 槽位，默认500w*/;
             // 计数出槽位的开始位置（绝对位置 = 40 + (pos * 4)）
             int absSlotPos = IndexHeader.INDEX_HEADER_SIZE/*文件头40个字节*/ + slotPos/*当前槽位*/ * hashSlotSize/*每个hash桶的大小*/;
@@ -180,18 +177,22 @@ public class IndexFile {
                 // 下面是分别写入 20 个字节的索引的步骤
 
                 // 索引前4个字节：存储 hash 值
-                this.mappedByteBuffer.putInt(absIndexPos, keyHash);
+                this.mappedByteBuffer.putInt(absIndexPos, keyHash);//4
                 // 索引的第 5-12个字节：存储消息的偏移量
-                this.mappedByteBuffer.putLong(absIndexPos + 4, phyOffset);
+                this.mappedByteBuffer.putLong(absIndexPos + 4, phyOffset);//8
                 // 索引的13-16个字节：存储时间差
-                this.mappedByteBuffer.putInt(absIndexPos + 4 + 8, (int) timeDiff);
+                this.mappedByteBuffer.putInt(absIndexPos + 4 + 8, (int) timeDiff);//4
                 // hash 桶的原值，当hash冲突的时候会使用到
-                this.mappedByteBuffer.putInt(absIndexPos + 4 + 8 + 4, slotValue);
+                this.mappedByteBuffer.putInt(absIndexPos + 4 + 8 + 4, slotValue/*hash冲突*/);//4
 
-                // 向当前key计数出来的 hash 桶内写入索引的编号
+                /*
+                 * 向当前key计数出来的 hash 桶内写入索引的编号！！！！！！
+                 *
+                 * 意思就是绝对偏移量是 absSlotPos 的槽位(slot) 存储的索引数据在 this.indexHeader.getIndexCount() 这个位置（共20个字节）！！！！！！
+                 */
                 this.mappedByteBuffer.putInt(absSlotPos, this.indexHeader.getIndexCount());
 
-                if (this.indexHeader.getIndexCount() <= 1) {
+                if (this.indexHeader.getIndexCount() <= 1/*这个索引是该索引文件的第一条索引*/) {
                     // 如果当前是第一条插入的索引，则执行下面的事情
 
                     this.indexHeader.setBeginPhyOffset(phyOffset);

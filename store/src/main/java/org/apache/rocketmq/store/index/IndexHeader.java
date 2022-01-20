@@ -11,7 +11,9 @@ import java.util.concurrent.atomic.AtomicLong;
  * 头共40个字节
  *
  * 8k(beginTimestamp) --- 8k(endTimestamp) --- 8k(beginPhyOffset) --- 8k(endPhyOffset) --- 4k(hashSlotCount) -- 4k(indexCount)
+ *
  */
+@SuppressWarnings("all")
 public class IndexHeader {
 
     public static final int INDEX_HEADER_SIZE = 40;
@@ -79,16 +81,15 @@ public class IndexHeader {
     @Getter
     private final AtomicInteger hashSlotCount = new AtomicInteger(0);
 
-    // 从1开始，索引的数量
-
     /**
      * 记录该文件当前使用的索引个数
+     * 也就是下一个索引创建的时候使用的索引
      *
      * indexCount : 该索引文件目前的索引个数 (pos: 36-39) 4bytes
      */
-    private final AtomicInteger indexCount = new AtomicInteger(1);
+    private final AtomicInteger indexCount = new AtomicInteger(1/*从1开始，因为第0个是无效第索引*/);
 
-    public IndexHeader(final ByteBuffer byteBuffer) {
+    public IndexHeader(final ByteBuffer byteBuffer/* ByteBuffer byteBuffer = this.mappedByteBuffer.slice(); 其实是从文件中来*/) {
         this.byteBuffer = byteBuffer;
     }
 
@@ -104,7 +105,7 @@ public class IndexHeader {
         this.indexCount.set(byteBuffer.getInt(indexCountIndex));
 
         if (this.indexCount.get() <= 0) {
-            this.indexCount.set(1);
+            this.indexCount.set(1/*从1开始，因为第0个是无效第索引*/);
         }
     }
 
