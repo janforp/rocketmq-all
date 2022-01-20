@@ -8,6 +8,7 @@ import org.apache.rocketmq.logging.InternalLogger;
 import org.apache.rocketmq.logging.InternalLoggerFactory;
 import org.apache.rocketmq.store.DefaultMessageStore;
 import org.apache.rocketmq.store.DispatchRequest;
+import org.apache.rocketmq.store.StoreCheckpoint;
 import org.apache.rocketmq.store.config.StorePathConfigHelper;
 
 import java.io.File;
@@ -39,7 +40,7 @@ public class IndexService {
     private final int indexNum;
 
     // 索引文件存储目录，默认是 ：System.getProperty("user.home") + File.separator + "store";
-    private final String storePath;
+    private final String storePath;/* /Users/zhuchenjian/Documents/code/learn/rocketmq/rocketmq-all/conf/home/broker/store/index/  */
 
     // 索引文件列表
     private final ArrayList<IndexFile> indexFileList = new ArrayList<>();
@@ -61,19 +62,28 @@ public class IndexService {
      * @param lastExitOK 上次是否飞正常退出？？？？
      */
     public boolean load(final boolean lastExitOK) {
-        File dir = new File(this.storePath);
+        File dir = new File(this.storePath /* /Users/zhuchenjian/Documents/code/learn/rocketmq/rocketmq-all/conf/home/broker/store/index/ */);
         File[] files = dir.listFiles();
         if (files != null) {
             // ascending order
             Arrays.sort(files);
+
+            StoreCheckpoint storeCheckpoint = this.defaultMessageStore.getStoreCheckpoint();
+
             for (File file : files) {
                 try {
-                    IndexFile f = new IndexFile(file.getPath(), this.hashSlotNum, this.indexNum, 0, 0);
+                    IndexFile f = new IndexFile(
+                            file.getPath()/*/Users/zhuchenjian/Documents/code/learn/rocketmq/rocketmq-all/conf/home/broker/store/index/20220119155631210*/,
+                            this.hashSlotNum, this.indexNum, 0, 0);
+
+                    // 加载，恢复 headerIndex
                     f.load();
 
                     if (!lastExitOK) {
-                        // 上次是否飞正常退出？？？？
-                        if (f.getEndTimestamp() > this.defaultMessageStore.getStoreCheckpoint().getIndexMsgTimestamp()) {
+                        // 上次是否正常退出？？？？
+                        if (f.getEndTimestamp()/*加载完成之后就能拿到该值*/ > storeCheckpoint.getIndexMsgTimestamp()) {
+
+                            // 这个索引文件可能是损坏的
                             f.destroy(0);
                             continue;
                         }
@@ -94,7 +104,7 @@ public class IndexService {
     }
 
     /**
-     * @param offset commitLog 目录捏的最小的 offset(其实也是最在的msg 的偏移量)
+     * @param offset commitLog 目录中的的最小的 offset(其实也是最在的msg 的偏移量)
      */
     public void deleteExpiredFile(long offset) {
         Object[] files = null;
@@ -176,12 +186,13 @@ public class IndexService {
         long indexLastUpdateTimestamp = 0;
         long indexLastUpdatePhyoffset = 0;
 
-        maxNum = Math.min(maxNum, this.defaultMessageStore.getMessageStoreConfig().getMaxMsgsNumBatch());
+        int maxMsgsNumBatch = this.defaultMessageStore.getMessageStoreConfig().getMaxMsgsNumBatch();/*64*/
+        maxNum = Math.min(maxNum, maxMsgsNumBatch/*64*/);
         try {
             this.readWriteLock.readLock().lock();
             if (!this.indexFileList.isEmpty()) {
 
-                // 从尾开始往前遍历
+                // 从尾开始往前遍历，因为用户大概率关心的是最近的数据！！
                 for (int i = this.indexFileList.size(); i > 0; i--) {
                     // 拿到索引文件
                     IndexFile f = this.indexFileList.get(i - 1);
