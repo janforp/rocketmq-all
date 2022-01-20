@@ -8,6 +8,7 @@ import org.apache.rocketmq.logging.InternalLogger;
 import org.apache.rocketmq.logging.InternalLoggerFactory;
 import org.apache.rocketmq.store.DefaultMessageStore;
 import org.apache.rocketmq.store.DispatchRequest;
+import org.apache.rocketmq.store.RunningFlags;
 import org.apache.rocketmq.store.StoreCheckpoint;
 import org.apache.rocketmq.store.config.StorePathConfigHelper;
 
@@ -72,9 +73,9 @@ public class IndexService {
 
             for (File file : files) {
                 try {
-                    IndexFile f = new IndexFile(
-                            file.getPath()/*/Users/zhuchenjian/Documents/code/learn/rocketmq/rocketmq-all/conf/home/broker/store/index/20220119155631210*/,
-                            this.hashSlotNum, this.indexNum, 0, 0);
+
+                    String path = file.getPath();/*/Users/zhuchenjian/Documents/code/learn/rocketmq/rocketmq-all/conf/home/broker/store/index/20220119155631210*/
+                    IndexFile f = new IndexFile(path, this.hashSlotNum, this.indexNum, 0, 0);
 
                     // 加载，恢复 headerIndex
                     f.load();
@@ -106,7 +107,7 @@ public class IndexService {
     /**
      * @param offset commitLog 目录中的的最小的 offset(其实也是最在的msg 的偏移量)
      */
-    public void deleteExpiredFile(long offset) {
+    public void deleteExpiredFile(long offset/* commitLog 目录中的的最小（也就是最早的）的 offset */) {
         Object[] files = null;
         try {
             this.readWriteLock.readLock().lock();
@@ -114,7 +115,7 @@ public class IndexService {
                 return;
             }
 
-            // 拿到第一个索引文件的结尾的消息的偏移量
+            // 拿到第一个索引文件的结尾的消息的偏移量，因为第一个文件中的数据肯定是最早的呀！！！！
             long endPhyOffset = this.indexFileList.get(0).getEndPhyOffset();
             if (endPhyOffset < offset) {
                 // 说明索引目录内存在过期的索引文件
@@ -133,7 +134,7 @@ public class IndexService {
             List<IndexFile> fileList = new ArrayList<>();
 
             // 遍历，但是肯定保存最后一个索引文件（files.length - 1）
-            for (int i = 0; i < (files.length - 1); i++) {
+            for (int i = 0; i < (files.length - 1)/*肯定要保留最后一个索引文件*/; i++) {
                 IndexFile f = (IndexFile) files[i];
                 if (f.getEndPhyOffset() < offset) {
                     // 添加到待删除列表
@@ -236,8 +237,9 @@ public class IndexService {
      * 最终交给当前方法
      *
      * @param req 封装了一条msg
+     * @see DefaultMessageStore.CommitLogDispatcherBuildIndex#dispatch(org.apache.rocketmq.store.DispatchRequest)
      */
-    public void buildIndex(DispatchRequest req) {
+    public void buildIndex(DispatchRequest req /* 其实就是一条消息，只是没有 body 而已*/) {
         // 获取当前索引文件，如果 list 内不存在文件 或者当前file写满了，则创建新的 file并返回
         IndexFile indexFile = retryGetAndCreateIndexFile();
         if (indexFile != null) {
@@ -248,7 +250,7 @@ public class IndexService {
             String topic = req.getTopic();
             // 消息 keys
             String keys = req.getKeys();
-            if (req.getCommitLogOffset() < endPhyOffset) {
+            if (req.getCommitLogOffset()/*消息的偏移量*/ < endPhyOffset) {
                 // 如果当前消息的提交偏移量 小于 文件的最后一个 偏移量，则说明当前消息已经提交到索引了
                 // 则不需要重复提交索引了
                 return;
@@ -265,14 +267,12 @@ public class IndexService {
             }
 
             // 系统唯一索引，为消息创建唯一索引
-            if (req.getUniqKey() != null) {
-
-                String uniqKey = req.getUniqKey();
-                String key = buildKey(topic, uniqKey);
-
+            String reqUniqKey = req.getUniqKey();
+            if (reqUniqKey != null) {
+                String key = buildKey(topic, reqUniqKey);
                 indexFile = putKey(indexFile, req, key);
                 if (indexFile == null) {
-                    log.error("putKey error commitlog {} uniqkey {}", req.getCommitLogOffset(), req.getUniqKey());
+                    log.error("putKey error commitlog {} uniqkey {}", req.getCommitLogOffset(), reqUniqKey);
                     return;
                 }
             }
@@ -287,7 +287,7 @@ public class IndexService {
                         String buildKey = buildKey(topic, key);
                         indexFile = putKey(indexFile, req, buildKey);
                         if (indexFile == null) {
-                            log.error("putKey error commitlog {} uniqkey {}", req.getCommitLogOffset(), req.getUniqKey());
+                            log.error("putKey error commitlog {} uniqkey {}", req.getCommitLogOffset(), reqUniqKey);
                             return;
                         }
                     }
@@ -342,7 +342,8 @@ public class IndexService {
         }
 
         if (null == indexFile) {
-            this.defaultMessageStore.getAccessRights().makeIndexFileError();
+            RunningFlags accessRights = this.defaultMessageStore.getAccessRights();
+            accessRights.makeIndexFileError();
             log.error("Mark index file cannot build flag");
         }
 
@@ -358,8 +359,12 @@ public class IndexService {
         {
             this.readWriteLock.readLock().lock();
             if (!this.indexFileList.isEmpty()) {
+
+                // 最后一个文件
                 IndexFile tmp = this.indexFileList.get(this.indexFileList.size() - 1);
-                if (!tmp.isWriteFull()) {
+                if (!tmp.isWriteFull() /* 最后一个索引文件是否写满了 */) {
+
+                    // 没写满，则返回最后一个即可
                     indexFile = tmp;
                 } else {
 
@@ -373,9 +378,11 @@ public class IndexService {
             this.readWriteLock.readLock().unlock();
         }
 
-        // 创建新的文件
+        // 创建新的文件（没有任何文件 或者 最后一个文件写满了 都会创建新文件！！！）
         if (indexFile == null) {
             try {
+
+                // /Users/zhuchenjian/Documents/code/learn/rocketmq/rocketmq-all/conf/home/broker/store/index/20220119155631210
                 String fileName = this.storePath + File.separator + UtilAll.timeMillisToHumanString(System.currentTimeMillis());
                 indexFile = new IndexFile(fileName, this.hashSlotNum, this.indexNum, lastUpdateEndPhyOffset, lastUpdateIndexTimestamp);
                 this.readWriteLock.writeLock().lock();
@@ -387,6 +394,8 @@ public class IndexService {
             }
 
             if (indexFile != null) {
+
+                // 把上一个写满的文件刷盘
                 final IndexFile flushThisFile = prevIndexFile;
                 // 如果是因为上一个文件写满了而创建新文件，则需要把上一个文件刷盘
                 Thread flushThread = new Thread(() -> IndexService.this.flush(flushThisFile), "FlushIndexFileThread");
