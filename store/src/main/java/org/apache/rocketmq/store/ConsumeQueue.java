@@ -12,6 +12,9 @@ import java.io.File;
 import java.nio.ByteBuffer;
 import java.util.List;
 
+/**
+ * CQData ----- consumeQueue data
+ */
 public class ConsumeQueue {
 
     private static final InternalLogger log = InternalLoggerFactory.getLogger(LoggerName.STORE_LOGGER_NAME);
@@ -35,7 +38,12 @@ public class ConsumeQueue {
     @Getter
     private final int queueId;
 
-    // 临时缓冲区，用途：插新的 CQData 使用
+    /**
+     * TODO ？？？
+     * 临时缓冲区，用途：插新的 CQData 使用
+     *
+     * this.byteBufferIndex = ByteBuffer.allocate(CQ_STORE_UNIT_SIZE 20);
+     */
     private final ByteBuffer byteBufferIndex;
 
     // 每一个 ConsumeQueue 存储文件大小，默认是 600w字节
@@ -83,6 +91,7 @@ public class ConsumeQueue {
      * ConsumerQueue 启动阶段第一步：load
      */
     public boolean load() {
+        // new MappedFileQueue(queueDir, mappedFileSize, null);
         boolean result = this.mappedFileQueue.load();
         log.info("load consume queue " + this.topic + "-" + this.queueId + " " + (result ? "OK" : "Failed"));
         if (isExtReadEnable()) {
@@ -102,14 +111,18 @@ public class ConsumeQueue {
                 // 文件夹下面不足3个文件，则从第一个文件开始
                 index = 0;
             }
+
+            // 文件大小
             int mappedFileSizeLogics = this.mappedFileSize;
             MappedFile mappedFile = mappedFiles.get(index);
             ByteBuffer byteBuffer = mappedFile.sliceByteBuffer();
             long processOffset = mappedFile.getFileFromOffset();
+
+            // 当前遍历中的文件的遍历偏移量，每个文件都是从 0 开始
             long mappedFileOffset = 0;
             long maxExtAddr = 1;
             while (true) {
-                for (int i = 0; i < mappedFileSizeLogics; i += CQ_STORE_UNIT_SIZE /*20*/) {
+                for (int i = 0; i < mappedFileSizeLogics; i += CQ_STORE_UNIT_SIZE /*因为CQData 每个是 20 字节*/) {
 
                     // 读取 前 20 个字节 start
                     long offset = byteBuffer.getLong();// 8个字节存储该条消息在 commitLog 的物理偏移量
@@ -143,6 +156,8 @@ public class ConsumeQueue {
                         mappedFile = mappedFiles.get(index);
                         byteBuffer = mappedFile.sliceByteBuffer();
                         processOffset = mappedFile.getFileFromOffset();
+
+                        // 当前遍历中的文件的遍历偏移量，每个文件都是从 0 开始
                         mappedFileOffset = 0;
                         log.info("recover next consume queue file, " + mappedFile.getFileName());
                     }
@@ -255,6 +270,8 @@ public class ConsumeQueue {
                 mappedFile.setFlushedPosition(0);
 
                 for (int i = 0; i < logicFileSize; i += CQ_STORE_UNIT_SIZE) {
+                    // 循环处理每个 CQData
+
                     long offset = byteBuffer.getLong();
                     int size = byteBuffer.getInt();
                     long tagsCode = byteBuffer.getLong();
@@ -395,15 +412,16 @@ public class ConsumeQueue {
 
     /**
      * 上层 DefaultMessageStore 内部的 异步线程 调用，存储主模块开启了一个 异步构建的  ConsumerQueue 文件和索引文件的线程
-     * 该线程启动后，会持续关注 commitLog 文件，当 commitLog 文件内有新数据写入后，立马读出来 将其封装成 DispatchRequest 对象，
+     * 该线程启动后，会持续关注 commitLog 文件，当 commitLog 文件内有新数据写入后，立马读出来 将其封装成 {@link DispatchRequest} 对象，
      * 转发给 ConsumerQueue 或者 IndexService
      *
-     * @param request 由msg封装而来，立马咩有body
+     * @param request 由msg封装而来，只是没有body
      */
     public void putMessagePositionInfoWrapper(DispatchRequest request) {
         final int maxRetries = 30;
 
         // 当前是否可写
+        // return (this.flagBits & (NOT_WRITEABLE_BIT | WRITE_LOGICS_QUEUE_ERROR_BIT | WRITE_INDEX_FILE_ERROR_BIT)) == 0;
         boolean canWrite = this.defaultMessageStore.getRunningFlags().isCQWriteable();
 
         // 最多30次
@@ -430,10 +448,13 @@ public class ConsumeQueue {
             long commitLogOffset = request.getCommitLogOffset();
             // 消息大小
             int msgSize = request.getMsgSize();
+
             // 在消费队列中的偏移量
             long consumeQueueOffset = request.getConsumeQueueOffset();
             boolean result = this.putMessagePositionInfo(commitLogOffset, msgSize, tagsCode, consumeQueueOffset);
             if (result) {
+                // 设置 checkPoint
+
                 if (this.defaultMessageStore.getMessageStoreConfig().getBrokerRole() == BrokerRole.SLAVE || this.defaultMessageStore.getMessageStoreConfig().isEnableDLegerCommitLog()) {
 
                     // 更新 checkPoint 的时间
@@ -466,7 +487,7 @@ public class ConsumeQueue {
      * @param tagsCode 当前msg的tagCode
      * @param cqOffset 当前msg 的 逻辑偏移量 (ConsumerQueue 内的偏移量，转化成 真是物理偏移量的算法：消息的逻辑偏移量 * 20)
      */
-    private boolean putMessagePositionInfo(final long offset, final int size, final long tagsCode, final long cqOffset/*消息的逻辑偏移量 * 20*/) {
+    private boolean putMessagePositionInfo(final long offset, final int size, final long tagsCode, final long cqOffset/*消息的逻辑偏移量*/) {
 
         if (offset + size <= this.maxPhysicOffset) {
 
@@ -483,7 +504,7 @@ public class ConsumeQueue {
         this.byteBufferIndex.putInt(size);
         this.byteBufferIndex.putLong(tagsCode);
 
-        // 计数出在逻辑队列中的真是物理偏移量
+        // 计数出在逻辑队列（consumeQueue文件）中的真是物理偏移量
         final long expectLogicOffset = cqOffset * CQ_STORE_UNIT_SIZE;
 
         // 根据真是物理偏移量获取对应的文件
@@ -495,21 +516,26 @@ public class ConsumeQueue {
                 this.minLogicOffset = expectLogicOffset;
                 this.mappedFileQueue.setFlushedWhere(expectLogicOffset);
                 this.mappedFileQueue.setCommittedWhere(expectLogicOffset);
+
+                // 补白？？？ TODO
                 this.fillPreBlank(mappedFile, expectLogicOffset);
                 log.info("fill pre blank space " + mappedFile.getFileName() + " " + expectLogicOffset + " " + mappedFile.getWrotePosition());
             }
 
             if (cqOffset != 0) {
-                long currentLogicOffset = mappedFile.getWrotePosition() + mappedFile.getFileFromOffset();
+
+                // 当前 cq 文件写入点的物理偏移量
+                long currentLogicOffset = mappedFile.getFileFromOffset() + mappedFile.getWrotePosition();
 
                 if (expectLogicOffset < currentLogicOffset) {
                     // 复写操作
-                    log.warn("Build  consume queue repeatedly, expectLogicOffset: {} currentLogicOffset: {} Topic: {} QID: {} Diff: {}",
-                            expectLogicOffset, currentLogicOffset, this.topic, this.queueId, expectLogicOffset - currentLogicOffset);
+                    String msg = "Build  consume queue repeatedly, expectLogicOffset: {} currentLogicOffset: {} Topic: {} QID: {} Diff: {}";
+                    log.warn(msg, expectLogicOffset, currentLogicOffset, this.topic, this.queueId, expectLogicOffset - currentLogicOffset);
                     return true;
                 }
 
                 if (expectLogicOffset != currentLogicOffset) {
+                    // TODO ?????
                     // 错误的插入
                     String msg = "[BUG]logic queue order maybe wrong, expectLogicOffset: {} currentLogicOffset: {} Topic: {} QID: {} Diff: {}";
                     LOG_ERROR.warn(msg, expectLogicOffset, currentLogicOffset, this.topic, this.queueId, expectLogicOffset - currentLogicOffset);
