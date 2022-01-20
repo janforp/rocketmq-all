@@ -142,19 +142,20 @@ public class IndexFile {
             // 计数得到 hash 值（正数）
             int keyHash = indexKeyHashMethod(key);
             // 取模得到 key 对应 hash槽位 下标
-            int slotPos = keyHash % this.hashSlotNum;
+            int slotPos = keyHash % this.hashSlotNum/*该文件共能存储多少个 hash 槽位，默认500w*/;
             // 计数出槽位的开始位置（绝对位置 = 40 + (pos * 4)）
-            int absSlotPos = IndexHeader.INDEX_HEADER_SIZE + slotPos * hashSlotSize;
+            int absSlotPos = IndexHeader.INDEX_HEADER_SIZE/*文件头40个字节*/ + slotPos/*当前槽位*/ * hashSlotSize/*每个hash桶的大小*/;
             try {
                 // 槽位上的原值，当hash冲突的时候原值是有值的，其他情况就是0
                 // 其实就是索引的位置（从下标开始往后4个字节取一个整数）
                 int slotValue = this.mappedByteBuffer.getInt(absSlotPos);
-                if (slotValue <= invalidIndex || slotValue > this.indexHeader.getIndexCount()) {
+                if (slotValue <= invalidIndex/*0*/ || slotValue > this.indexHeader.getIndexCount()/*该文件共能存储多少个 索引，默认 2000w*/) {
                     // 说明 slotValue 是无效值
                     slotValue = invalidIndex;
                 }
 
                 // 当前索引文件内第一条消息的存储时间 - 当前消息的存储时间
+                // 当前消息的存储时间与第一条消息的存储时间的差
                 long timeDiff = storeTimestamp - this.indexHeader.getBeginTimestamp();
                 // 转换为s（又 8 字节转换为 4字节）
                 timeDiff = timeDiff / 1000;
@@ -174,7 +175,7 @@ public class IndexFile {
                  * prevIndex: hash冲突处理的关键之处, 相同hash值上一个消息索引的index(如果当前消息索引是该hash值的第一个索引，则prevIndex=0, 也是消息索引查找时的停止条件)，每个slot位置的第一个消息的prevIndex就是0的。
                  */
                 // 索引条目写入的开始位置 = 40 + （500w * 4） + (索引下标 * 20)
-                int absIndexPos = IndexHeader.INDEX_HEADER_SIZE + this.hashSlotNum * hashSlotSize + this.indexHeader.getIndexCount() * indexSize;
+                int absIndexPos = IndexHeader.INDEX_HEADER_SIZE/*文件头40个字节*/ + this.hashSlotNum/*该文件共能存储多少个 hash 槽位，默认500w*/ * hashSlotSize/*每个hash桶的大小*/ + this.indexHeader.getIndexCount() * indexSize/*每个index条目的大小*/;
 
                 // 下面是分别写入 20 个字节的索引的步骤
 
