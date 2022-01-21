@@ -165,24 +165,24 @@ public class MessageDecoder {
         if (storeSize > 0) {
             byteBuffer = ByteBuffer.allocate(storeSize);
         } else {
-            storeSize = 4 // 1 TOTALSIZE
-                    + 4 // 2 MAGICCODE
-                    + 4 // 3 BODYCRC
-                    + 4 // 4 QUEUEID
-                    + 4 // 5 FLAG
-                    + 8 // 6 QUEUEOFFSET
-                    + 8 // 7 PHYSICALOFFSET
-                    + 4 // 8 SYSFLAG
-                    + 8 // 9 BORNTIMESTAMP
-                    + bornhostLength // 10 BORNHOST
-                    + 8 // 11 STORETIMESTAMP
-                    + storehostAddressLength // 12 STOREHOSTADDRESS
-                    + 4 // 13 RECONSUMETIMES
-                    + 8 // 14 Prepared Transaction Offset
-                    + 4 + bodyLength // 14 BODY
-                    + 1 + topicLen // 15 TOPIC
-                    + 2 + propertiesLength // 16 propertiesLength
-                    + 0;
+            storeSize = 4 +  // 1 TOTALSIZE
+                    4 +  // 2 MAGICCODE
+                    4 +  // 3 BODYCRC
+                    4 +  // 4 QUEUEID
+                    4 +  // 5 FLAG
+                    8 +  // 6 QUEUEOFFSET
+                    8 +  // 7 PHYSICALOFFSET
+                    4 +  // 8 SYSFLAG
+                    8 +  // 9 BORNTIMESTAMP
+                    bornhostLength +  // 10 BORNHOST
+                    8 +  // 11 STORETIMESTAMP
+                    storehostAddressLength +  // 12 STOREHOSTADDRESS
+                    4 +  // 13 RECONSUMETIMES
+                    8 +  // 14 Prepared Transaction Offset
+                    4 + bodyLength +  // 14 BODY
+                    1 + topicLen +  // 15 TOPIC
+                    2 + propertiesLength // 16 propertiesLength
+            ;
             byteBuffer = ByteBuffer.allocate(storeSize);
         }
         // 1 TOTALSIZE

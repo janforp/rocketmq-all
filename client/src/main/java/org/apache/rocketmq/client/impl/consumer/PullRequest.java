@@ -64,12 +64,9 @@ public class PullRequest {
             return false;
         }
         if (messageQueue == null) {
-            if (other.messageQueue != null) {
-                return false;
-            }
-        } else if (!messageQueue.equals(other.messageQueue)) {
-            return false;
+            return other.messageQueue == null;
+        } else {
+            return messageQueue.equals(other.messageQueue);
         }
-        return true;
     }
 }
