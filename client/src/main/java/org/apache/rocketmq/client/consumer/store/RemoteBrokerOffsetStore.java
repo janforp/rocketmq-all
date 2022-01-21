@@ -23,6 +23,8 @@ import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicLong;
 
 /**
+ * 集群模式下使用！！
+ *
  * Remote storage implementation
  */
 public class RemoteBrokerOffsetStore implements OffsetStore {
@@ -87,8 +89,10 @@ public class RemoteBrokerOffsetStore implements OffsetStore {
                     return -1;
                 }
             }
-            case READ_FROM_STORE: {
+            case READ_FROM_STORE/*一般是这个*/: {
                 try {
+
+                    // 从 broker 上拿到消费进度
                     long brokerOffset = this.fetchConsumeOffsetFromBroker(mq);
                     AtomicLong offset = new AtomicLong(brokerOffset);
                     this.updateOffset(mq, offset.get(), false);
@@ -130,8 +134,9 @@ public class RemoteBrokerOffsetStore implements OffsetStore {
                 try {
 
                     // 消费进度同步到 broker 上
-                    this.updateConsumeOffsetToBroker(mq, offset.get());
-                    log.info("[persistAll] Group: {} ClientId: {} updateConsumeOffsetToBroker {} {}", this.groupName, this.mQClientFactory.getClientId(), mq, offset.get());
+                    long offsetInClient = offset.get();
+                    this.updateConsumeOffsetToBroker(mq, offsetInClient);
+                    log.info("[persistAll] Group: {} ClientId: {} updateConsumeOffsetToBroker {} {}", this.groupName, this.mQClientFactory.getClientId(), mq, offsetInClient);
                 } catch (Exception e) {
                     log.error("updateConsumeOffsetToBroker exception, " + mq.toString(), e);
                 }
@@ -223,17 +228,17 @@ public class RemoteBrokerOffsetStore implements OffsetStore {
 
     private long fetchConsumeOffsetFromBroker(MessageQueue mq) throws RemotingException, MQBrokerException, InterruptedException, MQClientException {
         // 拿到的 broker 信息
-        FindBrokerResult findBrokerResult = this.mQClientFactory.findBrokerAddressInAdmin(mq.getBrokerName());
+        String brokerName = mq.getBrokerName();
+        FindBrokerResult findBrokerResult = this.mQClientFactory.findBrokerAddressInAdmin(brokerName);
         if (null == findBrokerResult) {
-
             // 如果拿不到，可能需要更新
             this.mQClientFactory.updateTopicRouteInfoFromNameServer(mq.getTopic());
             // 更新之后再拿一次
-            findBrokerResult = this.mQClientFactory.findBrokerAddressInAdmin(mq.getBrokerName());
+            findBrokerResult = this.mQClientFactory.findBrokerAddressInAdmin(brokerName);
         }
 
         if (findBrokerResult == null) {
-            throw new MQClientException("The broker[" + mq.getBrokerName() + "] not exist", null);
+            throw new MQClientException("The broker[" + brokerName + "] not exist", null);
         }
 
         QueryConsumerOffsetRequestHeader requestHeader = new QueryConsumerOffsetRequestHeader();
@@ -243,6 +248,11 @@ public class RemoteBrokerOffsetStore implements OffsetStore {
 
         MQClientAPIImpl mqClientAPIImpl = this.mQClientFactory.getMQClientAPIImpl();
         // 真正的发送网络请求取查询偏移量
-        return mqClientAPIImpl.queryConsumerOffset(findBrokerResult.getBrokerAddr(), requestHeader, 1000 * 5);
+        String brokerAddr = findBrokerResult.getBrokerAddr();
+
+        // 从 broker 上拿到的该队列的 offset
+        long offset = mqClientAPIImpl.queryConsumerOffset(brokerAddr, requestHeader, 1000 * 5);
+        System.out.println(offset);
+        return offset;
     }
 }

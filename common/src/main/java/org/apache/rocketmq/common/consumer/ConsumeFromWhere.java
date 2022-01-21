@@ -14,6 +14,8 @@ public enum ConsumeFromWhere {
 
     /**
      * 从指定时间最近的消息开始消费
+     *
+     * @see org.apache.rocketmq.client.consumer.DefaultMQPushConsumer#consumeTimestamp 二者配合使用！！
      */
     CONSUME_FROM_TIMESTAMP,
 

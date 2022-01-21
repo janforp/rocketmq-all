@@ -134,7 +134,7 @@ public class DefaultMQPushConsumer extends ClientConfig implements MQPushConsume
      */
     @Getter
     @Setter
-    private String consumeTimestamp = UtilAll.timeMillisToHumanString3(System.currentTimeMillis() - (1000 * 60 * 30));
+    private String consumeTimestamp = UtilAll.timeMillisToHumanString3(System.currentTimeMillis() - (1000 * 60 * 30));//30分钟前开始消费
 
     /**
      * Queue allocation algorithm specifying how message queues are allocated to each consumer clients.
@@ -145,6 +145,8 @@ public class DefaultMQPushConsumer extends ClientConfig implements MQPushConsume
      * topic-A 有队列(0,1,2,3,4,5)
      *
      * C1,C2分别消费哪些队列中的消息，由该对象决定，如果是平均分配则 C1(0,1,2), C2(3,4,5)
+     *
+     * 算法的封装
      */
     @Getter
     @Setter
@@ -157,12 +159,12 @@ public class DefaultMQPushConsumer extends ClientConfig implements MQPushConsume
      * value:过滤表达式，一般都是 tag
      */
     @Getter
-    private Map<String /* topic */, String /* sub expression */> subscription = new HashMap<String, String>();
+    private Map<String /* topic */, String /* sub expression 过滤表达式，一般都是tag */> subscription = new HashMap<String, String>();
 
     /**
      * Message listener
      *
-     * 消息处理逻辑，全部由它提供（具体的消费逻辑）
+     * 消息处理逻辑（具体的消费逻辑），全部由它提供
      *
      * @see MessageListenerConcurrently
      * @see MessageListenerOrderly (局部顺序消费),只能保证某个队列内消息的顺序性，如果想保证全局顺序，则创建一个topic只分配一个队列！！！！！
@@ -172,7 +174,7 @@ public class DefaultMQPushConsumer extends ClientConfig implements MQPushConsume
     private MessageListener messageListener;
 
     /**
-     * 消费者本地消费进度存储！（一般都是 RemoteBrokerOffsetStore）
+     * 消费者本地消费进度存储！（一般都是 {@link org.apache.rocketmq.client.consumer.store.RemoteBrokerOffsetStore}）
      *
      * Offset Storage:消费进度的存储器，也可以用来持久化偏移量
      *
@@ -331,7 +333,7 @@ public class DefaultMQPushConsumer extends ClientConfig implements MQPushConsume
      *
      * 消息消费超时的时间
      *
-     * 消费者本地如果某条信息 15 分支 还没有被消费，就需要回退该消息
+     * 消费者本地如果某条信息 15 分钟 还没有被消费，就需要回退该消息
      */
     @Getter
     @Setter

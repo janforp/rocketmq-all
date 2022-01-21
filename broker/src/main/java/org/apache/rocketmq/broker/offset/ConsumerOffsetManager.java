@@ -208,7 +208,9 @@ public class ConsumerOffsetManager extends ConfigManager {
     public long queryOffset(final String group, final String topic, final int queueId) {
         // topic@group
         String key = topic + TOPIC_GROUP_SEPARATOR + group;
-        ConcurrentMap<Integer, Long> map = this.offsetTable.get(key/*topic@group*/);
+
+        // ConcurrentMap<String/* topic@group */, ConcurrentMap<Integer/*queueId*/, Long/*该队列的offset*/>> offsetTable = new ConcurrentHashMap<>(512);
+        ConcurrentMap<Integer/*queueId*/, Long/*该队列的offset*/> map = this.offsetTable.get(key/*topic@group*/);
         if (null != map) {
             Long offset = map.get(queueId);
             if (offset != null) {
