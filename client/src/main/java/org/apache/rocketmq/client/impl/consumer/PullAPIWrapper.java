@@ -50,7 +50,7 @@ public class PullAPIWrapper {
      * 保存下次拉取消息的 推荐
      * value:推荐拉消息使用的主机id
      */
-    private final ConcurrentMap<MessageQueue, AtomicLong/* brokerId */> pullFromWhichNodeTable = new ConcurrentHashMap<MessageQueue, AtomicLong>(32);
+    private final ConcurrentMap<MessageQueue/*队列*/, AtomicLong/* brokerId */> pullFromWhichNodeTable = new ConcurrentHashMap<MessageQueue, AtomicLong>(32);
 
     @Setter
     @Getter

@@ -98,6 +98,11 @@ public class DefaultMQPushConsumerImpl implements MQConsumerInner {
      * rbl 对象，职责：分配订阅主题的队列给当前消费者，20s一个周期执行 rbl 算法 （客户端实例触发）
      *
      * @see RebalanceService
+     * @see RebalanceService#run()
+     * @see MQClientInstance#doRebalance()
+     * @see DefaultMQPushConsumerImpl#doRebalance()
+     * @see RebalanceImpl#doRebalance(boolean)
+     * @see RebalanceImpl#rebalanceByTopic(java.lang.String, boolean)
      */
     @Getter
     private final RebalanceImpl rebalanceImpl = new RebalancePushImpl(this);
@@ -1041,7 +1046,8 @@ public class DefaultMQPushConsumerImpl implements MQConsumerInner {
     @Override
     public void doRebalance() {
         if (!this.pause) {
-            this.rebalanceImpl.doRebalance(this.isConsumeOrderly());
+            boolean consumeOrderly = this.isConsumeOrderly();
+            this.rebalanceImpl.doRebalance(consumeOrderly);
         }
     }
 

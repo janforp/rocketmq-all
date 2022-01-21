@@ -23,9 +23,4 @@ public class RebalanceService extends ServiceThread {
             this.mqClientFactory.doRebalance();
         }
     }
-
-    @Override
-    public String getServiceName() {
-        return RebalanceService.class.getSimpleName();
-    }
 }
