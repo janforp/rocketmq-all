@@ -4,6 +4,7 @@ import org.apache.rocketmq.client.consumer.listener.MessageListener;
 import org.apache.rocketmq.client.consumer.listener.MessageListenerConcurrently;
 import org.apache.rocketmq.client.consumer.listener.MessageListenerOrderly;
 import org.apache.rocketmq.client.exception.MQClientException;
+import org.apache.rocketmq.client.impl.consumer.DefaultMQPushConsumerImpl;
 
 /**
  * Push consumer
@@ -23,8 +24,6 @@ public interface MQPushConsumer extends MQConsumer {
     /**
      * Register the message listener
      */
-    @Deprecated
-    void registerMessageListener(MessageListener messageListener);
 
     void registerMessageListener(final MessageListenerConcurrently messageListener);
 
@@ -38,18 +37,6 @@ public interface MQPushConsumer extends MQConsumer {
      * all
      */
     void subscribe(final String topic, final String subExpression) throws MQClientException;
-
-    /**
-     * This method will be removed in the version 5.0.0,because filterServer was removed,and method <code>subscribe(final String topic, final MessageSelector messageSelector)</code>
-     * is recommended.
-     *
-     * Subscribe some topic
-     *
-     * @param fullClassName full class name,must extend org.apache.rocketmq.common.filter. MessageFilter
-     * @param filterClassSource class source code,used UTF-8 file encoding,must be responsible for your code safety
-     */
-    @Deprecated
-    void subscribe(final String topic, final String fullClassName, final String filterClassSource) throws MQClientException;
 
     /**
      * Subscribe some topic with selector.
@@ -84,11 +71,30 @@ public interface MQPushConsumer extends MQConsumer {
 
     /**
      * Suspend the consumption : 停止消费，包括拉取跟消费
+     *
+     * @see DefaultMQPushConsumerImpl#pause
      */
     void suspend();
 
     /**
      * Resume the consumption ： 恢复消费
+     *
+     * @see DefaultMQPushConsumerImpl#pause
      */
     void resume();
+
+    @Deprecated
+    void registerMessageListener(MessageListener messageListener);
+
+    /**
+     * This method will be removed in the version 5.0.0,because filterServer was removed,and method <code>subscribe(final String topic, final MessageSelector messageSelector)</code>
+     * is recommended.
+     *
+     * Subscribe some topic
+     *
+     * @param fullClassName full class name,must extend org.apache.rocketmq.common.filter. MessageFilter
+     * @param filterClassSource class source code,used UTF-8 file encoding,must be responsible for your code safety
+     */
+    @Deprecated
+    void subscribe(final String topic, final String fullClassName, final String filterClassSource) throws MQClientException;
 }

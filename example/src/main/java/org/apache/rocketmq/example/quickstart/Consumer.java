@@ -51,7 +51,7 @@ public class Consumer {
         });
 
         /*
-         *  Launch the consumer instance.
+         *  Launch the consumer instance.启动消费者实例。
          */
         consumer.start();
 

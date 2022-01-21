@@ -7,6 +7,7 @@ public enum ConsumeConcurrentlyStatus {
      * 消费成功
      */
     CONSUME_SUCCESS,
+
     /**
      * Failure consumption,later try to consume
      * 消费失败

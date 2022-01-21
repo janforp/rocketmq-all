@@ -1,13 +1,5 @@
 package org.apache.rocketmq.client.consumer.store;
 
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.Map;
-import java.util.Set;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ConcurrentMap;
-import java.util.concurrent.atomic.AtomicLong;
-
 import org.apache.rocketmq.client.exception.MQBrokerException;
 import org.apache.rocketmq.client.exception.MQClientException;
 import org.apache.rocketmq.client.impl.FindBrokerResult;
@@ -16,11 +8,19 @@ import org.apache.rocketmq.client.impl.factory.MQClientInstance;
 import org.apache.rocketmq.client.log.ClientLogger;
 import org.apache.rocketmq.common.MixAll;
 import org.apache.rocketmq.common.UtilAll;
-import org.apache.rocketmq.logging.InternalLogger;
 import org.apache.rocketmq.common.message.MessageQueue;
 import org.apache.rocketmq.common.protocol.header.QueryConsumerOffsetRequestHeader;
 import org.apache.rocketmq.common.protocol.header.UpdateConsumerOffsetRequestHeader;
+import org.apache.rocketmq.logging.InternalLogger;
 import org.apache.rocketmq.remoting.exception.RemotingException;
+
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.atomic.AtomicLong;
 
 /**
  * Remote storage implementation
@@ -34,6 +34,8 @@ public class RemoteBrokerOffsetStore implements OffsetStore {
     private final String groupName;
 
     /**
+     * 本地队列消费进度
+     *
      * 某个队列的消费进度映射
      * key:队列
      * value：偏移量
@@ -126,6 +128,8 @@ public class RemoteBrokerOffsetStore implements OffsetStore {
             }
             if (mqs.contains(mq)) {
                 try {
+
+                    // 消费进度同步到 broker 上
                     this.updateConsumeOffsetToBroker(mq, offset.get());
                     log.info("[persistAll] Group: {} ClientId: {} updateConsumeOffsetToBroker {} {}", this.groupName, this.mQClientFactory.getClientId(), mq, offset.get());
                 } catch (Exception e) {

@@ -314,7 +314,7 @@ public class DefaultMQPushConsumer extends ClientConfig implements MQPushConsume
      */
     @Getter
     @Setter
-    private int maxReconsumeTimes = -1;
+    private int maxReconsumeTimes = -1;// 16 次
 
     /**
      * Suspending pulling time for cases requiring slow pulling like flow-control scenario.
