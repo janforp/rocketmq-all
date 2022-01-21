@@ -689,6 +689,8 @@ public class DefaultMQPushConsumerImpl implements MQConsumerInner {
                  * 冷数据：在硬盘中，会建议下次去 slave 拉
                  */
                 this.pullAPIWrapper = new PullAPIWrapper(mQClientFactory, this.defaultMQPushConsumer.getConsumerGroup(), isUnitMode());
+
+                // 注册到这里， 消息拉取到的时候执行这个钩子
                 this.pullAPIWrapper.registerFilterMessageHook(filterMessageHookList);
 
                 if (this.defaultMQPushConsumer.getOffsetStore() != null) {
@@ -712,7 +714,7 @@ public class DefaultMQPushConsumerImpl implements MQConsumerInner {
                     this.defaultMQPushConsumer.setOffsetStore(this.offsetStore);
                 }
 
-                // 集群模式下，
+                // 集群模式下，啥都没干
                 this.offsetStore.load();
 
                 // 创建 consumeMessageService 对象
@@ -897,17 +899,18 @@ public class DefaultMQPushConsumerImpl implements MQConsumerInner {
 
                 // %RETRY%SOCINSCORE_CONSUMER_GROUP
                 // 消息重试的主题，因为会有消费失败的情况
-                final String retryTopic = MixAll.getRetryTopic(this.defaultMQPushConsumer.getConsumerGroup());
-                SubscriptionData subscriptionData = FilterAPI.buildSubscriptionData(this.defaultMQPushConsumer.getConsumerGroup(), retryTopic, SubscriptionData.SUB_ALL);
+                final String retryTopic/*%RETRY%SOCINSCORE_CONSUMER_GROUP*/ = MixAll.getRetryTopic(this.defaultMQPushConsumer.getConsumerGroup());
+                SubscriptionData subscriptionData = FilterAPI.buildSubscriptionData(this.defaultMQPushConsumer.getConsumerGroup(), retryTopic, SubscriptionData.SUB_ALL/* * */);
 
                 // 存储
                 ConcurrentMap<String, SubscriptionData> subscriptionInner = this.rebalanceImpl.getSubscriptionInner();
-                subscriptionInner.put(retryTopic, subscriptionData);
 
+                // 塞入重试主题订阅信息
                 /*
                  * 这里为什么要订阅重试主题呢？
                  * 消息重试时，消息最终会再次加入到该主题，消费者订阅这个主题之后，就会再次拿到该消息，可以再次处理
                  */
+                subscriptionInner.put(retryTopic, subscriptionData);
             }
         } catch (Exception e) {
             throw new MQClientException("subscription exception", e);
@@ -915,15 +918,15 @@ public class DefaultMQPushConsumerImpl implements MQConsumerInner {
     }
 
     private void updateTopicSubscribeInfoWhenSubscriptionChanged() {
-        // ConcurrentMap<String /* topic */, SubscriptionData> subscriptionInner
-        /*
+        /**
+         * ConcurrentMap<String , SubscriptionData> subscriptionInner
          * @see  RebalanceImpl#subscriptionInner
          */
-        Map<String, SubscriptionData> subTable = this.getSubscriptionInner();
+        Map<String /* topic */, SubscriptionData> subTable = this.getSubscriptionInner();
         if (subTable == null) {
             return;
         }
-        for (final Map.Entry<String, SubscriptionData> entry : subTable.entrySet()) {
+        for (final Map.Entry<String /* topic */, SubscriptionData> entry : subTable.entrySet()) {
             final String topic = entry.getKey();
             // 更新路由数据,并且更新本地路由数据
             this.mQClientFactory.updateTopicRouteInfoFromNameServer(topic);

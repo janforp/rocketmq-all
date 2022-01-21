@@ -564,7 +564,7 @@ public class MQClientInstance {
     }
 
     public void checkClientInBroker() throws MQClientException {
-        for (Entry<String, MQConsumerInner> entry : this.consumerTable.entrySet()) {
+        for (Entry<String/* group */, MQConsumerInner> entry : this.consumerTable.entrySet()) {
             // 该生产者的订阅信息
             Set<SubscriptionData> subscriptionInner = entry.getValue().subscriptions();
             if (subscriptionInner == null || subscriptionInner.isEmpty()) {
@@ -806,7 +806,7 @@ public class MQClientInstance {
                                 this.brokerAddrTable.put(bd.getBrokerName(), brokerAddrs);
                             }
 
-                            // Update Pub info
+                            // Update Pub info 发布
                             {
                                 // 将当前topic路由数据转化为主题发布数据
                                 TopicPublishInfo publishInfo = topicRouteData2TopicPublishInfo(topic, topicRouteData);
@@ -820,7 +820,7 @@ public class MQClientInstance {
                                 }
                             }
 
-                            // Update sub info
+                            // Update sub info 订阅
                             {
                                 Set<MessageQueue> subscribeInfo = topicRouteData2TopicSubscribeInfo(topic, topicRouteData);
                                 for (Entry<String, MQConsumerInner> entry : this.consumerTable.entrySet()) {
