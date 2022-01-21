@@ -177,7 +177,10 @@ public class DefaultMQPushConsumer extends ClientConfig implements MQPushConsume
      * Offset Storage:消费进度的存储器，也可以用来持久化偏移量
      *
      * @see org.apache.rocketmq.client.consumer.store.RemoteBrokerOffsetStore
+     * @see DefaultMQPushConsumerImpl#start()
      */
+    @Getter
+    @Setter
     private OffsetStore offsetStore;
 
     /**
@@ -318,7 +321,6 @@ public class DefaultMQPushConsumer extends ClientConfig implements MQPushConsume
 
     /**
      * Suspending pulling time for cases requiring slow pulling like flow-control scenario.
-     *
      */
     @Getter
     @Setter
@@ -755,21 +757,5 @@ public class DefaultMQPushConsumer extends ClientConfig implements MQPushConsume
     @Override
     public void resume() {
         this.defaultMQPushConsumerImpl.resume();
-    }
-
-    /**
-     * This method will be removed in a certain version after April 5, 2020, so please do not use this method.
-     */
-    @Deprecated
-    public OffsetStore getOffsetStore() {
-        return offsetStore;
-    }
-
-    /**
-     * This method will be removed in a certain version after April 5, 2020, so please do not use this method.
-     */
-    @Deprecated
-    public void setOffsetStore(OffsetStore offsetStore) {
-        this.offsetStore = offsetStore;
     }
 }

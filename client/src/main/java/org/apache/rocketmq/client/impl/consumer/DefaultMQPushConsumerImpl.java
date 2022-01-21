@@ -64,6 +64,7 @@ import java.util.Properties;
 import java.util.Set;
 import java.util.concurrent.ConcurrentMap;
 
+@SuppressWarnings("all")
 public class DefaultMQPushConsumerImpl implements MQConsumerInner {
 
     /**
@@ -161,6 +162,20 @@ public class DefaultMQPushConsumerImpl implements MQConsumerInner {
      * 消息进度存储器
      *
      * @see RemoteBrokerOffsetStore
+     *
+     * // 正常情况到这里执行
+     * switch (this.defaultMQPushConsumer.getMessageModel()) {
+     * case BROADCASTING:
+     * // 广播模式
+     * this.offsetStore = new LocalFileOffsetStore(this.mQClientFactory, this.defaultMQPushConsumer.getConsumerGroup());
+     * break;
+     * case CLUSTERING:
+     * // 集群模式
+     * this.offsetStore = new RemoteBrokerOffsetStore(this.mQClientFactory, this.defaultMQPushConsumer.getConsumerGroup());
+     * break;
+     * default:
+     * break;
+     * @see DefaultMQPushConsumerImpl#start()
      */
     @Getter
     @Setter
