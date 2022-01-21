@@ -255,29 +255,23 @@ public class MessageDecoder {
         return byteBuffer.array();
     }
 
-    public static MessageExt decode(
-            java.nio.ByteBuffer byteBuffer, final boolean readBody, final boolean deCompressBody) {
+    public static MessageExt decode(java.nio.ByteBuffer byteBuffer, final boolean readBody, final boolean deCompressBody) {
         return decode(byteBuffer, readBody, deCompressBody, false);
     }
 
-    public static MessageExt decode(
-            java.nio.ByteBuffer byteBuffer, final boolean readBody, final boolean deCompressBody, final boolean isClient) {
+    public static MessageExt decode(java.nio.ByteBuffer byteBuffer, final boolean readBody, final boolean deCompressBody, final boolean isClient) {
         try {
-
             MessageExt msgExt;
             if (isClient) {
                 msgExt = new MessageClientExt();
             } else {
                 msgExt = new MessageExt();
             }
-
             // 1 TOTALSIZE
             int storeSize = byteBuffer.getInt();
             msgExt.setStoreSize(storeSize);
-
-            // 2 MAGICCODE
+            // 2 MAGICCODE。意思就是跳过4个字节的魔法code
             byteBuffer.getInt();
-
             // 3 BODYCRC
             int bodyCRC = byteBuffer.getInt();
             msgExt.setBodyCRC(bodyCRC);
@@ -299,7 +293,7 @@ public class MessageDecoder {
             msgExt.setCommitLogOffset(physicOffset);
 
             // 8 SYSFLAG
-            int sysFlag = byteBuffer.getInt();
+            int sysFlag/*里面藏着很多秘密，包括该消息是否被压缩*/ = byteBuffer.getInt();
             msgExt.setSysFlag(sysFlag);
 
             // 9 BORNTIMESTAMP
@@ -346,7 +340,7 @@ public class MessageDecoder {
 
                     msgExt.setBody(body);
                 } else {
-                    byteBuffer.position(byteBuffer.position() + bodyLen);
+                    byteBuffer.position(byteBuffer.position() + bodyLen /*不需要读取 消息体，则跳过*/);
                 }
             }
 

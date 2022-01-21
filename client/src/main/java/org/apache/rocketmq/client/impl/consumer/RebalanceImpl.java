@@ -291,11 +291,10 @@ public abstract class RebalanceImpl {
                 // ConcurrentMap<String/* topic */, Set<MessageQueue>> topicSubscribeInfoTable
                 // 获取当前主题的全部 MessageQueue
                 Set<MessageQueue> mqSet = this.topicSubscribeInfoTable.get(topic);
-
                 // 获取当前'消费者组'下的全部消费者ID（客户端实例ID集合）
                 List<String> cidAll = this.mQClientFactory.findConsumerIdList(topic, consumerGroup);
                 if (null == mqSet) {
-                    if (!topic.startsWith(MixAll.RETRY_GROUP_TOPIC_PREFIX)) {
+                    if (!topic.startsWith(MixAll.RETRY_GROUP_TOPIC_PREFIX/*%RETRY%*/)) {
                         log.warn("doRebalance, {}, but the topic[{}] not exist.", consumerGroup, topic);
                     }
                 }
@@ -316,8 +315,9 @@ public abstract class RebalanceImpl {
                     // 负载均衡分配结果
                     List<MessageQueue> allocateResult;
                     try {
+                        String clientId/*10.201.13.28@67717*/ = this.mQClientFactory.getClientId();
                         // 调用队列分配策略的分配方法
-                        allocateResult = strategy.allocate(this.consumerGroup, this.mQClientFactory.getClientId(), mqAll, cidAll);
+                        allocateResult = strategy.allocate(this.consumerGroup, clientId, mqAll, cidAll);
                     } catch (Throwable e) {
                         // log.error("AllocateMessageQueueStrategy.allocate Exception. allocateMessageQueueStrategyName={}", strategy.getName(), e);
                         return;
