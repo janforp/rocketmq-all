@@ -155,7 +155,12 @@ public class DefaultMQPushConsumerImpl implements MQConsumerInner {
     @Setter
     private boolean consumeOrderly = false;
 
-    // 消息监听器
+    /**
+     * 消息监听器
+     *
+     * @see MessageListenerConcurrently
+     * @see MessageListenerOrderly
+     */
     @Getter
     private MessageListener messageListenerInner;
 
@@ -184,6 +189,9 @@ public class DefaultMQPushConsumerImpl implements MQConsumerInner {
 
     /**
      * 消息消费服务，里面有消费线程池，执行消费任务
+     *
+     * @see ConsumeMessageConcurrentlyService
+     * @see ConsumeMessageOrderlyService
      */
     @Getter
     @Setter
@@ -730,9 +738,15 @@ public class DefaultMQPushConsumerImpl implements MQConsumerInner {
 
                 // 启动消费服务
                 this.consumeMessageService.start();
-
-                // 将消费者注册到客户端实例
-                // 为何注册：客户端实例给消费者提供了什么服务？
+                /**
+                 * 将消费者注册到客户端实例
+                 * 为何注册：客户端实例给消费者提供了什么服务？
+                 * 1.心跳
+                 * 2.拉消息
+                 * 3.队列负载
+                 * 4.消息进度持久化
+                 * 5.动态调整线程池
+                 */
                 boolean registerOK = mQClientFactory.registerConsumer(this.defaultMQPushConsumer.getConsumerGroup(), this);
                 if (!registerOK) {
                     // 不能重复注册消费者
@@ -753,6 +767,8 @@ public class DefaultMQPushConsumerImpl implements MQConsumerInner {
             case SHUTDOWN_ALREADY:
                 throw new MQClientException("The PushConsumer service state not OK, maybe started once, " + this.serviceState + FAQUrl.suggestTodo(FAQUrl.CLIENT_SERVICE_NOT_OK), null);
             default:
+
+                // CASE 执行完成，继续往下
                 break;
         }
 
@@ -899,13 +915,14 @@ public class DefaultMQPushConsumerImpl implements MQConsumerInner {
 
                 // %RETRY%SOCINSCORE_CONSUMER_GROUP
                 // 消息重试的主题，因为会有消费失败的情况
-                final String retryTopic/*%RETRY%SOCINSCORE_CONSUMER_GROUP*/ = MixAll.getRetryTopic(this.defaultMQPushConsumer.getConsumerGroup());
+                final String retryTopic/* %RETRY%SOCINSCORE_CONSUMER_GROUP */ = MixAll.getRetryTopic(this.defaultMQPushConsumer.getConsumerGroup());
+                // 创建该主题的订阅数据对象
                 SubscriptionData subscriptionData = FilterAPI.buildSubscriptionData(this.defaultMQPushConsumer.getConsumerGroup(), retryTopic, SubscriptionData.SUB_ALL/* * */);
 
-                // 存储
+                // 存储到负载均衡服务对象中
                 ConcurrentMap<String, SubscriptionData> subscriptionInner = this.rebalanceImpl.getSubscriptionInner();
 
-                // 塞入重试主题订阅信息
+                // 存储到负载均衡服务对象中
                 /*
                  * 这里为什么要订阅重试主题呢？
                  * 消息重试时，消息最终会再次加入到该主题，消费者订阅这个主题之后，就会再次拿到该消息，可以再次处理
