@@ -48,7 +48,7 @@ public abstract class RebalanceImpl {
     protected final ConcurrentMap<String/* topic */, Set<MessageQueue>> topicSubscribeInfoTable = new ConcurrentHashMap<String, Set<MessageQueue>>();
 
     /**
-     * @see DefaultMQPushConsumerImpl#copySubscription() 赋值
+     * @see DefaultMQPushConsumerImpl#copySubscription() 该方法初始化该 table
      *
      * 当前消费者的订阅信息
      * key:当前消费者订阅的主题
@@ -330,6 +330,10 @@ public abstract class RebalanceImpl {
                         // 得到本次分配到的 MessageQueue 集合
                         allocateResultSet.addAll(allocateResult);
                     }
+
+                    // 0 1 2 3
+                    // 2 3 4
+                    // 分配到的队列发生了改变
 
                     // 更新当前消费者实例的队列消息
                     boolean changed /*true表示分配给当前消费者的队列发生变化，false没有变化,当分配的队列多了或者少了的时候都会发生变化*/ = this.updateProcessQueueTableInRebalance(topic /*主题*/, allocateResultSet/*当前消费者的分配结果*/, isOrder);
