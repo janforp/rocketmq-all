@@ -673,7 +673,7 @@ public class DefaultMQPushConsumerImpl implements MQConsumerInner {
                 this.serviceState = ServiceState.START_FAILED;
                 // 检查配置
                 this.checkConfig();
-                // 复制订阅信息到 rbl 对象
+                // 复制订阅信息到 rebalanceImpl 对象，并且如果是集群模式的时候，系统自动订阅 重试 主题队列
                 this.copySubscription();
                 if (this.defaultMQPushConsumer.getMessageModel() == MessageModel.CLUSTERING) {
                     // 集群模式，修改消费者实例名称为 进程 PID
@@ -777,10 +777,14 @@ public class DefaultMQPushConsumerImpl implements MQConsumerInner {
         this.updateTopicSubscribeInfoWhenSubscriptionChanged();
 
         // 检查服务器是否支持 "消息过滤模式"（一般都是 tag 过滤）如果不支持，则抛出异常
+        /**
+         * 主要是校验当前订阅的主题所在的 broker 是否支持 表达式类型
+         * 因为不是每个 broker 都支持 除 TAG 之外的过滤类型的
+         */
         this.mQClientFactory.checkClientInBroker();
-        // 向所有已知的 broker 节点 发送心态
+        // 向所有已知的 broker 节点 发送心态，主要包括 订阅信息数据
         this.mQClientFactory.sendHeartbeatToAllBrokerWithLock();
-        // 唤醒负载均衡线程，让 rbl 线程立马执行负载均衡的业务
+        // 唤醒负载均衡线程，让 rbl 线程立马执行负载均衡的业务，负载均衡之后如果订阅关系发送改变也会立即发送心跳到broker
         this.mQClientFactory.rebalanceImmediately();
     }
 
@@ -889,6 +893,11 @@ public class DefaultMQPushConsumerImpl implements MQConsumerInner {
         }
     }
 
+    /**
+     * 复制订阅信息到 rebalanceImpl 对象，并且如果是集群模式的时候，系统自动订阅 重试 主题队列
+     *
+     * @throws MQClientException
+     */
     private void copySubscription() throws MQClientException {
         try {
             // Map<String /* topic */, String /* sub expression */> subscription = new HashMap<String, String>();
@@ -911,6 +920,9 @@ public class DefaultMQPushConsumerImpl implements MQConsumerInner {
                 this.messageListenerInner = this.defaultMQPushConsumer.getMessageListener();
             }
 
+            /**
+             * 如果是集群模式，则系统字段订阅 %RETRY%SOCINSCORE_CONSUMER_GROUP 重试主题队列
+             */
             if (this.defaultMQPushConsumer.getMessageModel() == MessageModel.CLUSTERING) {
 
                 // %RETRY%SOCINSCORE_CONSUMER_GROUP
@@ -939,7 +951,7 @@ public class DefaultMQPushConsumerImpl implements MQConsumerInner {
          * ConcurrentMap<String , SubscriptionData> subscriptionInner
          * @see  RebalanceImpl#subscriptionInner
          */
-        Map<String /* topic */, SubscriptionData> subTable = this.getSubscriptionInner();
+        Map<String /* topic */, SubscriptionData/*topic的订阅信息*/> subTable = this.getSubscriptionInner();
         if (subTable == null) {
             return;
         }
@@ -954,10 +966,15 @@ public class DefaultMQPushConsumerImpl implements MQConsumerInner {
         return this.rebalanceImpl.getSubscriptionInner();
     }
 
+    /**
+     * 把订阅信息塞入本地的映射表，并且马上发送心跳给broker
+     */
     public void subscribe(String topic, String subExpression) throws MQClientException {
         try {
-            SubscriptionData subscriptionData = FilterAPI.buildSubscriptionData(this.defaultMQPushConsumer.getConsumerGroup(), topic, subExpression);
-            this.rebalanceImpl.getSubscriptionInner().put(topic, subscriptionData);
+            String consumerGroup = this.defaultMQPushConsumer.getConsumerGroup();
+            SubscriptionData subscriptionData = FilterAPI.buildSubscriptionData(consumerGroup, topic, subExpression);
+            ConcurrentMap<String, SubscriptionData> subscriptionInner = this.rebalanceImpl.getSubscriptionInner();
+            subscriptionInner.put(topic, subscriptionData);
             if (this.mQClientFactory != null) {
                 this.mQClientFactory.sendHeartbeatToAllBrokerWithLock();
             }
@@ -966,6 +983,9 @@ public class DefaultMQPushConsumerImpl implements MQConsumerInner {
         }
     }
 
+    /**
+     * 把订阅信息塞入本地的映射表，并且马上发送心跳给broker
+     */
     public void subscribe(String topic, String fullClassName, String filterClassSource) throws MQClientException {
         try {
             SubscriptionData subscriptionData = FilterAPI.buildSubscriptionData(this.defaultMQPushConsumer.getConsumerGroup(), topic, "*");
@@ -982,6 +1002,9 @@ public class DefaultMQPushConsumerImpl implements MQConsumerInner {
         }
     }
 
+    /**
+     * 把订阅信息塞入本地的映射表，并且马上发送心跳给broker
+     */
     public void subscribe(final String topic, final MessageSelector messageSelector) throws MQClientException {
         try {
             if (messageSelector == null) {
@@ -989,8 +1012,9 @@ public class DefaultMQPushConsumerImpl implements MQConsumerInner {
                 return;
             }
 
-            SubscriptionData subscriptionData = FilterAPI.build(topic, messageSelector.getExpression(), messageSelector.getExpressionType());
+            SubscriptionData subscriptionData = FilterAPI.build(topic, messageSelector.getExpression(), messageSelector.getType());
 
+            // 塞入订阅表
             this.rebalanceImpl.getSubscriptionInner().put(topic, subscriptionData);
             if (this.mQClientFactory != null) {
                 this.mQClientFactory.sendHeartbeatToAllBrokerWithLock();
@@ -1051,6 +1075,7 @@ public class DefaultMQPushConsumerImpl implements MQConsumerInner {
 
     @Override
     public ConsumeType consumeType() {
+        // CONSUME_PASSIVELY("PUSH");
         return ConsumeType.CONSUME_PASSIVELY;
     }
 
@@ -1079,7 +1104,10 @@ public class DefaultMQPushConsumerImpl implements MQConsumerInner {
     public void persistConsumerOffset() {
         try {
             this.makeSureStateOK();
-            Set<MessageQueue> allocateMq = this.rebalanceImpl.getProcessQueueTable().keySet();
+
+            ConcurrentMap<MessageQueue, ProcessQueue> processQueueTable = this.rebalanceImpl.getProcessQueueTable();
+
+            Set<MessageQueue> allocateMq = processQueueTable.keySet();
             Set<MessageQueue> mqs = new HashSet<MessageQueue>(allocateMq);
 
             this.offsetStore.persistAll(mqs);
@@ -1088,8 +1116,16 @@ public class DefaultMQPushConsumerImpl implements MQConsumerInner {
         }
     }
 
+    /**
+     * 修改主题订阅信息
+     *
+     * @param topic
+     * @param info
+     */
     @Override
     public void updateTopicSubscribeInfo(String topic, Set<MessageQueue> info) {
+
+        // 主题订阅信息
         Map<String, SubscriptionData> subTable = this.getSubscriptionInner();
         if (subTable != null) {
             if (subTable.containsKey(topic)) {

@@ -10,6 +10,12 @@ import org.apache.rocketmq.common.filter.FilterAPI;
 import java.util.HashSet;
 import java.util.Set;
 
+/**
+ * 订阅信息，其实就是 consumer.subscribe("order", "*") 的封装
+ *
+ * @see FilterAPI#buildSubscriptionData(java.lang.String, java.lang.String, java.lang.String)
+ * @see org.apache.rocketmq.client.impl.consumer.DefaultMQPushConsumerImpl#subscribe(java.lang.String, java.lang.String) 消费者订阅主题的是也会把数据放到这里
+ */
 @ToString
 public class SubscriptionData implements Comparable<SubscriptionData> {
 
@@ -30,6 +36,7 @@ public class SubscriptionData implements Comparable<SubscriptionData> {
 
     /**
      * 人员： [aa,bb,cc]
+     *
      * @see FilterAPI#buildSubscriptionData(java.lang.String, java.lang.String, java.lang.String)
      */
     @Getter
@@ -38,6 +45,7 @@ public class SubscriptionData implements Comparable<SubscriptionData> {
 
     /**
      * 例如：[aa.hashcode,bb.hashcode,cc.hashcode]
+     *
      * @see FilterAPI#buildSubscriptionData(java.lang.String, java.lang.String, java.lang.String)
      */
     @Getter
@@ -128,8 +136,9 @@ public class SubscriptionData implements Comparable<SubscriptionData> {
         }
         if (expressionType == null) {
             return other.expressionType == null;
-        } else
+        } else {
             return expressionType.equals(other.expressionType);
+        }
     }
 
     @Override

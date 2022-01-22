@@ -35,28 +35,28 @@ public class FilterAPI {
         if (null == subString || subString.equals(SubscriptionData.SUB_ALL) || subString.length() == 0) {
             // 没有指定过滤表达式
             subscriptionData.setSubString(SubscriptionData.SUB_ALL);
-        } else {
-            // 指定了表达式
+            return subscriptionData;
+        }
 
-            // 按空格分开
-            String[] tags = subString.split("\\|\\|");
-            if (tags.length > 0) {
-                for (String tag : tags) {
-                    if (tag.length() > 0) {
-                        String trimString = tag.trim();
-                        if (trimString.length() > 0) {
+        // 指定了表达式
+        // 按空格分开
+        String[] tags = subString.split("\\|\\|");
+        if (tags.length > 0) {
+            for (String tag : tags) {
+                if (tag.length() > 0) {
+                    String trimString = tag.trim();
+                    if (trimString.length() > 0) {
 
-                            // tag
-                            subscriptionData.getTagsSet().add(trimString);
+                        // tag
+                        subscriptionData.getTagsSet().add(trimString);
 
-                            // hashcode
-                            subscriptionData.getCodeSet().add(trimString.hashCode());
-                        }
+                        // hashcode
+                        subscriptionData.getCodeSet().add(trimString.hashCode());
                     }
                 }
-            } else {
-                throw new Exception("subString split error");
             }
+        } else {
+            throw new Exception("subString split error");
         }
 
         return subscriptionData;

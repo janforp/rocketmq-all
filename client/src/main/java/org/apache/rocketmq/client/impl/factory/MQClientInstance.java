@@ -563,6 +563,10 @@ public class MQClientInstance {
         }
     }
 
+    /**
+     * 主要是校验当前订阅的主题所在的 broker 是否支持 表达式类型
+     * 因为不是每个 broker 都支持 除 TAG 之外的过滤类型的
+     */
     public void checkClientInBroker() throws MQClientException {
         for (Entry<String/* group */, MQConsumerInner> entry : this.consumerTable.entrySet()) {
             // 该生产者的订阅信息
@@ -572,22 +576,31 @@ public class MQClientInstance {
             }
 
             for (SubscriptionData subscriptionData : subscriptionInner) {
-                if (ExpressionType.isTagType(subscriptionData.getExpressionType())) {
+                /**
+                 *  public static final String SQL92 = "SQL92";
+                 *  public static final String TAG = "TAG";
+                 *  2 种类型
+                 */
+                String expressionType = subscriptionData.getExpressionType();
+                if (ExpressionType.isTagType(expressionType)) {
                     continue;
                 }
                 // may need to check one broker every cluster...
                 // assume that the configs of every broker in cluster are the the same.
+
+                // 从客户端实例中拿到本地的路由信息，其中就有服务器地址
                 String addr = findBrokerAddrByTopic(subscriptionData.getTopic());
 
                 if (addr != null) {
                     try {
-                        this.getMQClientAPIImpl().checkClientInBroker(addr, entry.getKey(), this.clientId, subscriptionData, 3 * 1000);
+                        String consumerGroup = entry.getKey();
+                        this.getMQClientAPIImpl().checkClientInBroker(addr, consumerGroup, this.clientId, subscriptionData, 3 * 1000);
                     } catch (Exception e) {
                         if (e instanceof MQClientException) {
                             throw (MQClientException) e;
                         } else {
-                            throw new MQClientException("Check client in broker error, maybe because you use " + subscriptionData.getExpressionType() + " to filter message, but server has not been upgraded to support!"
-                                    + "This error would not affect the launch of consumer, but may has impact on message receiving if you " + "have use the new features which are not supported by server, please check the log!", e);
+                            String msg = "This error would not affect the launch of consumer, but may has impact on message receiving if you " + "have use the new features which are not supported by server, please check the log!";
+                            throw new MQClientException("Check client in broker error, maybe because you use " + expressionType + " to filter message, but server has not been upgraded to support!" + msg, e);
                         }
                     }
                 }
@@ -595,6 +608,11 @@ public class MQClientInstance {
         }
     }
 
+    /**
+     * 订阅信息发送改变的时候会主动发心跳
+     *
+     * @see DefaultMQPushConsumerImpl#subscribe(java.lang.String, java.lang.String)
+     */
     public void sendHeartbeatToAllBrokerWithLock() {
         if (this.lockHeartbeat.tryLock()) {
             try {

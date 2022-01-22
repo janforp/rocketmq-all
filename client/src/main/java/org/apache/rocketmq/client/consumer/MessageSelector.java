@@ -1,6 +1,7 @@
 package org.apache.rocketmq.client.consumer;
 
 import lombok.AllArgsConstructor;
+import lombok.Getter;
 import org.apache.rocketmq.common.filter.ExpressionType;
 
 /**
@@ -19,14 +20,18 @@ public class MessageSelector {
     /**
      * @see org.apache.rocketmq.common.filter.ExpressionType
      */
-    private String type;
+    @Getter
+    private final String type;
 
     /**
      * expression content.
      */
-    private String expression;
+    @Getter
+    private final String expression;
 
     /**
+     * 静态工厂方法
+     *
      * Use SLQ92 to select message.
      *
      * @param sql if null or empty, will be treated as select all message.
@@ -36,19 +41,13 @@ public class MessageSelector {
     }
 
     /**
+     * 静态工厂方法
+     *
      * Use tag to select message.
      *
      * @param tag if null or empty or "*", will be treated as select all message.
      */
     public static MessageSelector byTag(String tag) {
         return new MessageSelector(ExpressionType.TAG, tag);
-    }
-
-    public String getExpressionType() {
-        return type;
-    }
-
-    public String getExpression() {
-        return expression;
     }
 }

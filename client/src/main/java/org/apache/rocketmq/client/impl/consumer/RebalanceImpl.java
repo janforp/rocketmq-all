@@ -54,6 +54,7 @@ public abstract class RebalanceImpl {
      * key:当前消费者订阅的主题
      * value:订阅详情
      * @see DefaultMQPushConsumerImpl#copySubscription()
+     * @see DefaultMQPushConsumerImpl#subscribe(java.lang.String, java.lang.String) 消费者订阅主题的是也会把数据放到这里
      */
     @Getter
     protected final ConcurrentMap<String /* topic */, SubscriptionData> subscriptionInner = new ConcurrentHashMap<String, SubscriptionData>();

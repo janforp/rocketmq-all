@@ -2121,6 +2121,9 @@ public class MQClientAPIImpl {
     }
 
     /**
+     * 主要是校验当前订阅的主题所在的 broker 是否支持 表达式类型
+     * 因为不是每个 broker 都支持 除 TAG 之外的过滤类型的
+     *
      * @param brokerAddr broker
      * @param consumerGroup 消费者组
      * @param clientId 客户端实例id

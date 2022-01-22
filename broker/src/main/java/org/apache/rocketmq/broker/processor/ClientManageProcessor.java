@@ -152,6 +152,10 @@ public class ClientManageProcessor extends AsyncNettyRequestProcessor implements
         return response;
     }
 
+    /**
+     * 主要是校验当前订阅的主题所在的 broker 是否支持 表达式类型
+     * 因为不是每个 broker 都支持 除 TAG 之外的过滤类型的
+     */
     public RemotingCommand checkClientConfig(ChannelHandlerContext ctx, RemotingCommand request) {
         final RemotingCommand response = RemotingCommand.createResponseCommand(null);
 
