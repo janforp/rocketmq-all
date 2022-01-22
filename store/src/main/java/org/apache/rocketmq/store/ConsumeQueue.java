@@ -180,7 +180,12 @@ public class ConsumeQueue {
         }
     }
 
+    /**
+     * 从当前逻辑队列中根据时间搜索
+     */
     public long getOffsetInQueueByTime(final long timestamp) {
+
+        // 查询当前文件列表中，修改时间 >= 传入时间的第一个文件
         MappedFile mappedFile = this.mappedFileQueue.getMappedFileByTime(timestamp);
         if (mappedFile != null) {
             long offset;

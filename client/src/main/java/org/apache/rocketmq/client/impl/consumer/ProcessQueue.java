@@ -123,7 +123,7 @@ public class ProcessQueue {
 
     public boolean isPullExpired() {
         // 拉消息请求是否过期
-        return (System.currentTimeMillis() - this.lastPullTimestamp) > PULL_MAX_IDLE_TIME;
+        return (System.currentTimeMillis() - this.lastPullTimestamp) > PULL_MAX_IDLE_TIME /* 120 s */;
     }
 
     @SuppressWarnings("all")

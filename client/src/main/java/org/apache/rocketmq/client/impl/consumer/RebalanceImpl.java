@@ -71,6 +71,7 @@ public abstract class RebalanceImpl {
     @Setter
     protected AllocateMessageQueueStrategy allocateMessageQueueStrategy;
 
+    @Getter
     protected MQClientInstance mQClientFactory;
 
     public RebalanceImpl(String consumerGroup, MessageModel messageModel, AllocateMessageQueueStrategy allocateMessageQueueStrategy, MQClientInstance mQClientFactory) {
@@ -240,6 +241,7 @@ public abstract class RebalanceImpl {
         }
     }
 
+    // 会给重平衡的结果通过心跳发送给 broker
     public void doRebalance(final boolean isOrder) {
         /*
          * 当前消费者的订阅信息
@@ -305,12 +307,12 @@ public abstract class RebalanceImpl {
                 }
 
                 if (mqSet != null && cidAll != null) {
-                    List<MessageQueue> mqAll = new ArrayList<MessageQueue>(mqSet);
+                    List<MessageQueue> mqAll = new ArrayList<MessageQueue>(mqSet /* 该主题的所有队列 */);
 
                     // 主题的 mq集合，消费者ID集合，都进行排序，目的是：每个消费者视图一致性
-                    Collections.sort(mqAll);
-                    Collections.sort(cidAll);
-
+                    Collections.sort(mqAll/* 该主题的所有队列 */);
+                    Collections.sort(cidAll/* 该组下面订阅该主题的所有消费者实例 id */);
+                    // 队列分配策略
                     AllocateMessageQueueStrategy strategy = this.allocateMessageQueueStrategy;
 
                     // 负载均衡分配结果
@@ -324,9 +326,9 @@ public abstract class RebalanceImpl {
                         return;
                     }
 
+                    // 用于装当前实例分配队列结果
                     Set<MessageQueue> allocateResultSet = new HashSet<MessageQueue>();
                     if (allocateResult != null) {
-
                         // 得到本次分配到的 MessageQueue 集合
                         allocateResultSet.addAll(allocateResult);
                     }
@@ -338,6 +340,8 @@ public abstract class RebalanceImpl {
                     // 更新当前消费者实例的队列消息
                     boolean changed /*true表示分配给当前消费者的队列发生变化，false没有变化,当分配的队列多了或者少了的时候都会发生变化*/ = this.updateProcessQueueTableInRebalance(topic /*主题*/, allocateResultSet/*当前消费者的分配结果*/, isOrder);
                     if (changed) {
+
+                        // 会给重平衡的结果通过心跳发送给 broker
                         this.messageQueueChanged(topic, mqSet, allocateResultSet);
                     }
                 }
@@ -396,16 +400,14 @@ public abstract class RebalanceImpl {
             // 队列在消费者端的快照
             ProcessQueue pq = next.getValue();
 
-            if (mq.getTopic().equals(topic)) {
+            if (mq.getTopic().equals(topic) /* 只处理当前 主题的  队列 */) {
                 // 找到传入主题对应的 MessageQueue
 
-                if (!newMqSet/*最新分配给消费者的当前主题的队列集合*/.contains(mq)) {
+                if (!newMqSet/*最新分配给消费者的当前主题的队列集合*/.contains(mq) /* 说明 之前的旧 mq 已经被分配给其他消费者了 */) {
                     // 最新分配给消费者的当前主题的队列集合 中已经没有了当前循环的 mq，说明该mq经过rbl计算之后已经分配给其他消费者节点了
                     // 需要把该 mq 在当前消费者的快照设置为 删除
                     // 消费任务会一直检查 dropped 状态，如果是删除，则立马退出
-
-                    // 删除
-                    pq.setDropped(true);
+                    pq.setDropped(true/*删除*/);
                     if (this.removeUnnecessaryMessageQueue(mq, pq)) {
                         // 不归该消费者消费的队列，需要从 processQueueTable 移除
                         it.remove();
@@ -419,10 +421,13 @@ public abstract class RebalanceImpl {
                 else if (pq.isPullExpired() /* 拉消息请求是否过期 */) {
                     // 如果2分钟内还没有发生拉消息的请求，则说明拉消息请求过期，可能是出问题了，会进入该分支中
 
+                    // TODO 但是这个 队列 还是属于当前消费者呢，移除了之后是不是就没消费者消费该队列的消息了？？？
+                    // 答：下看的循环就知道了，会给这些队列重新创建一个 ProcessQueue 重新塞入映射表中！！！！
+
                     switch (this.consumeType()) {
-                        case CONSUME_ACTIVELY:
+                        case CONSUME_ACTIVELY: // pull
                             break;
-                        case CONSUME_PASSIVELY:
+                        case CONSUME_PASSIVELY:// push
                             // push 的时候也会删除这样的队列
 
                             pq.setDropped(true);
@@ -449,7 +454,7 @@ public abstract class RebalanceImpl {
         for (MessageQueue mq : newMqSet /* 最新分配给消费者的当前主题的队列集合 */) {
 
             // 老的队列中不包含新的 mq,则说明该mq是新分配过来的
-            if (!this.processQueueTable.containsKey(mq)) {
+            if (!this.processQueueTable/* 此时的映射表中包含的队列是哪些呢？答：本次负载均衡之前就属于该消费者并且拉消息没有超时的队列 */.containsKey(mq)) {
                 if (isOrder && !this.lock(mq) /*获取队列的分布式锁*/) {
                     log.warn("doRebalance, {}, add a new mq failed, {}, because lock failed", consumerGroup, mq);
                     continue;
@@ -517,10 +522,6 @@ public abstract class RebalanceImpl {
             this.removeUnnecessaryMessageQueue(mq, prev);
             log.info("Fix Offset, {}, remove unnecessary mq, {} Droped: {}", consumerGroup, mq, droped);
         }
-    }
-
-    public MQClientInstance getmQClientFactory() {
-        return mQClientFactory;
     }
 
     public void setmQClientFactory(MQClientInstance mQClientFactory) {
