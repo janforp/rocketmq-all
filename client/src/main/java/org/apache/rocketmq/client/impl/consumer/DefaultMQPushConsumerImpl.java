@@ -64,6 +64,7 @@ import java.util.Map.Entry;
 import java.util.Properties;
 import java.util.Set;
 import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.atomic.AtomicLong;
 
 @SuppressWarnings("all")
 public class DefaultMQPushConsumerImpl implements MQConsumerInner {
@@ -310,7 +311,7 @@ public class DefaultMQPushConsumerImpl implements MQConsumerInner {
             return;
         }
 
-        pullRequest.getProcessQueue().setLastPullTimestamp(System.currentTimeMillis());
+        processQueue.setLastPullTimestamp(System.currentTimeMillis());
 
         try {
             // 检查状态
@@ -329,9 +330,11 @@ public class DefaultMQPushConsumerImpl implements MQConsumerInner {
         }
 
         // 快照内缓存的消息数量
-        long cachedMessageCount = processQueue.getMsgCount().get();
+        AtomicLong msgCount = processQueue.getMsgCount();
+        long cachedMessageCount = msgCount.get();
         // 快照内缓冲的消息大小
-        long cachedMessageSizeInMiB = processQueue.getMsgSize().get() / (1024 * 1024);
+        AtomicLong msgSize = processQueue.getMsgSize();
+        long cachedMessageSizeInMiB = msgSize.get() / (1024 * 1024);
 
         // 按照消息数量流控
         if (cachedMessageCount > this.defaultMQPushConsumer.getPullThresholdForQueue()/*1000*/) {
@@ -402,6 +405,8 @@ public class DefaultMQPushConsumerImpl implements MQConsumerInner {
         final long beginTimestamp = System.currentTimeMillis();
 
         //  PullCallback   开始
+
+        // 从 broker 拉取消息接口返回之后，会回调这个对象中的2个方法！！！
         PullCallback pullCallback = new PullCallback() {
             @Override
             public void onSuccess(PullResult pullResult /* 拉消息的结果 */) {

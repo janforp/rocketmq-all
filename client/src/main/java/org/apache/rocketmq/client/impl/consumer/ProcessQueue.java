@@ -49,7 +49,7 @@ public class ProcessQueue {
      * value:消息对象
      */
     @Getter
-    private final TreeMap<Long, MessageExt> msgTreeMap = new TreeMap<Long, MessageExt>();
+    private final TreeMap<Long/*TODO 是逻辑偏移量呢还是物理偏移量？*/, MessageExt> msgTreeMap = new TreeMap<Long, MessageExt>();
 
     /**
      * 当前对象存储消息的条数
@@ -87,7 +87,11 @@ public class ProcessQueue {
     @Getter
     private volatile boolean dropped = false;
 
-    // 上次拉消息的时间
+    /**
+     * 上次拉消息的时间
+     *
+     * @see DefaultMQPushConsumerImpl#pullMessage(org.apache.rocketmq.client.impl.consumer.PullRequest) processQueue.setLastPullTimestamp(System.currentTimeMillis());
+     */
     @Setter
     @Getter
     private volatile long lastPullTimestamp = System.currentTimeMillis();

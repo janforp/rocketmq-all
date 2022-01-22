@@ -95,6 +95,7 @@ public class PullMessageService extends ServiceThread {
     private void pullMessage(final PullRequest pullRequest) {
         String consumerGroup = pullRequest.getConsumerGroup();
         // 拿到该组的消费者
+        // return this.consumerTable.get(group);
         final MQConsumerInner consumer = this.mQClientFactory.selectConsumer(consumerGroup);
         if (consumer == null) {
             log.warn("No matched consumer for the PullRequest {}, drop it", pullRequest);
