@@ -37,7 +37,7 @@ public abstract class RebalanceImpl {
      * value:当前队列在消费者端的快照
      */
     @Getter
-    protected final ConcurrentMap<MessageQueue, ProcessQueue> processQueueTable = new ConcurrentHashMap<MessageQueue, ProcessQueue>(64);
+    protected final ConcurrentMap<MessageQueue/*分配给当前消费者的队列*/, ProcessQueue/*队列在消费者的快照*/> processQueueTable = new ConcurrentHashMap<MessageQueue, ProcessQueue>(64);
 
     /**
      * 初始化地方
@@ -45,7 +45,7 @@ public abstract class RebalanceImpl {
      * 2.定时任务(30s)
      */
     @Getter
-    protected final ConcurrentMap<String/* topic */, Set<MessageQueue>> topicSubscribeInfoTable = new ConcurrentHashMap<String, Set<MessageQueue>>();
+    protected final ConcurrentMap<String/* topic */, Set<MessageQueue>/*该主题的队列发布信息*/> topicSubscribeInfoTable = new ConcurrentHashMap<String, Set<MessageQueue>>();
 
     /**
      * @see DefaultMQPushConsumerImpl#copySubscription() 该方法初始化该 table
@@ -57,12 +57,13 @@ public abstract class RebalanceImpl {
      * @see DefaultMQPushConsumerImpl#subscribe(java.lang.String, java.lang.String) 消费者订阅主题的是也会把数据放到这里
      */
     @Getter
-    protected final ConcurrentMap<String /* topic */, SubscriptionData> subscriptionInner = new ConcurrentHashMap<String, SubscriptionData>();
+    protected final ConcurrentMap<String /* topic */, SubscriptionData/*订阅信息，包括 topic 以及过滤信息*/> subscriptionInner = new ConcurrentHashMap<String, SubscriptionData>();
 
     @Getter
     @Setter
     protected String consumerGroup;
 
+    // 广播 还是 集群
     @Getter
     @Setter
     protected MessageModel messageModel;
@@ -251,11 +252,11 @@ public abstract class RebalanceImpl {
          *
          * ConcurrentMap<String * topic *, SubscriptionData> subscriptionInner
          */
-        Map<String /* topic */, SubscriptionData> subTable = this.getSubscriptionInner();
+        Map<String /* topic */, SubscriptionData/*订阅信息，包括 topic 以及过滤信息*/> subTable = this.getSubscriptionInner();
         if (subTable != null) {
 
             // 遍历消费者订阅的每一个主题
-            for (final Map.Entry<String /* topic */, SubscriptionData> entry : subTable.entrySet()) {
+            for (final Map.Entry<String /* topic */, SubscriptionData/*订阅信息，包括 topic 以及过滤信息*/> entry : subTable.entrySet()) {
                 final String topic = entry.getKey();
                 try {
                     // 按照主题进行负载均衡
@@ -353,12 +354,13 @@ public abstract class RebalanceImpl {
         }
     }
 
-    private void truncateMessageQueueNotMyTopic() {
-        Map<String, SubscriptionData> subTable = this.getSubscriptionInner();
+    private void truncateMessageQueueNotMyTopic /* 截断消息队列不是我的主题 */() {
+        Map<String /* topic */, SubscriptionData/*订阅信息，包括 topic 以及过滤信息*/> subTable = this.getSubscriptionInner();
 
-        for (MessageQueue mq : this.processQueueTable.keySet()) {
-            if (!subTable.containsKey(mq.getTopic())) {
+        for (MessageQueue mq/*分配给当前消费者的队列*/ : this.processQueueTable.keySet()) {
+            if (!subTable.containsKey(mq.getTopic()) /*意思是当前消费者的订阅信息中没有订阅这个主题*/) {
 
+                // 当前消费者的订阅信息中没有订阅某个主题的时候，肯定要把这里的映射表删除！！！
                 ProcessQueue pq = this.processQueueTable.remove(mq);
                 if (pq != null) {
                     pq.setDropped(true);
@@ -380,20 +382,27 @@ public abstract class RebalanceImpl {
      * 1.创建 ProcessQueue 为每个新分配队列
      * 2.获取新分配队列的消费进度（offset）,获取方式：到队列归属 broker 上拉取
      * 3.processQueueTable 添加 k-v ，key: messageQueue,value: processQueue
-     * 4.为新分配队列，创建 PullRequest 对象（封装：消费者组，mq,pd,消费进度）
+     * 4.为新分配队列，创建 {@link PullRequest} 对象（封装：消费者组，mq,pd,消费进度）
      * 5.上一步创建的 PullRequest 对象转交给 PullMessageService （拉取消息服务）
+     *
+     *
+     *
+     * 总结：
+     * 1.从 {@link RebalanceImpl#processQueueTable} 映射表中移除分配走的队列
+     * 2.给新分配的队列以及拉消息超时的旧队列创建新的 {@link ProcessQueue}
+     * 3.针对哪些需要从映射表 {@link RebalanceImpl#processQueueTable} 移除的队列会进行消费进度的持久化
      *
      * @param topic 主题
      * @param newMqSet 最新分配给消费者的当前主题的队列集合
      * @param isOrder 是否顺序消费
      */
-    private boolean updateProcessQueueTableInRebalance(final String topic, final Set<MessageQueue> newMqSet, final boolean isOrder) {
+    private boolean updateProcessQueueTableInRebalance(final String topic, final Set<MessageQueue> newMqSet/*该主题在该实例上新分配的队列*/, final boolean isOrder) {
         // 当前消费者 消费的队列是否有变化
         boolean changed = false;
 
         // ConcurrentMap<MessageQueue, ProcessQueue> processQueueTable，这些队列是本次负载均衡之前的队列，但是这个队列中保存的是所有主题下的队列
-        Iterator<Entry<MessageQueue, ProcessQueue>> it = this.processQueueTable.entrySet().iterator();
-        while (it.hasNext()) {
+        Iterator<Entry<MessageQueue/*之前分配给当前消费者的队列*/, ProcessQueue>> it = this.processQueueTable.entrySet().iterator();
+        while (it.hasNext() /* 遍历该主题在该实例上老队列 */) {
             Entry<MessageQueue, ProcessQueue> next = it.next();
 
             // 队列
@@ -401,17 +410,30 @@ public abstract class RebalanceImpl {
             // 队列在消费者端的快照
             ProcessQueue pq = next.getValue();
 
-            if (mq.getTopic().equals(topic) /* 只处理当前 主题的  队列 */) {
+            if (mq.getTopic().equals(topic) /* 只处理当前 主题的  队列，因为该消费者可能还订阅了其他的主题！！！ */) {
                 // 找到传入主题对应的 MessageQueue
 
-                if (!newMqSet/*最新分配给消费者的当前主题的队列集合*/.contains(mq) /* 说明 之前的旧 mq 已经被分配给其他消费者了 */) {
+                if (!newMqSet/*该主题在该实例上新分配的队列*/.contains(mq) /* 说明 之前的旧 mq 已经被分配给其他消费者了，需要移除 */) {
                     // 最新分配给消费者的当前主题的队列集合 中已经没有了当前循环的 mq，说明该mq经过rbl计算之后已经分配给其他消费者节点了
                     // 需要把该 mq 在当前消费者的快照设置为 删除
                     // 消费任务会一直检查 dropped 状态，如果是删除，则立马退出
+                    /**
+                     *        if (processQueue.isDropped()) {
+                     *             // 如果删除了，则直接返回，不拉了，可能是 rbl 之后，该队列被转移到其他消费者了
+                     *             log.info("the pull request[{}] is dropped.", pullRequest.toString());
+                     *             return;
+                     *         }
+                     * @see DefaultMQPushConsumerImpl#pullMessage(org.apache.rocketmq.client.impl.consumer.PullRequest) 拉消息的时候会判断该字段是否为false
+                     */
                     pq.setDropped(true/*删除*/);
+
+                    /*
+                     * 1.持久化消费进度到broker或者本地
+                     * 2.移除本地队列
+                     */
                     if (this.removeUnnecessaryMessageQueue(mq, pq)) {
                         // 不归该消费者消费的队列，需要从 processQueueTable 移除
-                        it.remove();
+                        it.remove(); // 从 映射表 中移除
                         // 说明当前消费者消费的队列发生了变化
                         changed = true;
                         log.info("doRebalance, {}, remove unnecessary mq, {}", consumerGroup, mq);
@@ -419,7 +441,7 @@ public abstract class RebalanceImpl {
                 }
 
                 // 如果当前遍历的 mq 还是被当前 消费者消费
-                else if (pq.isPullExpired() /* 拉消息请求是否过期 */) {
+                else if (pq.isPullExpired() /* 如果当前遍历的队列还归属当前消费者，则继续判断拉消息请求是否过期 */) {
                     // 如果2分钟内还没有发生拉消息的请求，则说明拉消息请求过期，可能是出问题了，会进入该分支中
 
                     // TODO 但是这个 队列 还是属于当前消费者呢，移除了之后是不是就没消费者消费该队列的消息了？？？
@@ -432,6 +454,10 @@ public abstract class RebalanceImpl {
                             // push 的时候也会删除这样的队列
 
                             pq.setDropped(true);
+                            /*
+                             * 1.持久化消费进度到broker或者本地
+                             * 2.移除本地队列
+                             */
                             if (this.removeUnnecessaryMessageQueue(mq, pq)) {
                                 it.remove();
                                 changed = true;
@@ -476,6 +502,8 @@ public abstract class RebalanceImpl {
                     // 添加到映射表
                     ProcessQueue pre = this.processQueueTable.putIfAbsent(mq, pq);
                     if (pre != null) {
+                        // 不会进来这个分支！！！！
+
                         log.info("doRebalance, {}, mq already exists, {}", consumerGroup, mq);
                     } else {
                         // 创建请求
@@ -497,14 +525,26 @@ public abstract class RebalanceImpl {
             }
         }
 
-        // 提交到拉消息服务
+        /**
+         * 提交到拉消息服务
+         * @see PullMessageService#executePullRequestImmediately(org.apache.rocketmq.client.impl.consumer.PullRequest)
+         */
         this.dispatchPullRequest(pullRequestList);
 
         return changed;
     }
 
+    /**
+     * @param topic 主题
+     * @param mqAll 该主题的所有队列
+     * @param mqDivided 该主题在该消费者实例上新分配到的队列
+     */
     public abstract void messageQueueChanged(final String topic, final Set<MessageQueue> mqAll, final Set<MessageQueue> mqDivided);
 
+    /**
+     * 1.持久化消费进度到broker或者本地
+     * 2.移除本地队列
+     */
     public abstract boolean removeUnnecessaryMessageQueue(final MessageQueue mq, final ProcessQueue pq);
 
     public abstract ConsumeType consumeType();

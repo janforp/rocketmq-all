@@ -35,12 +35,19 @@ public class RebalancePushImpl extends RebalanceImpl {
         this.defaultMQPushConsumerImpl = defaultMQPushConsumerImpl;
     }
 
+    /**
+     * @param topic 主题
+     * @param mqAll 该主题的所有队列
+     * @param mqDivided 该主题在该消费者实例上新分配到的队列
+     */
     @Override
-    public void messageQueueChanged(String topic, Set<MessageQueue> mqAll, Set<MessageQueue> mqDivided) {
+    public void messageQueueChanged(String topic, Set<MessageQueue> mqAll/*该主题的所有队列*/, Set<MessageQueue> mqDivided/*该主题在该消费者实例上新分配到的队列*/) {
         /*
          * When rebalance result changed, should update subscription's version to notify broker.
          * Fix: inconsistency subscription may lead to consumer miss messages.
          */
+
+        // 订阅信息
         SubscriptionData subscriptionData = this.subscriptionInner.get(topic);
         long newVersion = System.currentTimeMillis();
         log.info("{} Rebalance changed, also update version: {}, {}", topic, subscriptionData.getSubVersion(), newVersion);
@@ -68,9 +75,17 @@ public class RebalancePushImpl extends RebalanceImpl {
 
         // notify broker
         MQClientInstance mqClientInstance = getMQClientFactory();
+
+        /*
+         * 发送心跳才是这个方法的重点！！！！！
+         */
         mqClientInstance.sendHeartbeatToAllBrokerWithLock();
     }
 
+    /**
+     * 1.持久化消费进度到broker或者本地
+     * 2.移除本地队列
+     */
     @Override
     public boolean removeUnnecessaryMessageQueue(MessageQueue mq, ProcessQueue pq) {
         OffsetStore offsetStore = this.defaultMQPushConsumerImpl.getOffsetStore();

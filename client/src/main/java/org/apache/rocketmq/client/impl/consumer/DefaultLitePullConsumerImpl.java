@@ -443,7 +443,7 @@ public class DefaultLitePullConsumerImpl implements MQConsumerInner {
                 return;
             }
             SubscriptionData subscriptionData = FilterAPI.build(topic,
-                    messageSelector.getExpression(), messageSelector.getExpressionType());
+                    messageSelector.getExpression(), messageSelector.getType());
             this.rebalanceImpl.getSubscriptionInner().put(topic, subscriptionData);
             this.defaultLitePullConsumer.setMessageQueueListener(new MessageQueueListenerImpl());
             assignedMessageQueue.setRebalanceImpl(this.rebalanceImpl);
@@ -882,11 +882,12 @@ public class DefaultLitePullConsumerImpl implements MQConsumerInner {
 
     @Override
     public Set<SubscriptionData> subscriptions() {
-        Set<SubscriptionData> subSet = new HashSet<SubscriptionData>();
 
-        subSet.addAll(this.rebalanceImpl.getSubscriptionInner().values());
+        ConcurrentMap<String, SubscriptionData> subscriptionInner = this.rebalanceImpl.getSubscriptionInner();
 
-        return subSet;
+        Collection<SubscriptionData> values = subscriptionInner.values();
+
+        return new HashSet<SubscriptionData>(values);
     }
 
     @Override

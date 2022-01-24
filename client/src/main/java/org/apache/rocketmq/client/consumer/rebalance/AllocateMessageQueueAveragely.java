@@ -6,6 +6,8 @@ import org.apache.rocketmq.common.message.MessageQueue;
 import org.apache.rocketmq.logging.InternalLogger;
 
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 
 /**
@@ -53,9 +55,16 @@ public class AllocateMessageQueueAveragely implements AllocateMessageQueueStrate
 
         int averageSize = mqAll.size() <= cidAll.size() ?
                 1 : // 如果队列总数量还小于消费者的数量，则平均每个消费者最多能分配到一个队列
-                (mod > 0 && index < mod ? mqAll.size() / cidAll.size() + 1 : mqAll.size() / cidAll.size()); // 如果队列总数量大于消费者的数量
+                (mod > 0 && index < mod ?
+                        mqAll.size() / cidAll.size() + 1 :
+                        mqAll.size() / cidAll.size()); // 如果队列总数量大于消费者的数量
 
-        int startIndex = (mod > 0 && index < mod) ? index * averageSize : index * averageSize + mod;
+        /*
+         * TODO 这个算法不是很明白！！！！！！！
+         */
+        int startIndex = (mod > 0 && index < mod) ?
+                index * averageSize :
+                index * averageSize + mod;
         int range = Math.min(averageSize, mqAll.size() - startIndex);
         for (int i = 0; i < range; i++) {
             result.add(mqAll.get((startIndex + i) % mqAll.size()));
@@ -66,5 +75,32 @@ public class AllocateMessageQueueAveragely implements AllocateMessageQueueStrate
     @Override
     public String getName() {
         return "AVG";
+    }
+
+    public static List<MessageQueue> messageQueues() {
+        List<MessageQueue> list = new ArrayList<MessageQueue>();
+        MessageQueue queue = null;
+        for (int i = 0; i < 8; i++) {
+            queue = new MessageQueue();
+            queue.setTopic("topic");
+            queue.setBrokerName("brokerName");
+            queue.setQueueId(i);
+            list.add(queue);
+        }
+        Collections.sort(list);
+        return list;
+    }
+
+    public static List<String> clientIdList() {
+        List<String> strings = Arrays.asList("currentId", "nextId");
+        Collections.sort(strings);
+        return strings;
+    }
+
+    public static void main(String[] args) {
+        AllocateMessageQueueAveragely averagely = new AllocateMessageQueueAveragely();
+        List<MessageQueue> allocate = averagely.allocate("group", "currentId", messageQueues(), clientIdList());
+        System.out.println(allocate);
+
     }
 }

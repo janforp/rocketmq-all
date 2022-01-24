@@ -45,28 +45,28 @@ public class PullRequest {
     }
 
     @Override
-    public boolean equals(Object obj) {
-        if (this == obj) {
+    public boolean equals(Object that) {
+        if (this == that) {
             return true;
         }
-        if (obj == null) {
+        if (that == null) {
             return false;
         }
-        if (getClass() != obj.getClass()) {
+        if (getClass() != that.getClass()) {
             return false;
         }
-        PullRequest other = (PullRequest) obj;
+        PullRequest thatPq = (PullRequest) that;
         if (consumerGroup == null) {
-            if (other.consumerGroup != null) {
+            if (thatPq.consumerGroup != null) {
                 return false;
             }
-        } else if (!consumerGroup.equals(other.consumerGroup)) {
+        } else if (!consumerGroup.equals(thatPq.consumerGroup)) {
             return false;
         }
         if (messageQueue == null) {
-            return other.messageQueue == null;
+            return thatPq.messageQueue == null;
         } else {
-            return messageQueue.equals(other.messageQueue);
+            return messageQueue.equals(thatPq.messageQueue);
         }
     }
 }

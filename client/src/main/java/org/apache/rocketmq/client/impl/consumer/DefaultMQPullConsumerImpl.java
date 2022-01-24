@@ -226,7 +226,7 @@ public class DefaultMQPullConsumerImpl implements MQConsumerInner {
 
         try {
             return FilterAPI.build(mq.getTopic(),
-                    messageSelector.getExpression(), messageSelector.getExpressionType());
+                    messageSelector.getExpression(), messageSelector.getType());
         } catch (Exception e) {
             throw new MQClientException("parse subscription error", e);
         }

@@ -36,6 +36,7 @@ public interface OffsetStore {
     void persistAll(final Set<MessageQueue> mqs);
 
     /**
+     * 某个队列被平衡到其他消费者的时候，在移除的时候持久化在前面的消费者的进度
      * Persist the offset,may be in local storage or remote name server
      */
     void persist(final MessageQueue mq);
