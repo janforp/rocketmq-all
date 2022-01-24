@@ -1,13 +1,13 @@
 package org.apache.rocketmq.store;
 
-import java.nio.ByteBuffer;
-import java.util.ArrayList;
-import java.util.List;
-
 import lombok.Getter;
 import lombok.Setter;
 import lombok.ToString;
 import org.apache.rocketmq.store.stats.BrokerStatsManager;
+
+import java.nio.ByteBuffer;
+import java.util.ArrayList;
+import java.util.List;
 
 @ToString
 public class GetMessageResult {
@@ -17,9 +17,11 @@ public class GetMessageResult {
      * mappedFile每查询一次都会 refCount ++ ，通过 SelectMappedBufferResult 对象中持有的 mappedFile 完成资源释放的句柄
      */
     // mappedFile.getXXX(long pos)
+    @Getter
     private final List<SelectMappedBufferResult> messageMapedList = new ArrayList<>(100);
 
     // 每条消息
+    @Getter
     private final List<ByteBuffer> messageBufferList = new ArrayList<>(100);
 
     @Setter
@@ -56,14 +58,6 @@ public class GetMessageResult {
     private int msgCount4Commercial = 0;
 
     public GetMessageResult() {
-    }
-
-    public List<SelectMappedBufferResult> getMessageMapedList() {
-        return messageMapedList;
-    }
-
-    public List<ByteBuffer> getMessageBufferList() {
-        return messageBufferList;
     }
 
     public void addMessage(final SelectMappedBufferResult mapedBuffer) {

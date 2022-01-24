@@ -9,6 +9,7 @@ import org.apache.rocketmq.client.consumer.PullStatus;
 import org.apache.rocketmq.client.exception.MQBrokerException;
 import org.apache.rocketmq.client.exception.MQClientException;
 import org.apache.rocketmq.client.hook.SendMessageContext;
+import org.apache.rocketmq.client.impl.consumer.DefaultMQPushConsumerImpl;
 import org.apache.rocketmq.client.impl.consumer.PullResultExt;
 import org.apache.rocketmq.client.impl.factory.MQClientInstance;
 import org.apache.rocketmq.client.impl.producer.DefaultMQProducerImpl;
@@ -737,8 +738,8 @@ public class MQClientAPIImpl {
 
     private void pullMessageAsync(final String addr, final RemotingCommand request, final long timeoutMillis, final PullCallback pullCallback) throws RemotingException, InterruptedException {
 
-        /*
-         *   该方法内部会为本次请求创建一个 ResponseFuture 对象，放入到 remotingClient 的 responseFutureTable 中,key 是 request.opaque（全局唯一）,在 ResponseFuture 内部{1.opaque,2.invokeCall,3.response}
+        /**
+         *   该方法内部会为本次请求创建一个 {@link ResponseFuture} 对象，放入到 remotingClient 的 {@link NettyRemotingAbstract#responseTable} 中,key 是 request.opaque（全局唯一）,在 ResponseFuture 内部{1.opaque,2.invokeCall,3.response}
          *   当服务器端 响应客户端的时候，会根据 response.opaque 找到当前的 ResponseFuture,将结果设置到 ResponseFuture 的 response 字段中，再接下来会检查该 ResponseFuture.invokeCall 是否有值，如果有，则说明需要进行回调成立，
          *   再接下来，就将该 invokeCallback 封装成任务提交到 remotingClient 的公共线程池内执行 invokeCallback.operationComplete方法，传递进去 ResponseFuture
          */
@@ -754,12 +755,19 @@ public class MQClientAPIImpl {
                     try {
                         // 从响应中获取 pullResult
                         PullResult pullResult = MQClientAPIImpl.this.processPullResponse(response);
-
-                        // 执行回调函数
-                        // 将 pullResult 交给
+                        /**
+                         *  执行回调函数
+                         *  将 pullResult 交给
+                         * @see DefaultMQPushConsumerImpl#pullMessage(org.apache.rocketmq.client.impl.consumer.PullRequest)  可以参考该方法中定义的回调对象
+                         */
                         pullCallback.onSuccess(pullResult);
                     } catch (Exception e) {
                         // 发生异常了！！！！！
+                        /**
+                         *  执行回调函数
+                         *  将 pullResult 交给
+                         * @see DefaultMQPushConsumerImpl#pullMessage(org.apache.rocketmq.client.impl.consumer.PullRequest) 可以参考该方法中定义的回调对象
+                         */
                         pullCallback.onException(e);
                     }
                 } else {

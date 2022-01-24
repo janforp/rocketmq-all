@@ -192,6 +192,7 @@ public class ConsumeMessageConcurrentlyService implements ConsumeMessageService 
      * @param processQueue 本地队列快照，提交消费任务之前，msgs已经加入到该pq内了
      * @param messageQueue 队列
      * @param dispatchToConsume 并发消费不关注该参数，这些消息是否以及保存到拉快照中
+     * @see DefaultMQPushConsumerImpl#pullMessage(org.apache.rocketmq.client.impl.consumer.PullRequest) 该方法的 pullCallback 会调用该方法
      */
     @Override
     public void submitConsumeRequest(final List<MessageExt> msgs, final ProcessQueue processQueue, final MessageQueue messageQueue, final boolean dispatchToConsume) {
