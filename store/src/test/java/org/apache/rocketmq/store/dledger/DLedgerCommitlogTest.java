@@ -19,10 +19,6 @@ package org.apache.rocketmq.store.dledger;
 import io.openmessaging.storage.dledger.DLedgerServer;
 import io.openmessaging.storage.dledger.store.file.DLedgerMmapFileStore;
 import io.openmessaging.storage.dledger.store.file.MmapFileList;
-import java.nio.ByteBuffer;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.UUID;
 import org.apache.rocketmq.common.message.MessageDecoder;
 import org.apache.rocketmq.common.message.MessageExt;
 import org.apache.rocketmq.store.DefaultMessageStore;
@@ -34,12 +30,16 @@ import org.apache.rocketmq.store.PutMessageStatus;
 import org.junit.Assert;
 import org.junit.Test;
 
-public class DLedgerCommitlogTest extends MessageStoreTestBase {
+import java.nio.ByteBuffer;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.UUID;
 
+public class DLedgerCommitlogTest extends MessageStoreTestBase {
 
     @Test
     public void testTruncateCQ() throws Exception {
-        String base =  createBaseDir();
+        String base = createBaseDir();
         String peers = String.format("n0-localhost:%d", nextPort());
         String group = UUID.randomUUID().toString();
         String topic = UUID.randomUUID().toString();
@@ -162,7 +162,7 @@ public class DLedgerCommitlogTest extends MessageStoreTestBase {
         Assert.assertEquals(GetMessageStatus.FOUND, getMessageResult.getStatus());
 
         Assert.assertEquals(10, getMessageResult.getMessageBufferList().size());
-        Assert.assertEquals(10, getMessageResult.getMessageMapedList().size());
+        Assert.assertEquals(10, getMessageResult.getMessageMappedList().size());
 
         for (int i = 0; i < results.size(); i++) {
             ByteBuffer buffer = getMessageResult.getMessageBufferList().get(i);

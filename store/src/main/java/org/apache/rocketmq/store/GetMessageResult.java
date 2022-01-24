@@ -18,7 +18,7 @@ public class GetMessageResult {
      */
     // mappedFile.getXXX(long pos)
     @Getter
-    private final List<SelectMappedBufferResult> messageMapedList = new ArrayList<>(100);
+    private final List<SelectMappedBufferResult> messageMappedList = new ArrayList<>(100);
 
     // 每条消息
     @Getter
@@ -60,20 +60,20 @@ public class GetMessageResult {
     public GetMessageResult() {
     }
 
-    public void addMessage(final SelectMappedBufferResult mapedBuffer) {
-        this.messageMapedList.add(mapedBuffer);
-        this.messageBufferList.add(mapedBuffer.getByteBuffer());
-        this.bufferTotalSize += mapedBuffer.getSize();
-        this.msgCount4Commercial += (int) Math.ceil(mapedBuffer.getSize() / BrokerStatsManager.SIZE_PER_COUNT);
+    public void addMessage(final SelectMappedBufferResult mappedBuffer) {
+        this.messageMappedList.add(mappedBuffer);
+        this.messageBufferList.add(mappedBuffer.getByteBuffer());
+        this.bufferTotalSize += mappedBuffer.getSize();
+        this.msgCount4Commercial += (int) Math.ceil(mappedBuffer.getSize() / BrokerStatsManager.SIZE_PER_COUNT);
     }
 
     public void release() {
-        for (SelectMappedBufferResult select : this.messageMapedList) {
+        for (SelectMappedBufferResult select : this.messageMappedList) {
             select.release();
         }
     }
 
     public int getMessageCount() {
-        return this.messageMapedList.size();
+        return this.messageMappedList.size();
     }
 }

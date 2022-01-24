@@ -55,6 +55,7 @@ import org.apache.rocketmq.store.stats.BrokerStatsManager;
 
 import java.nio.ByteBuffer;
 import java.util.List;
+import java.util.concurrent.ExecutorService;
 
 public class PullMessageProcessor /*extends AsyncNettyRequestProcessor */ implements NettyRequestProcessor {
 
@@ -296,8 +297,8 @@ public class PullMessageProcessor /*extends AsyncNettyRequestProcessor */ implem
                         response.setCode(ResponseCode.PULL_OFFSET_MOVED);
 
                         // XXX: warn and notify me
-                        log.info("the broker store no queue data, fix the request offset {} to {}, Topic: {} QueueId: {} Consumer Group: {}",
-                                requestHeader.getQueueOffset(), getMessageResult.getNextBeginOffset(), requestHeader.getTopic(), requestHeader.getQueueId(), requestHeader.getConsumerGroup()
+                        String msg = "the broker store no queue data, fix the request offset {} to {}, Topic: {} QueueId: {} Consumer Group: {}";
+                        log.info(msg, requestHeader.getQueueOffset(), getMessageResult.getNextBeginOffset(), requestHeader.getTopic(), requestHeader.getQueueId(), requestHeader.getConsumerGroup()
                         );
                     } else {
                         response.setCode(ResponseCode.PULL_NOT_FOUND);
@@ -382,14 +383,16 @@ public class PullMessageProcessor /*extends AsyncNettyRequestProcessor */ implem
 
                         // 拿到本次 pull 出来的全部消息的字节
                         final byte[] r = this.readGetMessageResult(getMessageResult, requestHeader.getConsumerGroup(), requestHeader.getTopic(), requestHeader.getQueueId());
-                        this.brokerController.getBrokerStatsManager()
-                                .incGroupGetLatency(requestHeader.getConsumerGroup(), requestHeader.getTopic(), requestHeader.getQueueId(), (int) (this.brokerController.getMessageStore().now() - beginTimeMills));
+                        BrokerStatsManager brokerStatsManager = this.brokerController.getBrokerStatsManager();
+                        brokerStatsManager.incGroupGetLatency(requestHeader.getConsumerGroup(), requestHeader.getTopic(), requestHeader.getQueueId(), (int) (this.brokerController.getMessageStore().now() - beginTimeMills));
 
                         // 将消息数组保存到响应
                         response.setBody(r);
                     } else {
                         try {
-                            FileRegion fileRegion = new ManyMessageTransfer(response.encodeHeader(getMessageResult.getBufferTotalSize()), getMessageResult);
+
+                            ByteBuffer byteBuffer = response.encodeHeader(getMessageResult.getBufferTotalSize());
+                            FileRegion fileRegion = new ManyMessageTransfer(byteBuffer, getMessageResult);
                             channel.writeAndFlush(fileRegion).addListener((ChannelFutureListener) future -> {
                                 getMessageResult.release();
                                 if (!future.isSuccess()) {
@@ -415,11 +418,13 @@ public class PullMessageProcessor /*extends AsyncNettyRequestProcessor */ implem
                     // 所以，这种情况下就是 PULL_NOT_FOUND
                     // 这里需要进行长轮询，否则如果直接返回给客户端，客户端那边会再次立马发起 pull 请求
 
-                    if (brokerAllowSuspend /*允许长轮询*/ && hasSuspendFlag/*客户端也设置*/) {
+                    if (brokerAllowSuspend /*允许长轮询*/ && hasSuspendFlag/*客户端也设置要求长轮询*/) {
+
+                        // 长轮询的时间，一般是 15 秒
                         long pollingTimeMills = suspendTimeoutMillisLong;
                         if (!this.brokerController.getBrokerConfig().isLongPollingEnable() /*如果服务器没有开启长轮询，则只能端轮询*/) {
 
-                            // 改成端轮询
+                            // 改成短轮询，1秒
                             pollingTimeMills = this.brokerController.getBrokerConfig().getShortPollingTimeMills();
                         }
 
@@ -516,15 +521,18 @@ public class PullMessageProcessor /*extends AsyncNettyRequestProcessor */ implem
 
         long storeTimestamp = 0;
         try {
+
+            // 消息缓存列表
             List<ByteBuffer> messageBufferList = getMessageResult.getMessageBufferList();
             for (ByteBuffer bb : messageBufferList) {
 
+                // 把 缓存 bb 的内容复制到 byteBuffer 中
                 byteBuffer.put(bb);
-                int sysFlag = bb.getInt(MessageDecoder.SYSFLAG_POSITION);
+                int sysFlag = bb.getInt(MessageDecoder.SYSFLAG_POSITION /* 4 + 4 + 4 + 4 + 4 + 8 + 8 */);
                 //                bornhost has the IPv4 ip if the MessageSysFlag.BORNHOST_V6_FLAG bit of sysFlag is 0
                 //                IPv4 host = ip(4 byte) + port(4 byte); IPv6 host = ip(16 byte) + port(4 byte)
                 int bornhostLength = (sysFlag & MessageSysFlag.BORNHOST_V6_FLAG) == 0 ? 8 : 20;
-                int msgStoreTimePos = 4 // 1 TOTALSIZE
+                int msgStoreTimePos/*消息存储时间的下标*/ = 4 // 1 TOTALSIZE
                         + 4 // 2 MAGICCODE
                         + 4 // 3 BODYCRC
                         + 4 // 4 QUEUEID
@@ -534,6 +542,8 @@ public class PullMessageProcessor /*extends AsyncNettyRequestProcessor */ implem
                         + 4 // 8 SYSFLAG
                         + 8 // 9 BORNTIMESTAMP
                         + bornhostLength; // 10 BORNHOST
+
+                // 从下标位置开始读取8个字节，就是 消息存储时间 的值
                 storeTimestamp = bb.getLong(msgStoreTimePos);
             }
         } finally {
@@ -572,7 +582,7 @@ public class PullMessageProcessor /*extends AsyncNettyRequestProcessor */ implem
     public void executeRequestWhenWakeup(final Channel channel, final RemotingCommand request) {
         Runnable run = () -> {
             try {
-                final RemotingCommand response = PullMessageProcessor.this.processRequest(channel, request, false /* 这里提交的任务不允许再次发起长轮询里 */);
+                final RemotingCommand response = PullMessageProcessor.this.processRequest(channel, request, false /* 这里提交的任务不允许再次发起长轮询了，因为当前方法就是在长轮询中发起的 */);
 
                 if (response != null) {
                     response.setOpaque(request.getOpaque());
@@ -597,7 +607,10 @@ public class PullMessageProcessor /*extends AsyncNettyRequestProcessor */ implem
                 log.error("excuteRequestWhenWakeup run", e1);
             }
         };
-        this.brokerController.getPullMessageExecutor().submit(new RequestTask(run, channel, request));
+
+        ExecutorService pullMessageExecutor = this.brokerController.getPullMessageExecutor();
+
+        pullMessageExecutor.submit(new RequestTask(run, channel, request));
     }
 
     public void registerConsumeMessageHook(List<ConsumeMessageHook> sendMessageHookList) {

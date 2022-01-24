@@ -19,6 +19,8 @@ import java.util.concurrent.ConcurrentMap;
 
 /**
  * 拉消息挂起逻辑
+ *
+ * 客户端到服务端拉消息，暂时没有消息的时候，需要进行轮询
  */
 public class PullRequestHoldService extends ServiceThread {
 
@@ -37,8 +39,8 @@ public class PullRequestHoldService extends ServiceThread {
     }
 
     public void suspendPullRequest(final String topic, final int queueId, final PullRequest pullRequest) {
-        String key = this.buildKey(topic, queueId);
-        ManyPullRequest mpr = this.pullRequestTable.get(key);
+        String key/*topic@queueId*/ = this.buildKey(topic, queueId);
+        ManyPullRequest mpr = this.pullRequestTable.get(key/*topic@queueId*/);
         if (null == mpr) {
             mpr = new ManyPullRequest();
             ManyPullRequest prev = this.pullRequestTable.putIfAbsent(key, mpr);
@@ -90,7 +92,7 @@ public class PullRequestHoldService extends ServiceThread {
     private void checkHoldRequest() {
 
         // ConcurrentMap<String/* topic@queueId */, ManyPullRequest> pullRequestTable
-        for (String key : this.pullRequestTable.keySet()) {
+        for (String key/*topic@queueId*/ : this.pullRequestTable.keySet()) {
 
             //topic@queueId
 
@@ -120,8 +122,7 @@ public class PullRequestHoldService extends ServiceThread {
      */
     public void notifyMessageArriving(final String topic, final int queueId, final long maxOffset, final Long tagsCode, long msgStoreTime, byte[] filterBitMap, Map<String, String> properties) {
 
-        //topic@queueId
-        String key = this.buildKey(topic, queueId);
+        String key/*topic@queueId*/ = this.buildKey(topic, queueId);
         ManyPullRequest mpr = this.pullRequestTable.get(key);
         if (mpr == null) {
             return;
@@ -162,6 +163,8 @@ public class PullRequestHoldService extends ServiceThread {
                     } catch (Throwable e) {
                         log.error("execute request when wakeup failed.", e);
                     }
+
+                    // 继续循环，不会往下面执行了
                     continue;
                 }
             }
