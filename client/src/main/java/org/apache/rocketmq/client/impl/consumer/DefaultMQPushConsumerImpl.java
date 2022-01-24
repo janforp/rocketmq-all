@@ -545,7 +545,7 @@ public class DefaultMQPushConsumerImpl implements MQConsumerInner {
             classFilter = sd.isClassFilterMode();
         }
 
-        // 如果全都是 true，则 flag 为：0    0   0   0   1   1   1   1
+        // 如果全都是 true，则 flag 为：0    0   0   0   1(是否为类过滤，，默认0，一般是TAG过滤)   1(拉消息请求是否包含消费者本地该主题的订阅信息，默认0，因为心跳的时候做了这个事情)   1(是否允许服务器长轮询，默认1)   1(是否提交消费者本地的进度,如果为1则表示提交，默认1)
         // 高四位未使用
         int sysFlag = PullSysFlag.buildSysFlag(commitOffsetEnable, true, subExpression != null, classFilter);
         try {
@@ -558,7 +558,7 @@ public class DefaultMQPushConsumerImpl implements MQConsumerInner {
                     this.defaultMQPushConsumer.getPullBatchSize(), // 批量大小
                     sysFlag, // 如果全都是 true，则 flag 为：0    0   0   0   1   1   1   1
                     commitOffsetValue, // 本地该队列的消费进度
-                    BROKER_SUSPEND_MAX_TIME_MILLIS, // 控制服务器端长轮询的时候，最长hold的时间
+                    BROKER_SUSPEND_MAX_TIME_MILLIS, // 控制服务器端长轮询的时候，最长hold的时间，15秒
                     CONSUMER_TIMEOUT_MILLIS_WHEN_SUSPEND, // RPC 超时时间，网络调用超时数据限制30s
                     CommunicationMode.ASYNC, // 异步
                     pullCallback // 消息拉回来之后的回调

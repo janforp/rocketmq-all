@@ -51,6 +51,8 @@ public class PullAPIWrapper {
     /**
      * 保存下次拉取消息的 推荐
      * value:推荐拉消息使用的主机id
+     *
+     * @see PullAPIWrapper#processPullResult(org.apache.rocketmq.common.message.MessageQueue, org.apache.rocketmq.client.consumer.PullResult, org.apache.rocketmq.common.protocol.heartbeat.SubscriptionData) 拉取结果会返回
      */
     private final ConcurrentMap<MessageQueue/*队列*/, AtomicLong/* 下次拉消息时候，建议去该brokerId去拉消息 */> pullFromWhichNodeTable = new ConcurrentHashMap<MessageQueue, AtomicLong>(32);
 
@@ -80,7 +82,7 @@ public class PullAPIWrapper {
      * @param subscriptionData 主题的订阅消息
      * @return 拉取消息处理之后的结果
      */
-    public PullResult processPullResult(final MessageQueue mq, final PullResult pullResult, final SubscriptionData subscriptionData) {
+    public PullResult processPullResult(final MessageQueue mq, final PullResult pullResult/*本次拉消息的结果*/, final SubscriptionData subscriptionData) {
 
         // 向下转型
         PullResultExt pullResultExt = (PullResultExt) pullResult;
@@ -188,14 +190,15 @@ public class PullAPIWrapper {
             final long subVersion, // 版本
             final long offset,// 下次拉取消息的偏移量
             final int maxNums, // 批量大小
-            final int sysFlag, // 如果全都是 true，则 flag 为：0    0   0   0   1   1   1   1
+            final int sysFlag, // 0    0   0   0   1(是否为类过滤，，默认0，一般是TAG过滤)   1(拉消息请求是否包含消费者本地该主题的订阅信息，默认0，因为心跳的时候做了这个事情)   1(是否允许服务器长轮询，默认1)   1(是否提交消费者本地的进度,如果为1则表示提交，默认1)
             final long commitOffset, // 是否提交偏移量
-            final long brokerSuspendMaxTimeMillis,// 时间
+            final long brokerSuspendMaxTimeMillis,// 时间，15秒
             final long timeoutMillis,// 时间
             final CommunicationMode communicationMode,// 异步
             final PullCallback pullCallback// 消息拉回来之后的回调
     ) throws MQClientException, RemotingException, MQBrokerException, InterruptedException {
 
+        // 决定从哪个 broker 拉消息
         long brokerId /* 计算得到 brokerId */ = this.recalculatePullFromWhichNode(mq);
         // 查询 broker
         FindBrokerResult findBrokerResult = this.mQClientFactory.findBrokerAddressInSubscribe(mq.getBrokerName(), brokerId /* 计算得到 brokerId */, false);
@@ -225,7 +228,7 @@ public class PullAPIWrapper {
         // // 如果全都是 true，则 flag 为：0    0   0   0   1   1   1   1
         int sysFlagInner = sysFlag;
 
-        if (findBrokerResult.isSlave()) {
+        if (findBrokerResult.isSlave() /* 从节点 不需要提交 消费进度*/) {
             // 如果找的 broker 是从 broker
             // 去掉提交偏移量这个标记，因为从节点不存储这个offset东西，将 flag 标记位中这个位设置为0，表示不提交
             sysFlagInner = PullSysFlag.clearCommitOffsetFlag(sysFlagInner);
