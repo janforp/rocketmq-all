@@ -6,6 +6,7 @@ import org.apache.commons.lang3.StringUtils;
 import org.apache.rocketmq.client.QueryResult;
 import org.apache.rocketmq.client.Validators;
 import org.apache.rocketmq.client.consumer.DefaultMQPushConsumer;
+import org.apache.rocketmq.client.consumer.MQPushConsumer;
 import org.apache.rocketmq.client.consumer.MessageSelector;
 import org.apache.rocketmq.client.consumer.PullCallback;
 import org.apache.rocketmq.client.consumer.PullResult;
@@ -319,13 +320,13 @@ public class DefaultMQPushConsumerImpl implements MQConsumerInner {
         } catch (MQClientException e) {
             log.warn("pullMessage exception, consumer state not ok", e);
             // 如果当前消费者不是运行状态，延迟一段时间再次取拉消息
-            this.executePullRequestLater(pullRequest, pullTimeDelayMillsWhenException/*1000*/);
+            this.executePullRequestLater(pullRequest, pullTimeDelayMillsWhenException/*3秒*/);
             return;
         }
 
         if (this.isPause()) {
             log.warn("consumer was paused, execute pull request later. instanceName={}, group={}", this.defaultMQPushConsumer.getInstanceName(), this.defaultMQPushConsumer.getConsumerGroup());
-            this.executePullRequestLater(pullRequest, PULL_TIME_DELAY_MILLS_WHEN_SUSPEND);
+            this.executePullRequestLater(pullRequest, PULL_TIME_DELAY_MILLS_WHEN_SUSPEND/*1秒*/);
             return;
         }
 
@@ -337,7 +338,7 @@ public class DefaultMQPushConsumerImpl implements MQConsumerInner {
         long cachedMessageSizeInMiB = msgSize.get() / (1024 * 1024);
 
         // 按照消息数量流控
-        if (cachedMessageCount > this.defaultMQPushConsumer.getPullThresholdForQueue()/*1000*/) {
+        if (cachedMessageCount > this.defaultMQPushConsumer.getPullThresholdForQueue()/*1000条*/) {
             // 如果 快照内缓冲的消息数量 大于 阈值，则本次拉取任务需要延迟50ms
 
             // 延迟一段时间之后再拉消息
@@ -346,7 +347,7 @@ public class DefaultMQPushConsumerImpl implements MQConsumerInner {
         }
 
         // 按照消息大小流控
-        if (cachedMessageSizeInMiB > this.defaultMQPushConsumer.getPullThresholdSizeForQueue()/*100m*/) {
+        if (cachedMessageSizeInMiB > this.defaultMQPushConsumer.getPullThresholdSizeForQueue()/*100兆*/) {
             // 延迟一段时间之后再拉消息
             this.executePullRequestLater(pullRequest, PULL_TIME_DELAY_MILLS_WHEN_FLOW_CONTROL/*50ms*/);
             return;
@@ -386,11 +387,11 @@ public class DefaultMQPushConsumerImpl implements MQConsumerInner {
         String topic = pullRequest.getMessageQueue().getTopic();
 
         // ConcurrentMap<String /* topic */, SubscriptionData> subscriptionInner
-        ConcurrentMap<String/* topic */, SubscriptionData> subscriptionInner = this.rebalanceImpl.getSubscriptionInner();
+        ConcurrentMap<String/* topic */, SubscriptionData/*订阅信息，包括 topic 以及过滤信息*/> subscriptionInner = this.rebalanceImpl.getSubscriptionInner();
         final SubscriptionData subscriptionData = subscriptionInner.get(topic);
         if (null == subscriptionData) {
-            // 何时 subscriptionData 会是 null 呢？unsubscribe 的时候。会删除该主题，这个时候该条件会成立
-            /*
+            /**
+             * 何时 subscriptionData 会是 null 呢？{@link MQPushConsumer#unsubscribe(java.lang.String)} 的时候。会删除该主题，这个时候该条件会成立
              * 后面的逻辑交给了负载均衡
              * 最终rbl程序会对比订阅集合。会将移除的订阅主题的 processQueue 设置为 true ，然后该 queue 对于的 pullRequest 请求就会退出了
              */
@@ -442,7 +443,7 @@ public class DefaultMQPushConsumerImpl implements MQConsumerInner {
                                 // 则告诉拉消息服务继续拉
                                 DefaultMQPushConsumerImpl.this.executePullRequestImmediately(pullRequest);
                             } else {
-                                // 一般进来这里，过滤没有全部过滤
+                                // 一般进来这里，客户端过滤之后有满足tag的消息
 
                                 // 拉到消息的第一条消息的偏移量
                                 firstMsgOffset = msgFoundList.get(0).getQueueOffset();
@@ -483,10 +484,10 @@ public class DefaultMQPushConsumerImpl implements MQConsumerInner {
                         case OFFSET_ILLEGAL: // 传给服务端的 offset 不对（offset > maxOffset || offset < minOffset），服务器会推荐一个合理的 offset
                             log.warn("the pull request offset illegal, {} {}", pullRequest.toString(), pullResult.toString());
 
-                            // 调整 pullRequest的 nextOffset 为正确的
+                            // 调整 pullRequest的 nextOffset 为正确的 offset
                             pullRequest.setNextOffset(nextBeginOffset);
 
-                            // 删除快照
+                            // 删除快照，如果有该queue的消费任务则会停止
                             pullRequest.getProcessQueue().setDropped(true);
 
                             // 10s 后执行一个任务
@@ -495,7 +496,7 @@ public class DefaultMQPushConsumerImpl implements MQConsumerInner {
                                 @Override
                                 public void run() {
                                     try {
-                                        DefaultMQPushConsumerImpl.this.offsetStore.updateOffset(messageQueue, pullRequest.getNextOffset(), false);
+                                        DefaultMQPushConsumerImpl.this.offsetStore.updateOffset(messageQueue, pullRequest.getNextOffset(), false/*直接替换，不做比较操作*/);
 
                                         // 持久化该队列的消费进度到服务器 broker
                                         DefaultMQPushConsumerImpl.this.offsetStore.persist(messageQueue);
@@ -570,12 +571,12 @@ public class DefaultMQPushConsumerImpl implements MQConsumerInner {
                     subscriptionData.getExpressionType(), // 表达式类型，一般是 TAG
                     subscriptionData.getSubVersion(), // 客户端版本
                     pullRequest.getNextOffset(), // 本次拉取消息的偏移量
-                    this.defaultMQPushConsumer.getPullBatchSize(), // 批量大小
-                    sysFlag, // 如果全都是 true，则 flag 为：0    0   0   0   1   1   1   1
+                    this.defaultMQPushConsumer.getPullBatchSize(), // 批量大小 32 条
+                    sysFlag, // 0    0   0   0   1(是否为类过滤，，默认0，一般是TAG过滤)   1(拉消息请求是否包含消费者本地该主题的订阅信息，默认0，因为心跳的时候做了这个事情)   1(是否允许服务器长轮询，默认1)   1(是否提交消费者本地的进度,如果为1则表示提交，默认1)
                     commitOffsetValue, // 本地该队列的消费进度
                     BROKER_SUSPEND_MAX_TIME_MILLIS, // 控制服务器端长轮询的时候，最长hold的时间，15秒
-                    CONSUMER_TIMEOUT_MILLIS_WHEN_SUSPEND, // RPC 超时时间，网络调用超时数据限制30s
-                    CommunicationMode.ASYNC, // 异步
+                    CONSUMER_TIMEOUT_MILLIS_WHEN_SUSPEND, // RPC 超时时间，网络调用超时数据限制 30s
+                    CommunicationMode.ASYNC, // rpc调用模式 ，异步
                     pullCallback // 消息拉回来之后的回调
             );
         } catch (Exception e) {

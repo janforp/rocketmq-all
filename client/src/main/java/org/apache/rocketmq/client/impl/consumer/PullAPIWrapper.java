@@ -103,6 +103,8 @@ public class PullAPIWrapper {
 
             // 客户端根据 tag 过滤之后的消息列表
             List<MessageExt> msgListFilterAgain = msgList;
+
+            // 开始进行客户端tag值过滤
             Set<String> tagsSet = subscriptionData.getTagsSet();
             if (!tagsSet.isEmpty() && !subscriptionData.isClassFilterMode()) {
                 // 客户端按照 tag 过滤
@@ -201,7 +203,10 @@ public class PullAPIWrapper {
         // 决定从哪个 broker 拉消息
         long brokerId /* 计算得到 brokerId */ = this.recalculatePullFromWhichNode(mq);
         // 查询 broker
-        FindBrokerResult findBrokerResult = this.mQClientFactory.findBrokerAddressInSubscribe(mq.getBrokerName(), brokerId /* 计算得到 brokerId */, false);
+        String brokerName = mq.getBrokerName();
+
+        // 从客户端本地缓存查询
+        FindBrokerResult findBrokerResult = this.mQClientFactory.findBrokerAddressInSubscribe(brokerName, brokerId /* 计算得到 brokerId */, false);
         if (null == findBrokerResult) {
             // 如果本地是空，则取远程拿
 
@@ -210,18 +215,18 @@ public class PullAPIWrapper {
             this.mQClientFactory.updateTopicRouteInfoFromNameServer(topic);
             brokerId /* 计算得到 brokerId */ = this.recalculatePullFromWhichNode(mq);
             // 查询 broker
-            findBrokerResult = this.mQClientFactory.findBrokerAddressInSubscribe(mq.getBrokerName(), brokerId/* 计算得到 brokerId */, false /*必须是该broker？*/);
+            findBrokerResult = this.mQClientFactory.findBrokerAddressInSubscribe(brokerName, brokerId/* 计算得到 brokerId */, false /*必须是该broker？*/);
         }
 
         if (findBrokerResult == null) {
             // 找不到合适的 broker，发个鸡巴
-            throw new MQClientException("The broker[" + mq.getBrokerName() + "] not exist", null);
+            throw new MQClientException("The broker[" + brokerName + "] not exist", null);
         }
 
         {
             // check version
             if (!ExpressionType.isTagType(expressionType) && findBrokerResult.getBrokerVersion() < MQVersion.Version.V4_1_0_SNAPSHOT.ordinal()) {
-                throw new MQClientException("The broker[" + mq.getBrokerName() + ", " + findBrokerResult.getBrokerVersion() + "] does not upgrade to support for filter message by " + expressionType, null);
+                throw new MQClientException("The broker[" + brokerName + ", " + findBrokerResult.getBrokerVersion() + "] does not upgrade to support for filter message by " + expressionType, null);
             }
         }
 
@@ -234,7 +239,7 @@ public class PullAPIWrapper {
             sysFlagInner = PullSysFlag.clearCommitOffsetFlag(sysFlagInner);
         }
 
-        // 创建请求消息东西
+        // 创建请求消息对象，包装 pull 请求的业务参数
         PullMessageRequestHeader requestHeader = new PullMessageRequestHeader();
         requestHeader.setConsumerGroup(this.consumerGroup);
         requestHeader.setTopic(mq.getTopic());
@@ -256,7 +261,7 @@ public class PullAPIWrapper {
             brokerAddr = computePullFromWhichFilterServer(mq.getTopic(), brokerAddr);
         }
         MQClientAPIImpl mqClientAPIImpl = this.mQClientFactory.getMQClientAPIImpl();
-        return mqClientAPIImpl.pullMessage(brokerAddr,/*本次拉消息请求的服务器地址*/ requestHeader/*拉消息业务参数的封装对象*/, timeoutMillis/*30s的网络调用超时限制*/, communicationMode/*模式*/, pullCallback/*异步拉取结果回调*/);
+        return mqClientAPIImpl.pullMessage(brokerAddr,/*本次拉消息请求的broker服务器地址*/ requestHeader/*拉消息业务参数的封装对象*/, timeoutMillis/*30s的网络调用超时限制*/, communicationMode/*rpc调用模式*/, pullCallback/*异步拉取结果回调*/);
     }
 
     private long recalculatePullFromWhichNode(final MessageQueue mq /*本次拉消息队列*/) {

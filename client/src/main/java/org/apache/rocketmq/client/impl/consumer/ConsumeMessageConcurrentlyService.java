@@ -195,7 +195,7 @@ public class ConsumeMessageConcurrentlyService implements ConsumeMessageService 
      * @see DefaultMQPushConsumerImpl#pullMessage(org.apache.rocketmq.client.impl.consumer.PullRequest) 该方法的 pullCallback 会调用该方法
      */
     @Override
-    public void submitConsumeRequest(final List<MessageExt> msgs, final ProcessQueue processQueue, final MessageQueue messageQueue, final boolean dispatchToConsume) {
+    public void submitConsumeRequest(final List<MessageExt> msgs, final ProcessQueue processQueue, final MessageQueue messageQueue, final boolean dispatchToConsume/*没有用到*/) {
         // 每次消费消息的最大数量（默认是1）
         final int consumeBatchSize = this.defaultMQPushConsumer.getConsumeMessageBatchMaxSize();
         if (msgs.size() <= consumeBatchSize) {

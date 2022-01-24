@@ -26,7 +26,7 @@ public class PullRequest {
     @Getter
     private ProcessQueue processQueue;
 
-    // 本次 拉消息请求的时候使用的 offset 值，很重要，服务器端需要根据该字段定位消息
+    // 本次 拉消息请求的时候使用的 offset 值，很重要，服务器端需要根据该字段定位消息，然后才能获取一批消息
     @Setter
     @Getter
     private long nextOffset;

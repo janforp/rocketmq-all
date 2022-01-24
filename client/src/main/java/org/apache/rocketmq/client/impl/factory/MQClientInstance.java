@@ -1224,7 +1224,7 @@ public class MQClientInstance {
         boolean found = false;
 
         // 获取该 brokerName 的地址分布映射表
-        HashMap<Long/* brokerId */, String/* address */> map = this.brokerAddrTable.get(brokerName);
+        HashMap<Long/* brokerId */, String/* address：ip:port  */> map = this.brokerAddrTable.get(brokerName);
         if (map != null && !map.isEmpty()) {
             brokerAddr = map.get(brokerId);
             slave = brokerId != MixAll.MASTER_ID;
