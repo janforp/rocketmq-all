@@ -84,11 +84,6 @@ public class PullRequestHoldService extends ServiceThread {
         log.info("{} service end", this.getServiceName());
     }
 
-    @Override
-    public String getServiceName() {
-        return PullRequestHoldService.class.getSimpleName();
-    }
-
     private void checkHoldRequest() {
 
         // ConcurrentMap<String/* topic@queueId */, ManyPullRequest> pullRequestTable

@@ -22,7 +22,7 @@ public class GetMessageResult {
 
     // 每条消息
     @Getter
-    private final List<ByteBuffer> messageBufferList = new ArrayList<>(100);
+    private final List<ByteBuffer/* 存储一条消息 */> messageBufferList = new ArrayList<>(100);
 
     @Setter
     @Getter

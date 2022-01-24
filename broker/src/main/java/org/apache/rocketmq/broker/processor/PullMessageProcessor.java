@@ -19,6 +19,7 @@ import org.apache.rocketmq.broker.offset.ConsumerOffsetManager;
 import org.apache.rocketmq.broker.pagecache.ManyMessageTransfer;
 import org.apache.rocketmq.broker.subscription.SubscriptionGroupManager;
 import org.apache.rocketmq.broker.topic.TopicConfigManager;
+import org.apache.rocketmq.common.BrokerConfig;
 import org.apache.rocketmq.common.MixAll;
 import org.apache.rocketmq.common.TopicConfig;
 import org.apache.rocketmq.common.TopicFilterType;
@@ -47,10 +48,12 @@ import org.apache.rocketmq.remoting.netty.NettyRequestProcessor;
 import org.apache.rocketmq.remoting.netty.RequestTask;
 import org.apache.rocketmq.remoting.protocol.RemotingCommand;
 import org.apache.rocketmq.store.GetMessageResult;
+import org.apache.rocketmq.store.GetMessageStatus;
 import org.apache.rocketmq.store.MessageExtBrokerInner;
 import org.apache.rocketmq.store.MessageFilter;
 import org.apache.rocketmq.store.MessageStore;
 import org.apache.rocketmq.store.config.BrokerRole;
+import org.apache.rocketmq.store.config.MessageStoreConfig;
 import org.apache.rocketmq.store.stats.BrokerStatsManager;
 
 import java.nio.ByteBuffer;
@@ -89,10 +92,11 @@ public class PullMessageProcessor /*extends AsyncNettyRequestProcessor */ implem
         // 设置请求id
         response.setOpaque(request.getOpaque());
 
-        if (!PermName.isReadable(this.brokerController.getBrokerConfig().getBrokerPermission())/*当前broker的权限*/) {
+        BrokerConfig brokerConfig = this.brokerController.getBrokerConfig();
+        if (!PermName.isReadable(brokerConfig.getBrokerPermission())/*当前broker的权限*/) {
             // 不可读
             response.setCode(ResponseCode.NO_PERMISSION);
-            response.setRemark(String.format("the broker[%s] pulling message is forbidden", this.brokerController.getBrokerConfig().getBrokerIP1()));
+            response.setRemark(String.format("the broker[%s] pulling message is forbidden", brokerConfig.getBrokerIP1()));
             return response;
         }
 
@@ -216,7 +220,7 @@ public class PullMessageProcessor /*extends AsyncNettyRequestProcessor */ implem
             }
         }
 
-        if (!ExpressionType.isTagType(subscriptionData.getExpressionType()) && !this.brokerController.getBrokerConfig().isEnablePropertyFilter()) {
+        if (!ExpressionType.isTagType(subscriptionData.getExpressionType()) && !brokerConfig.isEnablePropertyFilter()) {
             // 不是 TAG 并且服务器不支持其他过滤模式，则不行
             response.setCode(ResponseCode.SYSTEM_ERROR);
             response.setRemark("The broker does not support consumer to filter message by " + subscriptionData.getExpressionType());
@@ -224,7 +228,7 @@ public class PullMessageProcessor /*extends AsyncNettyRequestProcessor */ implem
         }
 
         MessageFilter messageFilter;
-        if (this.brokerController.getBrokerConfig().isFilterSupportRetry()) {
+        if (brokerConfig.isFilterSupportRetry()) {
             messageFilter = new ExpressionForRetryMessageFilter(subscriptionData, consumerFilterData, this.brokerController.getConsumerFilterManager());
         } else {
             messageFilter = new ExpressionMessageFilter(subscriptionData, consumerFilterData, this.brokerController.getConsumerFilterManager());
@@ -238,7 +242,8 @@ public class PullMessageProcessor /*extends AsyncNettyRequestProcessor */ implem
         if (getMessageResult != null) {
             // 查询结果不为空
 
-            response.setRemark(getMessageResult.getStatus().name());
+            GetMessageStatus status = getMessageResult.getStatus();
+            response.setRemark(status.name());
             // 返回给客户端，表示下一次再向当前队列拉消息的时候的开始 offset
             responseHeader.setNextBeginOffset(getMessageResult.getNextBeginOffset());
             responseHeader.setMinOffset(getMessageResult.getMinOffset());
@@ -253,7 +258,8 @@ public class PullMessageProcessor /*extends AsyncNettyRequestProcessor */ implem
                 responseHeader.setSuggestWhichBrokerId(MixAll.MASTER_ID);
             }
 
-            switch (this.brokerController.getMessageStoreConfig().getBrokerRole()) { // 当前服务器节点的角色
+            MessageStoreConfig messageStoreConfig = this.brokerController.getMessageStoreConfig();
+            switch (messageStoreConfig.getBrokerRole()) { // 当前服务器节点的角色
                 case ASYNC_MASTER:
                 case SYNC_MASTER:
                     break;
@@ -261,14 +267,14 @@ public class PullMessageProcessor /*extends AsyncNettyRequestProcessor */ implem
 
                     // 如果当前服务器主机节点是 slave 并且 从节点读 未开启的话，直接给客户端一个主题 "PULL_RETRY_IMMEDIATELY"
                     // 客户端 检查是该状态后，会立马重新再次发起 pull 请求，此时使用的 brokerId 为 MASTER_ID
-                    if (!this.brokerController.getBrokerConfig().isSlaveReadEnable()) {
+                    if (!brokerConfig.isSlaveReadEnable()) {
                         response.setCode(ResponseCode.PULL_RETRY_IMMEDIATELY);
                         responseHeader.setSuggestWhichBrokerId(MixAll.MASTER_ID);
                     }
                     break;
             }
 
-            if (this.brokerController.getBrokerConfig().isSlaveReadEnable()) {
+            if (brokerConfig.isSlaveReadEnable()) {
                 // 从节点读开启拉
 
                 // consume too slow ,redirect to another machine
@@ -284,7 +290,7 @@ public class PullMessageProcessor /*extends AsyncNettyRequestProcessor */ implem
             }
 
             // 状态码转换
-            switch (getMessageResult.getStatus()) {
+            switch (status) {
                 case FOUND:
                     response.setCode(ResponseCode.SUCCESS);
                     break;
@@ -295,11 +301,9 @@ public class PullMessageProcessor /*extends AsyncNettyRequestProcessor */ implem
                 case NO_MESSAGE_IN_QUEUE:
                     if (0 != requestHeader.getQueueOffset()) {
                         response.setCode(ResponseCode.PULL_OFFSET_MOVED);
-
                         // XXX: warn and notify me
                         String msg = "the broker store no queue data, fix the request offset {} to {}, Topic: {} QueueId: {} Consumer Group: {}";
-                        log.info(msg, requestHeader.getQueueOffset(), getMessageResult.getNextBeginOffset(), requestHeader.getTopic(), requestHeader.getQueueId(), requestHeader.getConsumerGroup()
-                        );
+                        log.info(msg, requestHeader.getQueueOffset(), getMessageResult.getNextBeginOffset(), requestHeader.getTopic(), requestHeader.getQueueId(), requestHeader.getConsumerGroup());
                     } else {
                         response.setCode(ResponseCode.PULL_NOT_FOUND);
                     }
@@ -320,8 +324,8 @@ public class PullMessageProcessor /*extends AsyncNettyRequestProcessor */ implem
                     break;
                 case OFFSET_TOO_SMALL:
                     response.setCode(ResponseCode.PULL_OFFSET_MOVED);
-                    log.info("the request offset too small. group={}, topic={}, requestOffset={}, brokerMinOffset={}, clientIp={}",
-                            requestHeader.getConsumerGroup(), requestHeader.getTopic(), requestHeader.getQueueOffset(), getMessageResult.getMinOffset(), channel.remoteAddress());
+                    String msg = "the request offset too small. group={}, topic={}, requestOffset={}, brokerMinOffset={}, clientIp={}";
+                    log.info(msg, requestHeader.getConsumerGroup(), requestHeader.getTopic(), requestHeader.getQueueOffset(), getMessageResult.getMinOffset(), channel.remoteAddress());
                     break;
                 default:
                     assert false;
@@ -378,7 +382,7 @@ public class PullMessageProcessor /*extends AsyncNettyRequestProcessor */ implem
                     this.brokerController.getBrokerStatsManager().incBrokerGetNums(getMessageResult.getMessageCount());
 
                     // 从堆内转换
-                    if (this.brokerController.getBrokerConfig().isTransferMsgByHeap()) {
+                    if (brokerConfig.isTransferMsgByHeap()) {
                         final long beginTimeMills = this.brokerController.getMessageStore().now();
 
                         // 拿到本次 pull 出来的全部消息的字节
@@ -418,14 +422,14 @@ public class PullMessageProcessor /*extends AsyncNettyRequestProcessor */ implem
                     // 所以，这种情况下就是 PULL_NOT_FOUND
                     // 这里需要进行长轮询，否则如果直接返回给客户端，客户端那边会再次立马发起 pull 请求
 
-                    if (brokerAllowSuspend /*允许长轮询*/ && hasSuspendFlag/*客户端也设置要求长轮询*/) {
+                    if (brokerAllowSuspend /*允许长轮询*/ && hasSuspendFlag/*客户端也设置要求服务端长轮询*/) {
 
                         // 长轮询的时间，一般是 15 秒
                         long pollingTimeMills = suspendTimeoutMillisLong;
-                        if (!this.brokerController.getBrokerConfig().isLongPollingEnable() /*如果服务器没有开启长轮询，则只能端轮询*/) {
+                        if (!brokerConfig.isLongPollingEnable() /*如果服务器没有开启长轮询，则只能端轮询*/) {
 
                             // 改成短轮询，1秒
-                            pollingTimeMills = this.brokerController.getBrokerConfig().getShortPollingTimeMills();
+                            pollingTimeMills = brokerConfig.getShortPollingTimeMills();
                         }
 
                         String topic = requestHeader.getTopic();
@@ -436,7 +440,7 @@ public class PullMessageProcessor /*extends AsyncNettyRequestProcessor */ implem
 
                         // 拿到服务
                         PullRequestHoldService pullRequestHoldService = this.brokerController.getPullRequestHoldService();
-                        // 交给服务，发起轮询
+                        // 在服务端发起轮询，避免直接返回给客户端，导致频繁的网络调用
                         pullRequestHoldService.suspendPullRequest(topic, queueId, pullRequest);
 
                         // TODO 将 response 设置为 null ?
@@ -448,11 +452,11 @@ public class PullMessageProcessor /*extends AsyncNettyRequestProcessor */ implem
                 case ResponseCode.PULL_RETRY_IMMEDIATELY:
                     break;
                 case ResponseCode.PULL_OFFSET_MOVED:
-                    if (this.brokerController.getMessageStoreConfig().getBrokerRole() != BrokerRole.SLAVE || this.brokerController.getMessageStoreConfig().isOffsetCheckInSlave()) {
+                    if (messageStoreConfig.getBrokerRole() != BrokerRole.SLAVE || messageStoreConfig.isOffsetCheckInSlave()) {
                         MessageQueue mq = new MessageQueue();
                         mq.setTopic(requestHeader.getTopic());
                         mq.setQueueId(requestHeader.getQueueId());
-                        mq.setBrokerName(this.brokerController.getBrokerConfig().getBrokerName());
+                        mq.setBrokerName(brokerConfig.getBrokerName());
 
                         OffsetMovedEvent event = new OffsetMovedEvent();
                         event.setConsumerGroup(requestHeader.getConsumerGroup());
@@ -462,15 +466,13 @@ public class PullMessageProcessor /*extends AsyncNettyRequestProcessor */ implem
 
                         // 发送事件 到系统主题
                         this.generateOffsetMovedEvent(event);
-                        log.warn(
-                                "PULL_OFFSET_MOVED:correction offset. topic={}, groupId={}, requestOffset={}, newOffset={}, suggestBrokerId={}",
-                                requestHeader.getTopic(), requestHeader.getConsumerGroup(), event.getOffsetRequest(), event.getOffsetNew(),
-                                responseHeader.getSuggestWhichBrokerId());
+                        String msg = "PULL_OFFSET_MOVED:correction offset. topic={}, groupId={}, requestOffset={}, newOffset={}, suggestBrokerId={}";
+                        log.warn(msg, requestHeader.getTopic(), requestHeader.getConsumerGroup(), event.getOffsetRequest(), event.getOffsetNew(), responseHeader.getSuggestWhichBrokerId());
                     } else {
                         responseHeader.setSuggestWhichBrokerId(subscriptionGroupConfig.getBrokerId());
                         response.setCode(ResponseCode.PULL_RETRY_IMMEDIATELY);
-                        log.warn("PULL_OFFSET_MOVED:none correction. topic={}, groupId={}, requestOffset={}, suggestBrokerId={}",
-                                requestHeader.getTopic(), requestHeader.getConsumerGroup(), requestHeader.getQueueOffset(), responseHeader.getSuggestWhichBrokerId());
+                        String msg = "PULL_OFFSET_MOVED:none correction. topic={}, groupId={}, requestOffset={}, suggestBrokerId={}";
+                        log.warn(msg, requestHeader.getTopic(), requestHeader.getConsumerGroup(), requestHeader.getQueueOffset(), responseHeader.getSuggestWhichBrokerId());
                     }
 
                     break;

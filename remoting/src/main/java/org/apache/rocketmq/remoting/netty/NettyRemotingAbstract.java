@@ -250,6 +250,10 @@ public abstract class NettyRemotingAbstract {
                                     log.error(response.toString());
                                 }
                             }
+
+                            /**
+                             * 如果 response 为 null ，则不给对端发送数据
+                             */
                         }
                     };
 
