@@ -4,5 +4,5 @@ import java.util.Map;
 
 public interface MessageArrivingListener {
 
-    void arriving(String topic, int queueId, long logicOffset, long tagsCode, long msgStoreTime, byte[] filterBitMap, Map<String, String> properties);
+    void arriving(String topic, int queueId, long logicOffset/*当前队列的最大的 offset*/, long tagsCode, long msgStoreTime, byte[] filterBitMap, Map<String, String> properties);
 }

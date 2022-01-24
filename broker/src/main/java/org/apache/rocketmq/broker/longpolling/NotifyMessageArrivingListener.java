@@ -11,7 +11,7 @@ public class NotifyMessageArrivingListener implements MessageArrivingListener {
     private final PullRequestHoldService pullRequestHoldService;
 
     @Override
-    public void arriving(String topic, int queueId, long logicOffset, long tagsCode, long msgStoreTime, byte[] filterBitMap, Map<String, String> properties) {
+    public void arriving(String topic, int queueId, long logicOffset/*当前队列的最大的 offset*/, long tagsCode, long msgStoreTime, byte[] filterBitMap, Map<String, String> properties) {
         this.pullRequestHoldService.notifyMessageArriving(topic, queueId, logicOffset, tagsCode, msgStoreTime, filterBitMap, properties);
     }
 }

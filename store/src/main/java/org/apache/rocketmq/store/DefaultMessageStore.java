@@ -2035,7 +2035,7 @@ public class DefaultMessageStore implements MessageStore {
                                      */
                                     DefaultMessageStore.this.doDispatch(dispatchRequest);
 
-                                    if (BrokerRole.SLAVE != messageStoreConfig.getBrokerRole() && DefaultMessageStore.this.brokerConfig.isLongPollingEnable()) {
+                                    if (BrokerRole.SLAVE != messageStoreConfig.getBrokerRole() && DefaultMessageStore.this.brokerConfig.isLongPollingEnable()/*开启长轮询*/) {
                                         String topic = dispatchRequest.getTopic();
                                         int queueId = dispatchRequest.getQueueId();
                                         long logicOffset = dispatchRequest.getConsumeQueueOffset() + 1;
@@ -2043,7 +2043,7 @@ public class DefaultMessageStore implements MessageStore {
                                         long storeTimestamp = dispatchRequest.getStoreTimestamp();
                                         byte[] bitMap = dispatchRequest.getBitMap();
                                         Map<String, String> propertiesMap = dispatchRequest.getPropertiesMap();
-                                        DefaultMessageStore.this.messageArrivingListener.arriving(topic, queueId, logicOffset, tagsCode, storeTimestamp, bitMap, propertiesMap);
+                                        DefaultMessageStore.this.messageArrivingListener.arriving(topic, queueId, logicOffset/*当前队列的最大的 offset*/, tagsCode, storeTimestamp, bitMap, propertiesMap);
                                     }
 
                                     this.reputFromOffset += size;

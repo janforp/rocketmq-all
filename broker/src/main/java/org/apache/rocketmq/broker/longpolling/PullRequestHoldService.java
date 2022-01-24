@@ -2,6 +2,7 @@ package org.apache.rocketmq.broker.longpolling;
 
 import org.apache.rocketmq.broker.BrokerController;
 import org.apache.rocketmq.broker.processor.PullMessageProcessor;
+import org.apache.rocketmq.common.BrokerConfig;
 import org.apache.rocketmq.common.ServiceThread;
 import org.apache.rocketmq.common.SystemClock;
 import org.apache.rocketmq.common.constant.LoggerName;
@@ -62,15 +63,18 @@ public class PullRequestHoldService extends ServiceThread {
         log.info("{} service started", this.getServiceName());
         while (!this.isStopped()) {
             try {
-                if (this.brokerController.getBrokerConfig().isLongPollingEnable()) {
+                BrokerConfig brokerConfig = this.brokerController.getBrokerConfig();
+                if (brokerConfig.isLongPollingEnable()) {
                     // 服务器开启来长轮询，等待五秒
                     this.waitForRunning(5 * 1000);
                 } else {
                     // 等待一秒
-                    this.waitForRunning(this.brokerController.getBrokerConfig().getShortPollingTimeMills());
+                    this.waitForRunning(brokerConfig.getShortPollingTimeMills());
                 }
 
                 long beginLockTimestamp = this.systemClock.now();
+
+                // 核心业务逻辑
                 this.checkHoldRequest();
                 long costTime = this.systemClock.now() - beginLockTimestamp;
                 if (costTime > 5 * 1000) {
@@ -97,6 +101,8 @@ public class PullRequestHoldService extends ServiceThread {
                 int queueId = Integer.parseInt(kArray[1]); // 队列号
                 // 查询当前队列最大的 offset
                 MessageStore messageStore = this.brokerController.getMessageStore();
+
+                // 当前队列的最大的 offset
                 final long offset = messageStore.getMaxOffsetInQueue(topic, queueId);
                 try {
                     // 通知消息到达的逻辑
@@ -115,13 +121,15 @@ public class PullRequestHoldService extends ServiceThread {
     /**
      * @see NotifyMessageArrivingListener#arriving(java.lang.String, int, long, long, long, byte[], java.util.Map)
      */
-    public void notifyMessageArriving(final String topic, final int queueId, final long maxOffset, final Long tagsCode, long msgStoreTime, byte[] filterBitMap, Map<String, String> properties) {
+    public void notifyMessageArriving(final String topic, final int queueId, final long maxOffset/*当前队列的最大的 offset*/, final Long tagsCode, long msgStoreTime, byte[] filterBitMap, Map<String, String> properties) {
 
         String key/*topic@queueId*/ = this.buildKey(topic, queueId);
         ManyPullRequest mpr = this.pullRequestTable.get(key);
         if (mpr == null) {
             return;
         }
+
+        // 拿到全部的队列列表
         List<PullRequest> requestList = mpr.cloneListAndClear();
         if (requestList == null) {
             return;
@@ -138,7 +146,7 @@ public class PullRequestHoldService extends ServiceThread {
                 newestOffset = messageStore.getMaxOffsetInQueue(topic, queueId);
             }
 
-            if (newestOffset > request.getPullFromThisOffset()) {
+            if (newestOffset > request.getPullFromThisOffset() /* 当前队列的最大offset 大于 拉消息请求的  offset，说明该队列在长轮询期间有消息存入了，可以去拉消息 */) {
                 // 说明有消息来，长轮询可以结束了
 
                 MessageFilter messageFilter = request.getMessageFilter();
@@ -165,8 +173,8 @@ public class PullRequestHoldService extends ServiceThread {
             }
 
             // 上面没有匹配，则执行下面代码
-            if (System.currentTimeMillis() >= (request.getSuspendTimestamp() + request.getTimeoutMillis())) {
-                // 超时的
+            if (System.currentTimeMillis() >= (request.getSuspendTimestamp()/*长轮询开始时间*/ + request.getTimeoutMillis()) /*长轮询超时了*/) {
+                // 超时的，再发起一次拉消息请求，但是不会再次进入长轮询逻辑
                 try {
 
                     // 如果超时，则再次提交到请求
