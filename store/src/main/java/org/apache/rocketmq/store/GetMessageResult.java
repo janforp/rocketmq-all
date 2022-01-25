@@ -9,6 +9,9 @@ import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.List;
 
+/**
+ * @see DefaultMessageStore#getMessage(java.lang.String, java.lang.String, int, long, int, org.apache.rocketmq.store.MessageFilter)
+ */
 @ToString
 public class GetMessageResult {
 

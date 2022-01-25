@@ -565,13 +565,19 @@ public class ConsumeQueue {
         }
     }
 
-    public SelectMappedBufferResult getIndexBuffer(final long startIndex) {
+    /**
+     * bufferConsumeQueue 数据范围：
+     * 1.如果 offset 命中的文件不是正在顺序写的文件的话，则范围是[offset表示的这条消息 , 文件尾]
+     * 2.如果 offset 命中的文件是正在顺序写的文件的话，则范围是[offset表示的这条消息 , 文件名 + wrotePosition]
+     */
+    public SelectMappedBufferResult getIndexBuffer(final long startIndex/*逻辑offset，从1开始，每条存储一条消息offset + 1*/) {
         int mappedFileSize = this.mappedFileSize;
-        long offset = startIndex * CQ_STORE_UNIT_SIZE;
-        if (offset >= this.getMinLogicOffset()) {
-            MappedFile mappedFile = this.mappedFileQueue.findMappedFileByOffset(offset);
+        long offset/*根据逻辑offset 得到物理偏移量*/ = startIndex * CQ_STORE_UNIT_SIZE;
+        if (offset >= this.getMinLogicOffset() /*正常的*/) {
+            MappedFile mappedFile = this.mappedFileQueue.findMappedFileByOffset(offset/*根据物理偏移量查询包含该偏移量的mappedFile文件*/);
             if (mappedFile != null) {
-                return mappedFile.selectMappedBuffer((int) (offset % mappedFileSize));
+                long pos = offset/*consumeQueue文件中的物理偏移量*/ % mappedFileSize/*consumeQueue中每个文件的大小600W字节*/;
+                return mappedFile.selectMappedBuffer((int) (pos));
             }
         }
         return null;

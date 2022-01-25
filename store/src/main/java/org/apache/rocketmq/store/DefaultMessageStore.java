@@ -637,6 +637,7 @@ public class DefaultMessageStore implements MessageStore {
         final long maxOffsetPy = this.commitLog.getMaxOffset();
 
         // 拿到指定主题，指定id的CQ(他是管理队列文件的，存的是 CQData(每个单元是20个字节))
+        // 该方法的实现说明不会返回null
         ConsumeQueue consumeQueue = findConsumeQueue(topic, queueId);
         if (consumeQueue != null) {
             minOffset = consumeQueue.getMinOffsetInQueue();
@@ -655,11 +656,11 @@ public class DefaultMessageStore implements MessageStore {
                 // 调整 nextBeginOffset 为 当前队列的 minOffset
                 nextBeginOffset = nextOffsetCorrection(offset, minOffset);
             } else if (offset == maxOffset) {
-                // 消费进度跟当前队列的进度持平
+                // 消费进度跟当前队列的进度持平，进行长轮询
                 status = GetMessageStatus.OFFSET_OVERFLOW_ONE;
                 nextBeginOffset = nextOffsetCorrection(offset, offset);
             } else if (offset > maxOffset) {
-                // 传入的 offset 太大了
+                // 传入的 offset 太大了，有问题
                 status = GetMessageStatus.OFFSET_OVERFLOW_BADLY;
                 if (0 == minOffset) {
                     nextBeginOffset = nextOffsetCorrection(offset, minOffset);
@@ -672,18 +673,23 @@ public class DefaultMessageStore implements MessageStore {
                 // 查从队列中查询
                 // 返回的是这个 offset 命中的数据文件
                 // CQData 由 SelectMappedBufferResult 对象表示， SelectMappedBufferResult 内部有 byteBuffer 表示 数据范围
+                /**
+                 * bufferConsumeQueue 数据范围：
+                 * 1.如果 offset 命中的文件不是正在顺序写的文件的话，则范围是[offset表示的这条消息 , 文件尾]
+                 * 2.如果 offset 命中的文件是正在顺序写的文件的话，则范围是[offset表示的这条消息 , 文件名 + wrotePosition]
+                 */
                 SelectMappedBufferResult bufferConsumeQueue = consumeQueue.getIndexBuffer(offset);
                 if (bufferConsumeQueue != null) {
                     try {
+
+                        // 初始状态
                         status = GetMessageStatus.NO_MATCHED_MESSAGE;
 
                         // 下一个 commitLog 物理文件的 offset （文件名）
                         long nextPhyFileStartOffset = Long.MIN_VALUE;
 
-                        // 本次拉消息，最后一个消息的物理偏移量
+                        // 本次拉消息，最后一条消息的物理偏移量
                         long maxPhyOffsetPulling = 0;
-
-                        int i = 0;
 
                         // 最多处理的消息数量，肯定为 16000
                         final int maxFilterMessageCount = Math.max(16000, maxMsgNums * ConsumeQueue.CQ_STORE_UNIT_SIZE);
@@ -693,6 +699,7 @@ public class DefaultMessageStore implements MessageStore {
                         ConsumeQueueExt.CqExtUnit cqExtUnit = new ConsumeQueueExt.CqExtUnit();
 
                         // 循环从文件中拿字节
+                        int i/*因为后面要用该变量，所以定义在循环之外*/ = 0;
                         for (; i < bufferConsumeQueue.getSize() && i < maxFilterMessageCount; i += ConsumeQueue.CQ_STORE_UNIT_SIZE /* 每次读取20个字节 */) {
 
                             // 每条消息占 20 个字节
@@ -716,7 +723,7 @@ public class DefaultMessageStore implements MessageStore {
                             }
 
                             // 本次循环要拿的数据是否已经在硬盘了（判断消息数据的冷热情况）
-                            boolean isInDisk = checkInDiskByCommitOffset(offsetPy /* 当前读取消息的物理偏移量 */, maxOffsetPy /* commitLog 文件的最大偏移量 */);
+                            boolean isInDisk = checkInDiskByCommitOffset(offsetPy /* 当前读取消息的物理偏移量 */, maxOffsetPy /* this.commitLog.getMaxOffset(), commitLog 文件的最大偏移量 */);
 
                             // 控制是否跳出循环
                             if (this.isTheBatchFull(
@@ -797,7 +804,7 @@ public class DefaultMessageStore implements MessageStore {
                             brokerStatsManager.recordDiskFallBehindSize(group, topic, queueId, fallBehind);
                         }
 
-                        // 计算下次拉消息的开始位置
+                        // 计算下次拉消息的开始位置，逻辑offset
                         nextBeginOffset = offset + (i /* 上面的循环读取过的 CQData 字节数 */ / ConsumeQueue.CQ_STORE_UNIT_SIZE);
 
                         long diff = maxOffsetPy/*commitLog最大物理偏移量*/ - maxPhyOffsetPulling /*本次拉消息的最后一条消息的物理偏移量*/;
@@ -1337,7 +1344,7 @@ public class DefaultMessageStore implements MessageStore {
      * @param offsetPy 当前读取消息的物理偏移量
      * @param maxOffsetPy 当前broker节点的 commitLog 文件的最大偏移
      */
-    private boolean checkInDiskByCommitOffset(long offsetPy/* 当前读取消息的物理偏移量 */, long maxOffsetPy /* commitLog 文件的最大偏移量 */) {
+    private boolean checkInDiskByCommitOffset(long offsetPy/* 当前读取消息的物理偏移量 */, long maxOffsetPy /* this.commitLog.getMaxOffset(), commitLog 文件的最大偏移量 */) {
 
         // 40 %
         int accessMessageInMemoryMaxRatio = this.messageStoreConfig.getAccessMessageInMemoryMaxRatio();/* 40% */
@@ -1367,7 +1374,7 @@ public class DefaultMessageStore implements MessageStore {
             return true;
         }
 
-        if (isInDisk) {
+        if (isInDisk/*本条消息是否是在磁盘中查询的*/) {
             // 本次循环消息是冷数据
 
             // maxTransferBytesOnMessageInDisk = 1024 * 64
