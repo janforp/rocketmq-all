@@ -21,7 +21,8 @@ import java.util.concurrent.ConcurrentMap;
 /**
  * 拉消息挂起逻辑
  *
- * 客户端到服务端拉消息，暂时没有消息的时候，需要进行轮询
+ * 1.客户端到服务端拉消息，暂时没有消息的时候，需要进行轮询
+ * 2.
  */
 public class PullRequestHoldService extends ServiceThread {
 
@@ -89,6 +90,7 @@ public class PullRequestHoldService extends ServiceThread {
     }
 
     private void checkHoldRequest() {
+        MessageStore messageStore = this.brokerController.getMessageStore();
 
         // ConcurrentMap<String/* topic@queueId */, ManyPullRequest> pullRequestTable
         for (String key/*topic@queueId*/ : this.pullRequestTable.keySet()) {
@@ -100,7 +102,6 @@ public class PullRequestHoldService extends ServiceThread {
                 String topic = kArray[0]; // 主题
                 int queueId = Integer.parseInt(kArray[1]); // 队列号
                 // 查询当前队列最大的 offset
-                MessageStore messageStore = this.brokerController.getMessageStore();
 
                 // 当前队列的最大的 offset
                 final long offset = messageStore.getMaxOffsetInQueue(topic, queueId);
@@ -137,12 +138,12 @@ public class PullRequestHoldService extends ServiceThread {
 
         // 重放列表，当某个 pullRequest 既不超时，也没有超时的话，就再次放入
         List<PullRequest> replayList = new ArrayList<>();
+        MessageStore messageStore = this.brokerController.getMessageStore();
 
         for (PullRequest request : requestList) {
             long newestOffset = maxOffset;
             if (newestOffset <= request.getPullFromThisOffset()) {
                 // 说明在循环节点已经有新数据加入。保证 newestOffset 为队列的 maxOffset
-                MessageStore messageStore = this.brokerController.getMessageStore();
                 newestOffset = messageStore.getMaxOffsetInQueue(topic, queueId);
             }
 

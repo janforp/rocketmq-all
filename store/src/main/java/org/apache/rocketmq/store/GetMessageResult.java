@@ -15,12 +15,17 @@ public class GetMessageResult {
     /**
      * 查询消息的时候，最底层都是 mappedFile 支持的查询，它查询的时候返回给外层一个 SelectMappedBufferResult 对象
      * mappedFile每查询一次都会 refCount ++ ，通过 SelectMappedBufferResult 对象中持有的 mappedFile 完成资源释放的句柄
+     *
+     * @see GetMessageResult#addMessage(org.apache.rocketmq.store.SelectMappedBufferResult)
      */
-    // mappedFile.getXXX(long pos)
     @Getter
     private final List<SelectMappedBufferResult> messageMappedList = new ArrayList<>(100);
 
     // 每条消息
+
+    /**
+     * @see GetMessageResult#addMessage(org.apache.rocketmq.store.SelectMappedBufferResult)
+     */
     @Getter
     private final List<ByteBuffer/* 存储一条消息 */> messageBufferList = new ArrayList<>(100);
 
@@ -44,6 +49,10 @@ public class GetMessageResult {
     private long maxOffset;
 
     // 消息总 byte 大小
+
+    /**
+     * @see GetMessageResult#addMessage(org.apache.rocketmq.store.SelectMappedBufferResult)
+     */
     @Setter
     @Getter
     private int bufferTotalSize = 0;
@@ -53,6 +62,9 @@ public class GetMessageResult {
     @Setter
     private boolean suggestPullingFromSlave = false;
 
+    /**
+     * @see GetMessageResult#addMessage(org.apache.rocketmq.store.SelectMappedBufferResult)
+     */
     @Getter
     @Setter
     private int msgCount4Commercial = 0;

@@ -17,9 +17,11 @@ public class PullMessageResponseHeader implements CommandCustomHeader {
     @CFNotNull
     private Long nextBeginOffset;
 
+    // 当前查询队列的最小
     @CFNotNull
     private Long minOffset;
 
+    // 当前查询队列的最大
     @CFNotNull
     private Long maxOffset;
 

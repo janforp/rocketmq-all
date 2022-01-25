@@ -60,6 +60,7 @@ import java.nio.ByteBuffer;
 import java.util.List;
 import java.util.concurrent.ExecutorService;
 
+@SuppressWarnings("all")
 public class PullMessageProcessor /*extends AsyncNettyRequestProcessor */ implements NettyRequestProcessor {
 
     private static final InternalLogger log = InternalLoggerFactory.getLogger(LoggerName.BROKER_LOGGER_NAME);
@@ -74,7 +75,7 @@ public class PullMessageProcessor /*extends AsyncNettyRequestProcessor */ implem
 
     @Override
     public RemotingCommand processRequest(final ChannelHandlerContext ctx, RemotingCommand request) throws RemotingCommandException {
-        return this.processRequest(ctx.channel(), request, true);
+        return this.processRequest(ctx.channel(), request, true/*允许本次拉消息长轮询*/);
     }
 
     @Override
@@ -82,7 +83,7 @@ public class PullMessageProcessor /*extends AsyncNettyRequestProcessor */ implem
         return false;
     }
 
-    private RemotingCommand processRequest(final Channel channel, RemotingCommand request, boolean brokerAllowSuspend /*是否允许本次拉消息长轮询*/) throws RemotingCommandException {
+    private RemotingCommand processRequest(final Channel channel, RemotingCommand request/*有 PullMessageRequestHeader 对象*/, boolean brokerAllowSuspend /*是否允许本次拉消息长轮询*/) throws RemotingCommandException {
         // 创建响应对象
         RemotingCommand response = RemotingCommand.createResponseCommand(PullMessageResponseHeader.class);
         // 拿到刚才上面创建的空对象
@@ -90,7 +91,7 @@ public class PullMessageProcessor /*extends AsyncNettyRequestProcessor */ implem
         // 解码请求对象
         final PullMessageRequestHeader requestHeader = (PullMessageRequestHeader) request.decodeCommandCustomHeader(PullMessageRequestHeader.class);
         // 设置请求id
-        response.setOpaque(request.getOpaque());
+        response.setOpaque(request.getOpaque()/*客户端需要根据该值找到对应的 responseFuture 完成后面的事情*/);
 
         BrokerConfig brokerConfig = this.brokerController.getBrokerConfig();
         if (!PermName.isReadable(brokerConfig.getBrokerPermission())/*当前broker的权限*/) {
@@ -143,8 +144,9 @@ public class PullMessageProcessor /*extends AsyncNettyRequestProcessor */ implem
             return response;
         }
 
-        if (requestHeader.getQueueId() < 0 /* queueId  >= 0 */ || requestHeader.getQueueId() >= topicConfig.getReadQueueNums() /* queueId 是从 0 开始计数的，最大不过 readQueueNums - 1 个 */) {
-            String errorInfo = String.format("queueId[%d] is illegal, topic:[%s] topicConfig.readQueueNums:[%d] consumer:[%s]", requestHeader.getQueueId(), requestHeader.getTopic(), topicConfig.getReadQueueNums(), channel.remoteAddress());
+        Integer queueIdInHeader = requestHeader.getQueueId();
+        if (queueIdInHeader < 0 /* queueId  >= 0 */ || queueIdInHeader >= topicConfig.getReadQueueNums() /* queueId 是从 0 开始计数的，最大不过 readQueueNums - 1 个 */) {
+            String errorInfo = String.format("queueId[%d] is illegal, topic:[%s] topicConfig.readQueueNums:[%d] consumer:[%s]", queueIdInHeader, requestHeader.getTopic(), topicConfig.getReadQueueNums(), channel.remoteAddress());
             log.warn(errorInfo);
             response.setCode(ResponseCode.SYSTEM_ERROR);
             response.setRemark(errorInfo);
@@ -155,8 +157,7 @@ public class PullMessageProcessor /*extends AsyncNettyRequestProcessor */ implem
         ConsumerFilterData consumerFilterData = null;
         if (hasSubscriptionFlag) {
             try {
-                subscriptionData = FilterAPI.build(requestHeader.getTopic(), requestHeader.getSubscription(), requestHeader.getExpressionType()
-                );
+                subscriptionData = FilterAPI.build(requestHeader.getTopic(), requestHeader.getSubscription(), requestHeader.getExpressionType());
                 if (!ExpressionType.isTagType(subscriptionData.getExpressionType())) {
                     consumerFilterData = ConsumerFilterManager.build(requestHeader.getTopic(), requestHeader.getConsumerGroup(), requestHeader.getSubscription(), requestHeader.getExpressionType(), requestHeader.getSubVersion());
                     assert consumerFilterData != null;
@@ -231,13 +232,13 @@ public class PullMessageProcessor /*extends AsyncNettyRequestProcessor */ implem
         if (brokerConfig.isFilterSupportRetry()) {
             messageFilter = new ExpressionForRetryMessageFilter(subscriptionData, consumerFilterData, this.brokerController.getConsumerFilterManager());
         } else {
-            messageFilter = new ExpressionMessageFilter(subscriptionData, consumerFilterData, this.brokerController.getConsumerFilterManager());
+            messageFilter = new ExpressionMessageFilter/*TAG CODE 过滤*/(subscriptionData, consumerFilterData, this.brokerController.getConsumerFilterManager());
         }
 
         MessageStore messageStore = this.brokerController.getMessageStore();
 
         // 通过 messageStore 去查询消息 TODO @@@!!!!
-        final GetMessageResult getMessageResult = messageStore.getMessage(requestHeader.getConsumerGroup(), requestHeader.getTopic(), requestHeader.getQueueId(), requestHeader.getQueueOffset(), requestHeader.getMaxMsgNums(), messageFilter);
+        final GetMessageResult getMessageResult = messageStore.getMessage(requestHeader.getConsumerGroup(), requestHeader.getTopic(), queueIdInHeader, requestHeader.getQueueOffset(), requestHeader.getMaxMsgNums(), messageFilter);
 
         if (getMessageResult != null) {
             // 查询结果不为空
@@ -245,14 +246,14 @@ public class PullMessageProcessor /*extends AsyncNettyRequestProcessor */ implem
             GetMessageStatus status = getMessageResult.getStatus();
             response.setRemark(status.name());
             // 返回给客户端，表示下一次再向当前队列拉消息的时候的开始 offset
-            responseHeader.setNextBeginOffset(getMessageResult.getNextBeginOffset());
-            responseHeader.setMinOffset(getMessageResult.getMinOffset());
-            responseHeader.setMaxOffset(getMessageResult.getMaxOffset());
+            responseHeader.setNextBeginOffset(getMessageResult.getNextBeginOffset()/*表示下一次再向当前队列拉消息的时候的开始 offset*/);
+            responseHeader.setMinOffset(getMessageResult.getMinOffset()/*当前查询队列的最小*/);
+            responseHeader.setMaxOffset(getMessageResult.getMaxOffset()/*当前查询队列的最大*/);
 
             // 设置推荐下次拉消息的节点
             if (getMessageResult.isSuggestPullingFromSlave()) {
                 // 建议下次从从 broker 拿消息，则设置为1
-                responseHeader.setSuggestWhichBrokerId(subscriptionGroupConfig.getWhichBrokerWhenConsumeSlowly());
+                responseHeader.setSuggestWhichBrokerId(subscriptionGroupConfig.getWhichBrokerWhenConsumeSlowly()/* 默认 就是 1*/);
             } else {
                 // 还是从主节点拿消息，设置为0
                 responseHeader.setSuggestWhichBrokerId(MixAll.MASTER_ID);
@@ -268,13 +269,15 @@ public class PullMessageProcessor /*extends AsyncNettyRequestProcessor */ implem
                     // 如果当前服务器主机节点是 slave 并且 从节点读 未开启的话，直接给客户端一个主题 "PULL_RETRY_IMMEDIATELY"
                     // 客户端 检查是该状态后，会立马重新再次发起 pull 请求，此时使用的 brokerId 为 MASTER_ID
                     if (!brokerConfig.isSlaveReadEnable()) {
+
+                        // 这代码写得是 有问题，上面都已经查询到结果了，这里做这个判断干嘛？？
                         response.setCode(ResponseCode.PULL_RETRY_IMMEDIATELY);
                         responseHeader.setSuggestWhichBrokerId(MixAll.MASTER_ID);
                     }
                     break;
             }
 
-            if (brokerConfig.isSlaveReadEnable()) {
+            if (brokerConfig.isSlaveReadEnable()/*支持从 slave 节点读开启了 */) {
                 // 从节点读开启拉
 
                 // consume too slow ,redirect to another machine
@@ -290,7 +293,7 @@ public class PullMessageProcessor /*extends AsyncNettyRequestProcessor */ implem
             }
 
             // 状态码转换
-            switch (status) {
+            switch (status /* GetMessageStatus */) {
                 case FOUND:
                     response.setCode(ResponseCode.SUCCESS);
                     break;
@@ -303,7 +306,7 @@ public class PullMessageProcessor /*extends AsyncNettyRequestProcessor */ implem
                         response.setCode(ResponseCode.PULL_OFFSET_MOVED);
                         // XXX: warn and notify me
                         String msg = "the broker store no queue data, fix the request offset {} to {}, Topic: {} QueueId: {} Consumer Group: {}";
-                        log.info(msg, requestHeader.getQueueOffset(), getMessageResult.getNextBeginOffset(), requestHeader.getTopic(), requestHeader.getQueueId(), requestHeader.getConsumerGroup());
+                        log.info(msg, requestHeader.getQueueOffset(), getMessageResult.getNextBeginOffset(), requestHeader.getTopic(), queueIdInHeader, requestHeader.getConsumerGroup());
                     } else {
                         response.setCode(ResponseCode.PULL_NOT_FOUND);
                     }
@@ -337,9 +340,9 @@ public class PullMessageProcessor /*extends AsyncNettyRequestProcessor */ implem
                 ConsumeMessageContext context = new ConsumeMessageContext();
                 context.setConsumerGroup(requestHeader.getConsumerGroup());
                 context.setTopic(requestHeader.getTopic());
-                context.setQueueId(requestHeader.getQueueId());
+                context.setQueueId(queueIdInHeader);
 
-                String owner = request.getExtFields().get(BrokerStatsManager.COMMERCIAL_OWNER);
+                String owner = request.getExtFields().get(BrokerStatsManager.COMMERCIAL_OWNER/*Owner*/);
 
                 switch (response.getCode()) {
                     case ResponseCode.SUCCESS:
@@ -375,7 +378,7 @@ public class PullMessageProcessor /*extends AsyncNettyRequestProcessor */ implem
                 this.executeConsumeMessageHookBefore(context);
             }
 
-            switch (response.getCode()) {
+            switch (response.getCode() /* RemotingCommand response 该对象中的 code 字段是根据上面的查询消息结果 GetMessageStatus status 转换来的 */) {
                 case ResponseCode.SUCCESS: // 查询成功
                     this.brokerController.getBrokerStatsManager().incGroupGetNums(requestHeader.getConsumerGroup(), requestHeader.getTopic(), getMessageResult.getMessageCount());
                     this.brokerController.getBrokerStatsManager().incGroupGetSize(requestHeader.getConsumerGroup(), requestHeader.getTopic(), getMessageResult.getBufferTotalSize());
@@ -386,9 +389,9 @@ public class PullMessageProcessor /*extends AsyncNettyRequestProcessor */ implem
                         final long beginTimeMills = this.brokerController.getMessageStore().now();
 
                         // 拿到本次 pull 出来的全部消息的字节
-                        final byte[] r = this.readGetMessageResult(getMessageResult, requestHeader.getConsumerGroup(), requestHeader.getTopic(), requestHeader.getQueueId());
+                        final byte[] r/*将本次拉取的全部消息转到字节数组*/ = this.readGetMessageResult(getMessageResult, requestHeader.getConsumerGroup(), requestHeader.getTopic(), queueIdInHeader);
                         BrokerStatsManager brokerStatsManager = this.brokerController.getBrokerStatsManager();
-                        brokerStatsManager.incGroupGetLatency(requestHeader.getConsumerGroup(), requestHeader.getTopic(), requestHeader.getQueueId(), (int) (this.brokerController.getMessageStore().now() - beginTimeMills));
+                        brokerStatsManager.incGroupGetLatency(requestHeader.getConsumerGroup(), requestHeader.getTopic(), queueIdInHeader, (int) (this.brokerController.getMessageStore().now() - beginTimeMills));
 
                         // 将消息数组保存到响应
                         response.setBody(r);
@@ -413,28 +416,30 @@ public class PullMessageProcessor /*extends AsyncNettyRequestProcessor */ implem
                     }
                     break;
                 case ResponseCode.PULL_NOT_FOUND:
-                    // 大部分情况下都是因为：pullRequest.offset == queue.maxOffset
-                    // queue.maxOffset 计算方式： dataSize / unit_size(20)
-                    // 举个例子：当 dataSize 内存储一条 CQData 的时候， dataSize = 20
-                    // dataSize / 20 = 1
-                    // 当客户端 offset == 1 时，来到服务器拉消息，getMessage(...)方法 首先查询 CQ 数据
-                    // offset * 20 = 20 这个物理位点，到该位点查询到的数据，肯定得到 null，因为 CQ 有效数据范围是 0 -20
-                    // 所以，这种情况下就是 PULL_NOT_FOUND
-                    // 这里需要进行长轮询，否则如果直接返回给客户端，客户端那边会再次立马发起 pull 请求
 
-                    if (brokerAllowSuspend /*允许长轮询*/ && hasSuspendFlag/*客户端也设置要求服务端长轮询*/) {
+                    /**
+                     * OFFSET_OVERFLOW_ONE
+                     * 大部分情况下都是因为：pullRequest.offset == queue.maxOffset
+                     * queue.maxOffset 计算方式： dataSize / unit_size(20)
+                     * 举个例子：当 dataSize 内存储一条 CQData 的时候， dataSize = 20
+                     * 则 offset = dataSize / 20 = 1
+                     * 当客户端 offset == 1 时，来到服务器拉消息，getMessage(...)方法 首先查询 CQ 数据
+                     * offset(1) * 20 = 20 这个物理位点，到该位点查询到的数据，肯定得到 null，因为 CQ 有效数据范围是 0 -20
+                     * 所以，这种情况下就是 PULL_NOT_FOUND
+                     * 这里需要进行长轮询，否则如果直接返回给客户端，客户端那边会再次立马发起 pull 请求,导致频繁的网络调用！！！
+                     */
+                    if (brokerAllowSuspend /*服务端是否允许长轮询*/ && hasSuspendFlag/*客户端也设置要求服务端长轮询*/) {
 
                         // 长轮询的时间，一般是 15 秒
                         long pollingTimeMills = suspendTimeoutMillisLong;
                         if (!brokerConfig.isLongPollingEnable() /*如果服务器没有开启长轮询，则只能端轮询*/) {
-
                             // 改成短轮询，1秒
                             pollingTimeMills = brokerConfig.getShortPollingTimeMills();
                         }
 
                         String topic = requestHeader.getTopic();
                         long offset = requestHeader.getQueueOffset();
-                        int queueId = requestHeader.getQueueId();
+                        int queueId = queueIdInHeader;
                         // 创建 长轮询请求对象
                         PullRequest pullRequest = new PullRequest(request, channel, pollingTimeMills, this.brokerController.getMessageStore().now(), offset, subscriptionData, messageFilter);
 
@@ -443,8 +448,10 @@ public class PullMessageProcessor /*extends AsyncNettyRequestProcessor */ implem
                         // 在服务端发起轮询，避免直接返回给客户端，导致频繁的网络调用
                         pullRequestHoldService.suspendPullRequest(topic, queueId, pullRequest);
 
-                        // TODO 将 response 设置为 null ?
-                        // 设置为空之后，外层 requestTask 拿到的结果就是 null,这样 requestTask 内部的 callBack 就不会给客户端发送任何数据来
+                        /**
+                         * TODO 为什么将 response 设置为 null ?
+                         * 设置为空之后，外层 requestTask 拿到的结果就是 null,这样 requestTask 内部的 callBack 就不会给客户端发送任何数据了，请求就会挂起(hold)
+                         */
                         response = null;
                         break;
                     }
@@ -452,10 +459,11 @@ public class PullMessageProcessor /*extends AsyncNettyRequestProcessor */ implem
                 case ResponseCode.PULL_RETRY_IMMEDIATELY:
                     break;
                 case ResponseCode.PULL_OFFSET_MOVED:
+                    // 发送一个事件到系统主题中，跟主要逻辑没关系
                     if (messageStoreConfig.getBrokerRole() != BrokerRole.SLAVE || messageStoreConfig.isOffsetCheckInSlave()) {
                         MessageQueue mq = new MessageQueue();
                         mq.setTopic(requestHeader.getTopic());
-                        mq.setQueueId(requestHeader.getQueueId());
+                        mq.setQueueId(queueIdInHeader);
                         mq.setBrokerName(brokerConfig.getBrokerName());
 
                         OffsetMovedEvent event = new OffsetMovedEvent();
@@ -480,6 +488,9 @@ public class PullMessageProcessor /*extends AsyncNettyRequestProcessor */ implem
                     assert false;
             }
         } else {
+
+            // getMessageResult == null
+
             response.setCode(ResponseCode.SYSTEM_ERROR);
             response.setRemark("store getMessage return null");
         }
@@ -491,12 +502,16 @@ public class PullMessageProcessor /*extends AsyncNettyRequestProcessor */ implem
          * 三个条件都成立的时候，才在 broker 端存储该消费者组内该 queue 的消费进度
          */
         boolean storeOffsetEnable = brokerAllowSuspend;
-        storeOffsetEnable = storeOffsetEnable && hasCommitOffsetFlag;
-        storeOffsetEnable = storeOffsetEnable && this.brokerController.getMessageStoreConfig().getBrokerRole() != BrokerRole.SLAVE;
+        storeOffsetEnable/*允许存储*/ = storeOffsetEnable && hasCommitOffsetFlag;
+        storeOffsetEnable/*当前节点是master节点*/ = storeOffsetEnable && this.brokerController.getMessageStoreConfig().getBrokerRole() != BrokerRole.SLAVE;
         if (storeOffsetEnable) {
+
+            // 存储该消费者组下该主题的指定队列的消费进度
             ConsumerOffsetManager consumerOffsetManager = this.brokerController.getConsumerOffsetManager();
-            consumerOffsetManager.commitOffset(RemotingHelper.parseChannelRemoteAddr(channel), requestHeader.getConsumerGroup(), requestHeader.getTopic(), requestHeader.getQueueId(), requestHeader.getCommitOffset());
+            consumerOffsetManager.commitOffset(RemotingHelper.parseChannelRemoteAddr(channel), requestHeader.getConsumerGroup(), requestHeader.getTopic(), queueIdInHeader, requestHeader.getCommitOffset());
         }
+
+        // 返回，当 response 不为 null 的时候，外层 requestTask 的 callback 会将数据写回给客户端
         return response;
     }
 
@@ -519,7 +534,7 @@ public class PullMessageProcessor /*extends AsyncNettyRequestProcessor */ implem
     private byte[] readGetMessageResult(final GetMessageResult getMessageResult, final String group, final String topic, final int queueId) {
 
         // 根据 bufferTotalSize 创建大buffer
-        final ByteBuffer byteBuffer = ByteBuffer.allocate(getMessageResult.getBufferTotalSize());
+        final ByteBuffer byteBuffer = ByteBuffer.allocate(getMessageResult.getBufferTotalSize()/*本次查询消息的总大小*/);
 
         long storeTimestamp = 0;
         try {
@@ -529,7 +544,10 @@ public class PullMessageProcessor /*extends AsyncNettyRequestProcessor */ implem
             for (ByteBuffer bb : messageBufferList) {
 
                 // 把 缓存 bb 的内容复制到 byteBuffer 中
-                byteBuffer.put(bb);
+                byteBuffer.put(bb/*消息都塞入*/);
+
+                // 下面的逻辑先不管
+
                 int sysFlag = bb.getInt(MessageDecoder.SYSFLAG_POSITION /* 4 + 4 + 4 + 4 + 4 + 8 + 8 */);
                 //                bornhost has the IPv4 ip if the MessageSysFlag.BORNHOST_V6_FLAG bit of sysFlag is 0
                 //                IPv4 host = ip(4 byte) + port(4 byte); IPv6 host = ip(16 byte) + port(4 byte)
@@ -549,6 +567,8 @@ public class PullMessageProcessor /*extends AsyncNettyRequestProcessor */ implem
                 storeTimestamp = bb.getLong(msgStoreTimePos);
             }
         } finally {
+
+            // 是否资源，结果都已经转移了！
             getMessageResult.release();
         }
 
@@ -559,7 +579,7 @@ public class PullMessageProcessor /*extends AsyncNettyRequestProcessor */ implem
     private void generateOffsetMovedEvent(final OffsetMovedEvent event) {
         try {
             MessageExtBrokerInner msgInner = new MessageExtBrokerInner();
-            msgInner.setTopic(MixAll.OFFSET_MOVED_EVENT);
+            msgInner.setTopic(MixAll.OFFSET_MOVED_EVENT /*OFFSET_MOVED_EVENT*/);
             msgInner.setTags(event.getConsumerGroup());
             msgInner.setDelayTimeLevel(0);
             msgInner.setKeys(event.getConsumerGroup());
