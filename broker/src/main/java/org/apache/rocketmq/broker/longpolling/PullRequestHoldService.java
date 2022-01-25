@@ -103,11 +103,11 @@ public class PullRequestHoldService extends ServiceThread {
                 int queueId = Integer.parseInt(kArray[1]); // 队列号
                 // 查询当前队列最大的 offset
 
-                // 当前队列的最大的 offset
+                // 当前队列的最大的 逻辑 offset （从1开始，没存储一条消息 +1）
                 final long offset = messageStore.getMaxOffsetInQueue(topic, queueId);
                 try {
                     // 通知消息到达的逻辑
-                    this.notifyMessageArriving(topic, queueId, offset /*当前队列最大的 offset */);
+                    this.notifyMessageArriving(topic, queueId, offset /*当前队列最大的 逻辑 offset （从1开始，没存储一条消息 +1） */);
                 } catch (Throwable e) {
                     log.error("check hold request failed. topic={}, queueId={}", topic, queueId, e);
                 }
@@ -115,14 +115,16 @@ public class PullRequestHoldService extends ServiceThread {
         }
     }
 
-    public void notifyMessageArriving(final String topic, final int queueId, final long maxOffset/*当前队列最大的 offset */) {
-        notifyMessageArriving(topic, queueId, maxOffset, null, 0, null, null);
+    public void notifyMessageArriving(final String topic, final int queueId, final long maxOffset/*当前队列最大的 逻辑 offset （从1开始，没存储一条消息 +1） */) {
+        notifyMessageArriving(topic, queueId, maxOffset/*当前队列最大的 逻辑 offset （从1开始，没存储一条消息 +1） */, null, 0, null, null);
     }
 
     /**
-     * @see NotifyMessageArrivingListener#arriving(java.lang.String, int, long, long, long, byte[], java.util.Map)
+     * 有消息来的时候发出通知
+     *
+     * @see NotifyMessageArrivingListener#arriving(java.lang.String, int, long, long, long, byte[], java.util.Map) 调用该方法的第二种情况就是这里
      */
-    public void notifyMessageArriving(final String topic, final int queueId, final long maxOffset/*当前队列的最大的 offset*/, final Long tagsCode, long msgStoreTime, byte[] filterBitMap, Map<String, String> properties) {
+    public void notifyMessageArriving(final String topic, final int queueId, final long maxOffset/*当前队列最大的 逻辑 offset （从1开始，没存储一条消息 +1） */, final Long tagsCode, long msgStoreTime, byte[] filterBitMap, Map<String, String> properties) {
 
         String key/*topic@queueId*/ = this.buildKey(topic, queueId);
         ManyPullRequest mpr = this.pullRequestTable.get(key);
@@ -137,17 +139,18 @@ public class PullRequestHoldService extends ServiceThread {
         }
 
         // 重放列表，当某个 pullRequest 既不超时，也没有超时的话，就再次放入
-        List<PullRequest> replayList = new ArrayList<>();
+        List<PullRequest> replayList/*继续长轮询的请求*/ = new ArrayList<>();
+
         MessageStore messageStore = this.brokerController.getMessageStore();
 
         for (PullRequest request : requestList) {
             long newestOffset = maxOffset;
-            if (newestOffset <= request.getPullFromThisOffset()) {
+            if (newestOffset <= request.getPullFromThisOffset()/*查询开始 offset*/) {
                 // 说明在循环节点已经有新数据加入。保证 newestOffset 为队列的 maxOffset
                 newestOffset = messageStore.getMaxOffsetInQueue(topic, queueId);
             }
 
-            if (newestOffset > request.getPullFromThisOffset() /* 当前队列的最大offset 大于 拉消息请求的  offset，说明该队列在长轮询期间有消息存入了，可以去拉消息 */) {
+            if (newestOffset > request.getPullFromThisOffset() /* 当前队列的最大offset 大于 拉消息请求的  offset，说明该队列在长轮询期间有消息存入了，可以去尝试拉消息 */) {
                 // 说明有消息来，长轮询可以结束了
 
                 MessageFilter messageFilter = request.getMessageFilter();
@@ -184,10 +187,12 @@ public class PullRequestHoldService extends ServiceThread {
                 } catch (Throwable e) {
                     log.error("execute request when wakeup failed.", e);
                 }
+
+                // 继续循环，不会往下面执行了
                 continue;
             }
 
-            // 其他的继续添加到list，下次继续
+            // 该请求关心的队列中，既没有新消息，长轮询也没有超时，其他的继续添加到list，继续进行长轮询
             replayList.add(request);
         }
 
