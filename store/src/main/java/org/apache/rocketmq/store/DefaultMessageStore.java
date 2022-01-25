@@ -621,12 +621,11 @@ public class DefaultMessageStore implements MessageStore {
             log.warn("message store is not readable, so getMessage is forbidden " + this.runningFlags.getFlagBits());
             return null;
         }
-
         long beginTime = this.getSystemClock().now();
 
         // 查询结果状态
         GetMessageStatus status;
-        // 返回给客户端的，下次拉消息使用的位点信息
+        // 返回给客户端的，下次拉消息使用的位点信息、
         long nextBeginOffset;
         // 并且 queue 的最小和 最大偏移量（注意：这里的单位为 CQData）
         long minOffset = 0;
@@ -694,7 +693,7 @@ public class DefaultMessageStore implements MessageStore {
                         ConsumeQueueExt.CqExtUnit cqExtUnit = new ConsumeQueueExt.CqExtUnit();
 
                         // 循环从文件中拿字节
-                        for (; i < bufferConsumeQueue.getSize() && i < maxFilterMessageCount; i += ConsumeQueue.CQ_STORE_UNIT_SIZE) {
+                        for (; i < bufferConsumeQueue.getSize() && i < maxFilterMessageCount; i += ConsumeQueue.CQ_STORE_UNIT_SIZE /* 每次读取20个字节 */) {
 
                             // 每条消息占 20 个字节
 
