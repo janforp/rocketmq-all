@@ -104,7 +104,7 @@ public class ScheduleMessageService extends ConfigManager {
     }
 
     public void start() {
-        if (started.compareAndSet(false, true)) {
+        if (started.compareAndSet(false, true)/*控制对象在关闭之前最多启动一次*/) {
 
             // 创建定时器对象，里面有自己的线程资源
             this.timer = new Timer("ScheduleMessageTimerThread", true);
@@ -124,7 +124,7 @@ public class ScheduleMessageService extends ConfigManager {
                 if (timeDelay != null) {
                     // 延迟 1000L 之后执行 该任务
                     // 为每个延迟级别创建一个延迟任务
-                    this.timer.schedule(new DeliverDelayedMessageTimerTask(level, offset), FIRST_DELAY_TIME);
+                    this.timer.schedule(new DeliverDelayedMessageTimerTask(level, offset), FIRST_DELAY_TIME/*100ms*/);
                 }
             }
 
@@ -138,7 +138,7 @@ public class ScheduleMessageService extends ConfigManager {
                         if (started.get()) {
                             // 持久化 offsetTable 的值到 文件中
                             // 持久化延迟队列消费进度的定时任务
-                            ScheduleMessageService.this.persist();
+                            ScheduleMessageService.this.persist();// 每10秒持久化一次延迟队列的消费进度
                         }
                     } catch (Throwable e) {
                         log.error("scheduleAtFixedRate flush exception", e);
@@ -218,10 +218,10 @@ public class ScheduleMessageService extends ConfigManager {
 
                 // 如1s，2m，1h等
                 String value = levelArray[i];
-                // 拿到时间单位，如：s,m,h
+                // 拿到时间单位，如：s,m,h（秒分时）
                 String ch = value.substring(value.length() - 1);
                 // 拿到单位对应的ms值
-                Long tu = timeUnitTable.get(ch);
+                Long tu/*time unit*/ = timeUnitTable.get(ch);
 
                 // 延迟级别从1开始
                 int level = i + 1;
@@ -333,7 +333,7 @@ public class ScheduleMessageService extends ConfigManager {
                                 if (msgExt != null) {
                                     try {
 
-                                        // 创建新消息
+                                        // 创建新消息,并且设置消息的主题跟队列为原始消息的主题跟队列，清除了延迟消息的属性
                                         MessageExtBrokerInner msgInner = this.messageTimeUp(msgExt);
                                         if (MixAll.RMQ_SYS_TRANS_HALF_TOPIC.equals(msgInner.getTopic())) {
                                             // 半消息不投递
@@ -350,7 +350,7 @@ public class ScheduleMessageService extends ConfigManager {
                                         } else {
                                             // XXX: warn and notify me
                                             log.error("ScheduleMessageService, a message time up, but reput it failed, topic: {} msgId {}", msgExt.getTopic(), msgExt.getMsgId());
-                                            ScheduleMessageService.this.timer.schedule(new DeliverDelayedMessageTimerTask(this.delayLevel, nextOffset), DELAY_FOR_A_PERIOD);
+                                            ScheduleMessageService.this.timer.schedule(new DeliverDelayedMessageTimerTask(this.delayLevel, nextOffset), DELAY_FOR_A_PERIOD/*10000 ms*/);
                                             ScheduleMessageService.this.updateOffset(this.delayLevel, nextOffset);
                                             return;
                                         }
@@ -373,7 +373,7 @@ public class ScheduleMessageService extends ConfigManager {
                         } // end of for
 
                         nextOffset = offset + (i / ConsumeQueue.CQ_STORE_UNIT_SIZE);
-                        ScheduleMessageService.this.timer.schedule(new DeliverDelayedMessageTimerTask(this.delayLevel, nextOffset), DELAY_FOR_A_WHILE);
+                        ScheduleMessageService.this.timer.schedule(new DeliverDelayedMessageTimerTask(this.delayLevel, nextOffset), DELAY_FOR_A_WHILE/*100ms*/);
                         ScheduleMessageService.this.updateOffset(this.delayLevel, nextOffset);
                         return;
                     } finally {
