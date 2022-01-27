@@ -5,6 +5,7 @@ import org.apache.rocketmq.broker.BrokerController;
 import org.apache.rocketmq.broker.mqtrace.ConsumeMessageContext;
 import org.apache.rocketmq.broker.mqtrace.ConsumeMessageHook;
 import org.apache.rocketmq.broker.mqtrace.SendMessageContext;
+import org.apache.rocketmq.broker.topic.TopicConfigManager;
 import org.apache.rocketmq.client.impl.consumer.ConsumeMessageConcurrentlyService;
 import org.apache.rocketmq.common.MQVersion;
 import org.apache.rocketmq.common.MixAll;
@@ -137,7 +138,10 @@ public class SendMessageProcessor extends AbstractSendMessageProcessor implement
         }
 
         // 获取重试主题的配置，这一步获取出来的主题配置，
-        TopicConfig topicConfig = this.brokerController.getTopicConfigManager().createTopicInSendMessageBackMethod(newTopic, subscriptionGroupConfig.getRetryQueueNums(), PermName.PERM_WRITE | PermName.PERM_READ, topicSysFlag);
+        TopicConfigManager topicConfigManager = this.brokerController.getTopicConfigManager();
+        int retryQueueNums = subscriptionGroupConfig.getRetryQueueNums();
+        int perm = PermName.PERM_WRITE | PermName.PERM_READ;
+        TopicConfig topicConfig = topicConfigManager.createTopicInSendMessageBackMethod(newTopic, retryQueueNums/*1*/, perm, topicSysFlag);
         if (null == topicConfig) {
             response.setCode(ResponseCode.SYSTEM_ERROR);
             response.setRemark("topic[" + newTopic + "] not exist");
@@ -160,16 +164,14 @@ public class SendMessageProcessor extends AbstractSendMessageProcessor implement
             return CompletableFuture.completedFuture(response);
         }
 
-        // 重试主题
-        // 获取原始消息的主题
-        final String retryTopic = msgExt.getProperty(MessageConst.PROPERTY_RETRY_TOPIC/*RETRY_TOPIC*/);
+        final String retryTopic/*获取原始消息的主题*/ = msgExt.getProperty(MessageConst.PROPERTY_RETRY_TOPIC/*RETRY_TOPIC*/);
         if (null == retryTopic) {
             // 第一次被回退，添加 RETRY_TOPIC 属性，值为原始消息主题
-            MessageAccessor.putProperty(msgExt, MessageConst.PROPERTY_RETRY_TOPIC/*RETRY_TOPIC*/, msgExt.getTopic());
+            MessageAccessor.putProperty(msgExt, MessageConst.PROPERTY_RETRY_TOPIC/*RETRY_TOPIC*/, msgExt.getTopic()/*第一次回退这个属性存储的是消息原始的主题*/);
         }
         // putProperty(MessageConst.PROPERTY_WAIT_STORE_MSG_OK, Boolean.toString(waitStoreMsgOK));
         // 设置刷盘状态为异步
-        msgExt.setWaitStoreMsgOK(false);
+        msgExt.setWaitStoreMsgOK(false/*刷盘状态为异步*/);
 
         // 延迟级别
         int delayLevel = requestHeader.getDelayLevel();
@@ -177,10 +179,11 @@ public class SendMessageProcessor extends AbstractSendMessageProcessor implement
         // 当前订阅组中配置的最大重试次数
         int maxReconsumeTimes = subscriptionGroupConfig.getRetryMaxTimes();
         if (request.getVersion() >= MQVersion.Version.V3_4_9.ordinal()) {
+            // 升级之后支持客户端控制最大延迟级别
             maxReconsumeTimes = requestHeader.getMaxReconsumeTimes();
         }
 
-        if (msgExt.getReconsumeTimes() >= maxReconsumeTimes /* 该消息的重试次数已经超过最大值 */ || delayLevel < 0 /* 死信了 */) {            // 死信
+        if (msgExt.getReconsumeTimes() >= maxReconsumeTimes /* 该消息的重试次数已经超过最大值 */ || delayLevel < 0 /* 死信了 */) { // 死信：重复消费次数超过上限了或者延迟级别为负数
 
             // 把消息转入到死信状态
 
@@ -190,7 +193,7 @@ public class SendMessageProcessor extends AbstractSendMessageProcessor implement
             queueIdInt = Math.abs(this.random.nextInt() % 99999999) % DLQ_NUMS_PER_GROUP /*1*/;
 
             // 死信主题的配置信息
-            topicConfig = this.brokerController.getTopicConfigManager().createTopicInSendMessageBackMethod(newTopic, DLQ_NUMS_PER_GROUP, PermName.PERM_WRITE /*不可读*/, 0);
+            topicConfig = topicConfigManager.createTopicInSendMessageBackMethod(newTopic, DLQ_NUMS_PER_GROUP, PermName.PERM_WRITE /*不可读*/, 0);
             if (null == topicConfig) {
                 response.setCode(ResponseCode.SYSTEM_ERROR);
                 response.setRemark("topic[" + newTopic + "] not exist");
@@ -219,19 +222,19 @@ public class SendMessageProcessor extends AbstractSendMessageProcessor implement
         msgInner.setPropertiesString(MessageDecoder.messageProperties2String(msgExt.getProperties()));
         msgInner.setTagsCode(MessageExtBrokerInner.tagsString2tagsCode(null, msgExt.getTags()));
 
-        // 重试 或者 死信 主题的 队列id
-        msgInner.setQueueId(queueIdInt);
+        msgInner.setQueueId(queueIdInt/*重试 或者 死信 主题的 队列id*/);
         msgInner.setSysFlag(msgExt.getSysFlag());
         msgInner.setBornTimestamp(msgExt.getBornTimestamp());
         msgInner.setBornHost(msgExt.getBornHost());
         msgInner.setStoreHost(msgExt.getStoreHost());
 
-        // 递增 重复消费次数 = 原消息的重试次数 + 1
-        msgInner.setReconsumeTimes(msgExt.getReconsumeTimes() + 1);
+        msgInner.setReconsumeTimes(msgExt.getReconsumeTimes() + 1 /*递增 重复消费次数 = 原消息的重试次数 + 1*/);
         // 获取最原始消息的消息ID
         String originMsgId = MessageAccessor.getOriginMessageId(msgExt);
         // 提交 原始 id
-        MessageAccessor.setOriginMessageId(msgInner, UtilAll.isBlank(originMsgId) /* 如果原始消息id为空，则说明当前消息是第一次回退，此时使用原消息id即可 */ ? msgExt.getMsgId() /*此时使用原消息id即可*/ : originMsgId/*否则使用原消息id，说明该消息不是第一次重试了*/);
+        MessageAccessor.setOriginMessageId(msgInner, UtilAll.isBlank(originMsgId) /* 如果原始消息id为空，则说明当前消息是第一次回退，此时使用原消息id即可 */ ?
+                msgExt.getMsgId() /*此时使用原消息id即可*/ :
+                originMsgId/*否则使用原消息id，说明该消息不是第一次重试了*/);
 
         // 核心业务逻辑
         // 调用存储模块存储消息到 commitLog

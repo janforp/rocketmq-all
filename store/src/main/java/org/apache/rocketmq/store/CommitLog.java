@@ -733,7 +733,7 @@ public class CommitLog {
             // 如果是非事务或者是提交事务消息，则进来
 
             // 可能是重试消息，也可能是用户指定的延迟消息
-            if (msg.getDelayTimeLevel() > 0 /* 当前消息是需要延迟的 */) {
+            if (msg.getDelayTimeLevel() > 0 /* 当前消息是需要延迟的 ，如果用户想发送延迟消息，则在消息中设置该属性即可*/) {
 
                 // Delay Delivery 延迟消息的特殊逻辑
 

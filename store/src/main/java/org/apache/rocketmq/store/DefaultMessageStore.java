@@ -894,7 +894,7 @@ public class DefaultMessageStore implements MessageStore {
     }
 
     public MessageExt lookMessageByOffset(long commitLogOffset) {
-        SelectMappedBufferResult sbr = this.commitLog.getMessage(commitLogOffset, 4);
+        SelectMappedBufferResult sbr = this.commitLog.getMessage(commitLogOffset, 4/*前四个字节存储消息大小*/);
         if (null != sbr) {
             try {
                 // 1 TOTALSIZE
