@@ -5,6 +5,7 @@ import org.apache.rocketmq.broker.BrokerController;
 import org.apache.rocketmq.broker.mqtrace.ConsumeMessageContext;
 import org.apache.rocketmq.broker.mqtrace.ConsumeMessageHook;
 import org.apache.rocketmq.broker.mqtrace.SendMessageContext;
+import org.apache.rocketmq.client.impl.consumer.ConsumeMessageConcurrentlyService;
 import org.apache.rocketmq.common.MQVersion;
 import org.apache.rocketmq.common.MixAll;
 import org.apache.rocketmq.common.TopicConfig;
@@ -95,9 +96,10 @@ public class SendMessageProcessor extends AbstractSendMessageProcessor implement
     @SuppressWarnings("all")
     private CompletableFuture<RemotingCommand> asyncConsumerSendMsgBack(ChannelHandlerContext ctx /* netty channel 上下文，没有用到 */, RemotingCommand request /*客户端请求对象*/) throws RemotingCommandException {
         final RemotingCommand response = RemotingCommand.createResponseCommand(null /* 没有其他返回数据 */);
-        /*
+        /**
          * 解析出来请求头对象
          * @see MQClientAPIImpl#consumerSendMessageBack(java.lang.String, org.apache.rocketmq.common.message.MessageExt, java.lang.String, int, long, int)
+         * @see ConsumeMessageConcurrentlyService#sendMessageBack(org.apache.rocketmq.common.message.MessageExt, org.apache.rocketmq.client.consumer.listener.ConsumeConcurrentlyContext)
          */
         final ConsumerSendMsgBackRequestHeader requestHeader = (ConsumerSendMsgBackRequestHeader) request.decodeCommandCustomHeader(ConsumerSendMsgBackRequestHeader.class);
         String namespace = NamespaceUtil.getNamespaceFromResource(requestHeader.getGroup());
@@ -128,7 +130,7 @@ public class SendMessageProcessor extends AbstractSendMessageProcessor implement
         // 当前消费者组的重试主题 ，规则：%RETRY%GroupName
         String newTopic = MixAll.getRetryTopic(requestHeader.getGroup());
         // 计算重试消息存储的队列id，一般是 0
-        int queueIdInt = Math.abs(this.random.nextInt() % 99999999) % subscriptionGroupConfig.getRetryQueueNums() /*1*/;
+        int queueIdInt/*一般是 0*/ = Math.abs(this.random.nextInt() % 99999999) % subscriptionGroupConfig.getRetryQueueNums() /*1*/;
         int topicSysFlag = 0;
         if (requestHeader.isUnitMode()) {
             topicSysFlag = TopicSysFlag.buildSysFlag(false, true);
@@ -149,7 +151,8 @@ public class SendMessageProcessor extends AbstractSendMessageProcessor implement
         }
 
         // 查询到消息
-        MessageExt msgExt = this.brokerController.getMessageStore().lookMessageByOffset(requestHeader.getOffset());
+        MessageStore messageStore = this.brokerController.getMessageStore();
+        MessageExt msgExt = messageStore.lookMessageByOffset(requestHeader.getOffset());
         if (null == msgExt) {
             // 没有消息，搞毛线！
             response.setCode(ResponseCode.SYSTEM_ERROR);
@@ -159,10 +162,10 @@ public class SendMessageProcessor extends AbstractSendMessageProcessor implement
 
         // 重试主题
         // 获取原始消息的主题
-        final String retryTopic = msgExt.getProperty(MessageConst.PROPERTY_RETRY_TOPIC);
+        final String retryTopic = msgExt.getProperty(MessageConst.PROPERTY_RETRY_TOPIC/*RETRY_TOPIC*/);
         if (null == retryTopic) {
             // 第一次被回退，添加 RETRY_TOPIC 属性，值为原始消息主题
-            MessageAccessor.putProperty(msgExt, MessageConst.PROPERTY_RETRY_TOPIC, msgExt.getTopic());
+            MessageAccessor.putProperty(msgExt, MessageConst.PROPERTY_RETRY_TOPIC/*RETRY_TOPIC*/, msgExt.getTopic());
         }
         // putProperty(MessageConst.PROPERTY_WAIT_STORE_MSG_OK, Boolean.toString(waitStoreMsgOK));
         // 设置刷盘状态为异步
@@ -231,7 +234,6 @@ public class SendMessageProcessor extends AbstractSendMessageProcessor implement
         MessageAccessor.setOriginMessageId(msgInner, UtilAll.isBlank(originMsgId) /* 如果原始消息id为空，则说明当前消息是第一次回退，此时使用原消息id即可 */ ? msgExt.getMsgId() /*此时使用原消息id即可*/ : originMsgId/*否则使用原消息id，说明该消息不是第一次重试了*/);
 
         // 核心业务逻辑
-        MessageStore messageStore = this.brokerController.getMessageStore();
         // 调用存储模块存储消息到 commitLog
         CompletableFuture<PutMessageResult> putMessageResult = messageStore.asyncPutMessage(msgInner);
 
