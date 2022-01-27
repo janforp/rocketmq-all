@@ -308,11 +308,15 @@ public class ConsumeMessageConcurrentlyService implements ConsumeMessageService 
 
         // 从pd 中删除消费成功的消息，返回 -1说明pd没数据，queueOffsetMax + 1：说明删除这一批之后没消息了，msgTreeMap.firstKey()：删除完这一批之后还有消息
         ProcessQueue processQueue = consumeRequest.getProcessQueue();
-        long offset = processQueue.removeMessage(consumeRequest.getMsgs());
+
+        // 偏移量（msgTreeMap.firstKey 或者 queueMaxOffset + 1）:-1说明pd没数据，queueOffsetMax + 1：说明删除这一批之后没消息了，msgTreeMap.firstKey()：删除完这一批之后还有消息
+        long offset = processQueue.removeMessage(consumeRequest.getMsgs()/*这些消息不是消费成功了就是回退成功了*/);
         if (offset >= 0 && !processQueue.isDropped()) {
             // 更新消费进度
             OffsetStore offsetStore = this.defaultMQPushConsumerImpl.getOffsetStore();
             MessageQueue messageQueue = consumeRequest.getMessageQueue();
+
+            // TODO ？？？？？？
             offsetStore.updateOffset(messageQueue, offset, true);
         }
     }
@@ -328,7 +332,7 @@ public class ConsumeMessageConcurrentlyService implements ConsumeMessageService 
      * @param context 上下文
      * @return 成功失败
      */
-    public boolean sendMessageBack(final MessageExt msg, final ConsumeConcurrentlyContext context) {
+    private boolean sendMessageBack(final MessageExt msg, final ConsumeConcurrentlyContext context) {
         int delayLevel = context.getDelayLevelWhenNextConsume();
 
         // Wrap topic with namespace before sending back message.

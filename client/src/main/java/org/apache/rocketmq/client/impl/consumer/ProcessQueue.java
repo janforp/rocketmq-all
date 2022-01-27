@@ -291,7 +291,8 @@ public class ProcessQueue {
                     result = this.queueOffsetMax + 1;
                     int removedCnt = 0;
                     for (MessageExt msg : messageExtList) {
-                        MessageExt prev = msgTreeMap.remove(msg.getQueueOffset());
+                        long queueOffset = msg.getQueueOffset();
+                        MessageExt prev = msgTreeMap.remove(queueOffset);
                         if (prev != null) {
                             removedCnt--;
                             msgSize.addAndGet(-msg.getBody().length);
