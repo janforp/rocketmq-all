@@ -37,6 +37,7 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 
+@SuppressWarnings("all")
 public class ConsumeMessageOrderlyService implements ConsumeMessageService {
 
     private static final InternalLogger log = ClientLogger.getLog();
@@ -202,7 +203,7 @@ public class ConsumeMessageOrderlyService implements ConsumeMessageService {
         }
     }
 
-    public void tryLockLaterAndReconsume(final MessageQueue mq, final ProcessQueue processQueue, final long delayMills) {
+    private void tryLockLaterAndReconsume(final MessageQueue mq, final ProcessQueue processQueue, final long delayMills) {
         this.scheduledExecutorService.schedule(new Runnable() {
             @Override
             public void run() {
@@ -265,7 +266,7 @@ public class ConsumeMessageOrderlyService implements ConsumeMessageService {
                     if (checkReconsumeTimes(msgs)) {
 
                         // 类似回滚
-                        processQueue.makeMessageToCosumeAgain(msgs);
+                        processQueue.makeMessageToConsumeAgain(msgs);
 
                         // 再次提交，类似回滚
                         this.submitConsumeRequestLater(processQueue, consumeRequest.getMessageQueue(), context.getSuspendCurrentQueueTimeMillis());
@@ -295,7 +296,7 @@ public class ConsumeMessageOrderlyService implements ConsumeMessageService {
                 case SUSPEND_CURRENT_QUEUE_A_MOMENT:
                     this.getConsumerStatsManager().incConsumeFailedTPS(consumerGroup, consumeRequest.getMessageQueue().getTopic(), msgs.size());
                     if (checkReconsumeTimes(msgs)) {
-                        processQueue.makeMessageToCosumeAgain(msgs);
+                        processQueue.makeMessageToConsumeAgain(msgs);
                         this.submitConsumeRequestLater(processQueue, consumeRequest.getMessageQueue(), context.getSuspendCurrentQueueTimeMillis());
                         continueConsume = false;
                     }
@@ -432,7 +433,7 @@ public class ConsumeMessageOrderlyService implements ConsumeMessageService {
                         final int consumeBatchSize = ConsumeMessageOrderlyService.this.defaultMQPushConsumer.getConsumeMessageBatchMaxSize();
 
                         // 从 pd 中拿一批消息
-                        List<MessageExt> msgs = this.processQueue.takeMessags(consumeBatchSize);
+                        List<MessageExt> msgs = this.processQueue.takeMessags(consumeBatchSize/*1*/);
                         defaultMQPushConsumerImpl.resetRetryAndNamespace(msgs, defaultMQPushConsumer.getConsumerGroup());
                         if (!msgs.isEmpty()) {
                             final ConsumeOrderlyContext context = new ConsumeOrderlyContext(this.messageQueue);
