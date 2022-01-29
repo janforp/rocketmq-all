@@ -18,6 +18,7 @@ import org.apache.rocketmq.common.protocol.heartbeat.SubscriptionData;
 import java.util.Date;
 import java.util.List;
 import java.util.Set;
+import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 
 public class RebalancePushImpl extends RebalanceImpl {
@@ -101,6 +102,7 @@ public class RebalancePushImpl extends RebalanceImpl {
             try {
                 if (pq.getLockConsume().tryLock(1000, TimeUnit.MILLISECONDS)) {
                     try {
+                        // 拿锁成功，说明：消费任务还没有执行消费任务
                         return this.unlockDelay(mq, pq);
                     } finally {
                         pq.getLockConsume().unlock();
@@ -121,12 +123,13 @@ public class RebalancePushImpl extends RebalanceImpl {
     // 释放 broker 端的分布式锁
     private boolean unlockDelay(final MessageQueue mq, final ProcessQueue pq) {
 
-        if (pq.hasTempMessage()) {
+        if (pq.hasTempMessage()/*return !this.msgTreeMap.isEmpty() msgTreeMap 中还有数据*/) {
             // 当还有数据的时候，延迟一定时间再释放锁，可能是为了确保全局范围只有一个消费任务执行顺序消费
 
             log.info("[{}]unlockDelay, begin {} ", mq.hashCode(), mq);
-            this.defaultMQPushConsumerImpl.getmQClientFactory().getScheduledExecutorService().schedule(
-
+            MQClientInstance mqClientInstance = this.defaultMQPushConsumerImpl.getmQClientFactory();
+            ScheduledExecutorService scheduledExecutorService = mqClientInstance.getScheduledExecutorService();
+            scheduledExecutorService.schedule(
                     // 定时任务的具体任务
                     new Runnable() {
                         @Override
@@ -137,13 +140,14 @@ public class RebalancePushImpl extends RebalanceImpl {
                     },
 
                     // 延迟时间
-                    UNLOCK_DELAY_TIME_MILLS,
+                    UNLOCK_DELAY_TIME_MILLS/*20秒*/,
 
                     // 时间单位
                     TimeUnit.MILLISECONDS);
         } else {
 
             // 没有数据可以直接释放锁
+            // 执行到这里，可以确定当前消费者本地该消费任务已经退出了！
             this.unlock(mq, true);
         }
         return true;

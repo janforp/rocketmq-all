@@ -138,6 +138,7 @@ public abstract class RebalanceImpl {
         }
     }
 
+    // 将分配给当前消费者的全部mq,按 brokerName 分组
     private HashMap<String/* brokerName */, Set<MessageQueue>> buildProcessQueueTableByBrokerName() {
         HashMap<String/* brokerName */, Set<MessageQueue>> result = new HashMap<String, Set<MessageQueue>>();
 
@@ -196,7 +197,7 @@ public abstract class RebalanceImpl {
 
     public void lockAll() {
 
-        // 按 brokerName 分组
+        // 将分配给当前消费者的全部mq,按 brokerName 分组
         HashMap<String /* brokerName */ , Set<MessageQueue>> brokerMqs = this.buildProcessQueueTableByBrokerName();
 
         // 循环处理每一个 brokerName 组
@@ -229,7 +230,7 @@ public abstract class RebalanceImpl {
 
                     // 更新续约成功的 pd 属性
                     for (MessageQueue mq : lockOKMQSet) {
-                        ProcessQueue processQueue = this.processQueueTable.get(mq);
+                        ProcessQueue processQueue = this.processQueueTable.get(mq/*在服务端续约锁成功的队列*/);
                         if (processQueue != null) {
                             if (!processQueue.isLocked()) {
                                 log.info("the message queue locked OK, Group: {} {}", this.consumerGroup, mq);
@@ -248,7 +249,7 @@ public abstract class RebalanceImpl {
 
                             // 找到续约失败的队列
 
-                            ProcessQueue processQueue = this.processQueueTable.get(mq);
+                            ProcessQueue processQueue = this.processQueueTable.get(mq/*在服务端续约锁失败的队列*/);
                             if (processQueue != null) {
                                 // 表示续约锁失败了，表示分布式锁尚未占用成功，消费任务不能消费
                                 processQueue.setLocked(false);

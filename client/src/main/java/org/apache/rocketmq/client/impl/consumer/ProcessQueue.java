@@ -333,8 +333,9 @@ public class ProcessQueue {
     }
 
     /**
+     * 会将本次处理的消息从临时map中移除，并且返回消费进度
      * 顺序消费任务使用的方法
-     * 策略完一批消息后回调用
+     * 处理完一批消息后回调用
      *
      * @see ConsumeMessageOrderlyService#processConsumeResult(java.util.List, org.apache.rocketmq.client.consumer.listener.ConsumeOrderlyStatus, org.apache.rocketmq.client.consumer.listener.ConsumeOrderlyContext, org.apache.rocketmq.client.impl.consumer.ConsumeMessageOrderlyService.ConsumeRequest)
      */
