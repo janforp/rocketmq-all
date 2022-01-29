@@ -101,7 +101,11 @@ public class ProcessQueue {
     @Getter
     private volatile long lastConsumeTimestamp = System.currentTimeMillis();
 
-    // 锁定状态
+    /**
+     * 锁定状态
+     *
+     * @see RebalanceImpl#lock(org.apache.rocketmq.common.message.MessageQueue)
+     */
     @Setter
     @Getter
     private volatile boolean locked = false;

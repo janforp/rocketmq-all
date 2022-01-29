@@ -4,6 +4,7 @@ import lombok.Getter;
 import lombok.Setter;
 import org.apache.rocketmq.client.consumer.AllocateMessageQueueStrategy;
 import org.apache.rocketmq.client.impl.FindBrokerResult;
+import org.apache.rocketmq.client.impl.MQClientAPIImpl;
 import org.apache.rocketmq.client.impl.factory.MQClientInstance;
 import org.apache.rocketmq.client.log.ClientLogger;
 import org.apache.rocketmq.common.MixAll;
@@ -27,6 +28,7 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 
+@SuppressWarnings("all")
 public abstract class RebalanceImpl {
 
     protected static final InternalLogger log = ClientLogger.getLog();
@@ -100,9 +102,9 @@ public abstract class RebalanceImpl {
     }
 
     public void unlockAll(final boolean oneway) {
-        HashMap<String, Set<MessageQueue>> brokerMqs = this.buildProcessQueueTableByBrokerName();
+        HashMap<String/*brokerName*/, Set<MessageQueue>> brokerMqs = this.buildProcessQueueTableByBrokerName();
 
-        for (final Map.Entry<String, Set<MessageQueue>> entry : brokerMqs.entrySet()) {
+        for (final Map.Entry<String/*brokerName*/, Set<MessageQueue>> entry : brokerMqs.entrySet()) {
             final String brokerName = entry.getKey();
             final Set<MessageQueue> mqs = entry.getValue();
 
@@ -118,7 +120,9 @@ public abstract class RebalanceImpl {
                 requestBody.setMqSet(mqs);
 
                 try {
-                    this.mQClientFactory.getMQClientAPIImpl().unlockBatchMQ(findBrokerResult.getBrokerAddr(), requestBody, 1000, oneway);
+                    String brokerAddr = findBrokerResult.getBrokerAddr();
+                    MQClientAPIImpl mqClientAPIImpl = this.mQClientFactory.getMQClientAPIImpl();
+                    mqClientAPIImpl.unlockBatchMQ(brokerAddr, requestBody, 1000, oneway);
 
                     for (MessageQueue mq : mqs) {
                         ProcessQueue processQueue = this.processQueueTable.get(mq);
@@ -135,12 +139,16 @@ public abstract class RebalanceImpl {
     }
 
     private HashMap<String/* brokerName */, Set<MessageQueue>> buildProcessQueueTableByBrokerName() {
-        HashMap<String, Set<MessageQueue>> result = new HashMap<String, Set<MessageQueue>>();
-        for (MessageQueue mq : this.processQueueTable.keySet()) {
-            Set<MessageQueue> mqs = result.get(mq.getBrokerName());
+        HashMap<String/* brokerName */, Set<MessageQueue>> result = new HashMap<String, Set<MessageQueue>>();
+
+        // ConcurrentMap<MessageQueue/*分配给当前消费者的队列*/, ProcessQueue/*队列在消费者的快照*/> processQueueTable
+        Set<MessageQueue> messageQueueSet = this.processQueueTable.keySet();
+        for (MessageQueue mq : messageQueueSet) {
+            String brokerName = mq.getBrokerName();
+            Set<MessageQueue> mqs = result.get(brokerName);
             if (null == mqs) {
                 mqs = new HashSet<MessageQueue>();
-                result.put(mq.getBrokerName(), mqs);
+                result.put(brokerName, mqs);
             }
 
             mqs.add(mq);
@@ -150,7 +158,8 @@ public abstract class RebalanceImpl {
     }
 
     public boolean lock(final MessageQueue mq) {
-        FindBrokerResult findBrokerResult = this.mQClientFactory.findBrokerAddressInSubscribe(mq.getBrokerName(), MixAll.MASTER_ID, true);
+        String brokerName = mq.getBrokerName();
+        FindBrokerResult findBrokerResult = this.mQClientFactory.findBrokerAddressInSubscribe(brokerName, MixAll.MASTER_ID, true);
         if (findBrokerResult != null) {
             LockBatchRequestBody requestBody = new LockBatchRequestBody();
             requestBody.setConsumerGroup(this.consumerGroup);
@@ -158,7 +167,14 @@ public abstract class RebalanceImpl {
             requestBody.getMqSet().add(mq);
 
             try {
-                Set<MessageQueue> lockedMq = this.mQClientFactory.getMQClientAPIImpl().lockBatchMQ(findBrokerResult.getBrokerAddr(), requestBody, 1000);
+                MQClientAPIImpl mqClientAPIImpl = this.mQClientFactory.getMQClientAPIImpl();
+                String brokerAddr = findBrokerResult.getBrokerAddr();
+                // ConcurrentMap<String/* group */, ConcurrentHashMap<MessageQueue, LockEntry>> mqLockTable = new ConcurrentHashMap<>(1024);
+                /**
+                 * @see org.apache.rocketmq.broker.client.rebalance.RebalanceLockManager#tryLockBatch(java.lang.String, java.util.Set, java.lang.String)
+                 * @see org.apache.rocketmq.broker.client.rebalance.RebalanceLockManager.LockEntry
+                 */
+                Set<MessageQueue> lockedMq = mqClientAPIImpl.lockBatchMQ(brokerAddr, requestBody, 1000);
                 for (MessageQueue mmqq : lockedMq) {
                     ProcessQueue processQueue = this.processQueueTable.get(mmqq);
                     if (processQueue != null) {
@@ -184,7 +200,7 @@ public abstract class RebalanceImpl {
         HashMap<String /* brokerName */ , Set<MessageQueue>> brokerMqs = this.buildProcessQueueTableByBrokerName();
 
         // 循环处理每一个 brokerName 组
-        for (Entry<String, Set<MessageQueue>> entry : brokerMqs.entrySet()) {
+        for (Entry<String/* brokerName */, Set<MessageQueue>> entry : brokerMqs.entrySet()) {
 
             final String brokerName = entry.getKey();
             final Set<MessageQueue> mqs = entry.getValue();
@@ -205,7 +221,11 @@ public abstract class RebalanceImpl {
                 try {
 
                     // 同步网络调用，返回续约锁成功的队列集合
-                    Set<MessageQueue> lockOKMQSet = this.mQClientFactory.getMQClientAPIImpl().lockBatchMQ(findBrokerResult.getBrokerAddr(), requestBody, 1000);
+                    MQClientAPIImpl mqClientAPIImpl = this.mQClientFactory.getMQClientAPIImpl();
+                    String brokerAddr = findBrokerResult.getBrokerAddr();
+
+                    // 发起续约锁的请求到master节点
+                    Set<MessageQueue> lockOKMQSet = mqClientAPIImpl.lockBatchMQ(brokerAddr, requestBody, 1000);
 
                     // 更新续约成功的 pd 属性
                     for (MessageQueue mq : lockOKMQSet) {

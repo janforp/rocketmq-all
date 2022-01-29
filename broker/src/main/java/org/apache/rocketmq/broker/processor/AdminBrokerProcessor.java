@@ -616,12 +616,13 @@ public class AdminBrokerProcessor extends AsyncNettyRequestProcessor implements 
         return response;
     }
 
-    private RemotingCommand lockBatchMQ(ChannelHandlerContext ctx, RemotingCommand request) throws RemotingCommandException {
+    private RemotingCommand lockBatchMQ(ChannelHandlerContext ctx, RemotingCommand request) {
 
         final RemotingCommand response = RemotingCommand.createResponseCommand(null);
         LockBatchRequestBody requestBody = LockBatchRequestBody.decode(request.getBody(), LockBatchRequestBody.class);
 
-        Set<MessageQueue> lockOKMQSet = this.brokerController.getRebalanceLockManager().tryLockBatch(requestBody.getConsumerGroup(), requestBody.getMqSet(), requestBody.getClientId());
+        RebalanceLockManager rebalanceLockManager = this.brokerController.getRebalanceLockManager();
+        Set<MessageQueue> lockOKMQSet = rebalanceLockManager.tryLockBatch(requestBody.getConsumerGroup(), requestBody.getMqSet(), requestBody.getClientId());
 
         LockBatchResponseBody responseBody = new LockBatchResponseBody();
         responseBody.setLockOKMQSet(lockOKMQSet);
