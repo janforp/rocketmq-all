@@ -249,7 +249,8 @@ public class ConsumeMessageOrderlyService implements ConsumeMessageService {
         }, timeMillis, TimeUnit.MILLISECONDS);
     }
 
-    public boolean processConsumeResult(final List<MessageExt> msgs/*被消费的消息*/, final ConsumeOrderlyStatus status/*顺序消息的消费状态，成功或者挂起*/, final ConsumeOrderlyContext context, final ConsumeRequest consumeRequest/*消费任务*/) {
+    private boolean processConsumeResult(final List<MessageExt> msgs/*被消费的消息*/, final ConsumeOrderlyStatus status/*顺序消息的消费状态，成功或者挂起*/, final ConsumeOrderlyContext context, final ConsumeRequest consumeRequest/*消费任务*/) {
+        // 决定是否继续处理消息
         boolean continueConsume = true;
         long commitOffset = -1L;
 
@@ -266,7 +267,7 @@ public class ConsumeMessageOrderlyService implements ConsumeMessageService {
                     break;
                 case SUSPEND_CURRENT_QUEUE_A_MOMENT:
                     this.getConsumerStatsManager().incConsumeFailedTPS(consumerGroup, consumeRequest.getMessageQueue().getTopic(), msgs.size());
-                    if (checkReconsumeTimes(msgs) /*顺序消费可以一直在消费者本地重试*/) {
+                    if (checkReconsumeTimes(msgs) /*增加消费重试次数，顺序消费可以一直在消费者本地重试*/) {
 
                         // 类似回滚
                         processQueue.makeMessageToConsumeAgain(msgs);
@@ -312,6 +313,7 @@ public class ConsumeMessageOrderlyService implements ConsumeMessageService {
         }
 
         if (commitOffset >= 0 && !processQueue.isDropped()) {
+            // 更新消费进度
             this.defaultMQPushConsumerImpl.getOffsetStore().updateOffset(consumeRequest.getMessageQueue(), commitOffset, false);
         }
 

@@ -414,6 +414,7 @@ public class ProcessQueue {
                 }
 
                 if (result.isEmpty()) {
+                    // 没有可以消费的消息了，则该队列对应的消费任务可以暂时停止了
                     consuming = false;
                 }
             } finally {
