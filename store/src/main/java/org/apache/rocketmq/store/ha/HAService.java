@@ -55,6 +55,7 @@ public class HAService {
     private final GroupTransferService groupTransferService;
 
     // slave 节点的客户端对象， slave 端才会正常运行该实例
+    // TODO 一般从这个对象开始分析 HA 的逻辑
     private final HAClient haClient;
 
     public HAService(final DefaultMessageStore defaultMessageStore) throws IOException {
@@ -315,8 +316,13 @@ public class HAService {
         // 4 mb
         private static final int READ_MAX_BUFFER_SIZE = 1024 * 1024 * 4;
 
-        // ip:port 表示 master 节点启动时监听的 HA 会话端口（和 netty 绑定的服务端口不是同一个）
-        // 什么时候赋值的呢？slave节点会赋值，master节点不会赋值
+        /**
+         * ip:port 表示 master 节点启动时监听的 HA 会话端口（和 netty 绑定的服务端口不是同一个）
+         * 什么时候赋值的呢？slave节点会赋值，master节点不会赋值
+         *
+         * @see DefaultMessageStore#updateHaMasterAddress(java.lang.String)
+         * @see org.apache.rocketmq.broker.BrokerController#doRegisterBrokerAll(boolean, boolean, org.apache.rocketmq.common.protocol.body.TopicConfigSerializeWrapper)
+         */
         private final AtomicReference<String> masterAddress = new AtomicReference<>();
 
         // 8 个字节，上保 offset 的时候使用，因为底层通信使用的 NIO 所有内容都是通过块传输的，所以上报 slave offset 的时候需要使用该 buffer
@@ -361,6 +367,11 @@ public class HAService {
             this.selector = RemotingUtil.openSelector();
         }
 
+        /**
+         * 如果当前节点是主节点，则这个方法肯定是不会被调用的，只有slave节点才会调用该方法
+         *
+         * @param newAddr
+         */
         public void updateMasterAddress(final String newAddr) {
             String currentAddr = this.masterAddress.get();
             if (currentAddr == null || !currentAddr.equals(newAddr)) {
@@ -659,11 +670,6 @@ public class HAService {
                     this.waitForRunning(1000 * 5);
                 }
             }
-        }
-
-        @Override
-        public String getServiceName() {
-            return HAClient.class.getSimpleName();
         }
     }
 }
