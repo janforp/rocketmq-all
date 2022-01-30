@@ -65,6 +65,8 @@ public class CommitLog {
     protected final DefaultMessageStore defaultMessageStore;
 
     /**
+     * 具体在构造方法中初始化
+     *
      * @see GroupCommitService 同步刷盘
      * @see FlushRealTimeService 默认是异步刷盘
      * @see CommitLog#start() 该对象的 start 方法会启动刷盘服务
@@ -1194,10 +1196,10 @@ public class CommitLog {
      * 刷盘逻辑入口
      *
      * @param result 消息append结果
-     * @param putMessageResult 消息 put 结果
+     * @param putMessageResult 消息写入到 commitLog 的结果
      * @param messageExt 消息
      */
-    public void handleDiskFlush(AppendMessageResult result, PutMessageResult putMessageResult, MessageExt messageExt) {
+    public void handleDiskFlush(AppendMessageResult result, PutMessageResult putMessageResult/*消息写入到 commitLog 的结果*/, MessageExt messageExt) {
         MessageStoreConfig messageStoreConfig = this.defaultMessageStore.getMessageStoreConfig();
         // Synchronization flush
         if (FlushDiskType.SYNC_FLUSH == messageStoreConfig.getFlushDiskType()) {
@@ -1207,10 +1209,14 @@ public class CommitLog {
             final GroupCommitService service = (GroupCommitService) this.flushCommitLogService;
             if (messageExt.isWaitStoreMsgOK() /*一般情况返回 true*/) {
 
+                // 需要刷盘到该位点
                 long nextOffset = result.getWroteOffset() + result.getWroteBytes();
                 GroupCommitRequest request = new GroupCommitRequest(nextOffset  /*当前消息写完之后的commitLog的偏移量或者下条消息的开始偏移量*/);
-
-                // 提交
+                /**
+                 * 提交到刷盘请求队列
+                 *
+                 * @see GroupCommitService#requestsWrite
+                 */
                 service.putRequest(request);
 
                 // 写消息线程 试图 获取到 request.future(),当前线程在此阻塞等待
@@ -1218,10 +1224,11 @@ public class CommitLog {
                 PutMessageStatus flushStatus = null;
                 try {
                     /**
-                     * 写消息线程 试图 获取到 request.future(),当前线程在此阻塞等待，直到刷盘任务完成并且返回
+                     * 写消息线程 试图 获取到 request.future(),当前线程在此阻塞等待，直到刷盘任务完成并且返回，最多阻塞5秒
+                     *
                      * @see GroupCommitRequest#wakeupCustomer(boolean) 通过这个方法唤醒当前线程
                      */
-                    flushStatus = flushOkFuture.get(messageStoreConfig.getSyncFlushTimeout(), TimeUnit.MILLISECONDS);
+                    flushStatus = flushOkFuture.get(messageStoreConfig.getSyncFlushTimeout()/*5 秒*/, TimeUnit.MILLISECONDS);
                 } catch (InterruptedException | ExecutionException | TimeoutException e) {
                     //flushOK=false;
                 }
@@ -1230,6 +1237,7 @@ public class CommitLog {
                     putMessageResult.setPutMessageStatus(PutMessageStatus.FLUSH_DISK_TIMEOUT);
                 }
             } else {
+                // 唤醒一下就完事了
                 service.wakeup();
             }
         }
@@ -1237,8 +1245,10 @@ public class CommitLog {
         else {
             // 异步刷盘
             if (!messageStoreConfig.isTransientStorePoolEnable()) {
+                // 唤醒一下就完事了
                 flushCommitLogService.wakeup();
             } else {
+                // 唤醒一下就完事了
                 commitLogService.wakeup();
             }
         }
@@ -1686,9 +1696,20 @@ public class CommitLog {
             this.nextOffset = nextOffset;
         }
 
+        /**
+         * 唤醒在这个 future 上阻塞的线程，这也就是同步刷盘的巧妙设计之处！！！
+         *
+         * @param flushOK 同步刷盘结果
+         */
         public void wakeupCustomer(final boolean flushOK) {
             long endTimestamp = System.currentTimeMillis();
-            PutMessageStatus result = (flushOK && ((endTimestamp - this.startTimestamp) <= this.timeoutMillis)) ? PutMessageStatus.PUT_OK : PutMessageStatus.FLUSH_SLAVE_TIMEOUT;
+
+            boolean notTimeout = (endTimestamp - this.startTimestamp) <= this.timeoutMillis;
+
+            boolean flushOkAndNotTimeout = (flushOK && notTimeout);
+
+            PutMessageStatus result = flushOkAndNotTimeout/*刷盘成功并且刷盘没有超时*/ ? PutMessageStatus.PUT_OK : PutMessageStatus.FLUSH_SLAVE_TIMEOUT;
+
             /**
              * 设置结果，这样就会唤醒在这个future 挂起的线程
              * @see CommitLog#handleDiskFlush(org.apache.rocketmq.store.AppendMessageResult, org.apache.rocketmq.store.PutMessageResult, org.apache.rocketmq.common.message.MessageExt)
@@ -1710,10 +1731,18 @@ public class CommitLog {
      */
     class GroupCommitService extends FlushCommitLogService {
 
-        // 新到的刷盘请求放到这个了
+        /**
+         * 新到的刷盘请求放到这个队列
+         *
+         * @see GroupCommitService#putRequest(org.apache.rocketmq.store.CommitLog.GroupCommitRequest) 主线程塞进去的
+         */
         private volatile List<GroupCommitRequest> requestsWrite = new ArrayList<GroupCommitRequest>();
 
-        // 执行刷盘任务的时候从这个队列中取任务执行
+        /**
+         * 执行刷盘任务的时候从这个队列中取任务执行
+         *
+         * 读写分离
+         */
         private volatile List<GroupCommitRequest> requestsRead = new ArrayList<GroupCommitRequest>();
 
         private synchronized void putRequest(final GroupCommitRequest request) {
@@ -1762,7 +1791,7 @@ public class CommitLog {
                         CommitLog.this.defaultMessageStore.getStoreCheckpoint().setPhysicMsgTimestamp(storeTimestamp);
                     }
 
-                    // 清理列表，方便后面再次使用
+                    // 清理列表，方便后面再次使用，下次交换就会成为 requestsWrite
                     this.requestsRead.clear();
                 } else {
                     // Because of individual messages is set to not sync flush, it
