@@ -447,11 +447,12 @@ public class HAService {
         }
 
         /**
+         * // 当 diff >= msgHeaderSize 不成立 或者 diff >= (msgHeaderSize + bodySize) 不成立的时候会执行下面的代码
+         *
          * reallocate：重新分配
          */
         private void reallocateByteBuffer() {
-            // 0 ... ................. ............ position ..................limit
-            // 0 ... dispatchPosition ............. position ..................limit
+            // 0 ... dispatchPosition ............. 这一部分数据是半包数据 ..................limit/position(满了)
             // 处于 dispatchPosition 到 position 之间的字节是还没有处理的字节
             // 未处理的数量
             int remain = READ_MAX_BUFFER_SIZE/*4Mb*/ - this.dispatchPosition;
@@ -467,11 +468,12 @@ public class HAService {
             // 交换 byteBufferRead 跟 byteBufferBackup
             this.swapByteBuffer();
 
-            // 复原 byteBufferRead
+            // 复原 byteBufferRead，因为已经存储了上面的半包数据
+            // 后续读取数据的是从 remain 向后开始
             this.byteBufferRead.position(remain);
             this.byteBufferRead.limit(READ_MAX_BUFFER_SIZE);
 
-            // 恢复
+            // 恢复，因为交换之后 byteBufferRead 是一个全新的了，需要从头开始处理
             this.dispatchPosition = 0;
         }
 
@@ -599,6 +601,7 @@ public class HAService {
                     }
                 }
 
+                // 当 diff >= msgHeaderSize 不成立 或者 diff >= (msgHeaderSize + bodySize) 不成立的时候会执行下面的代码
                 // 如果执行到这里，则说明 byteBufferRead 中最后部分数据是半包，并且写满了
                 if (!this.byteBufferRead.hasRemaining()) {
 
