@@ -194,11 +194,12 @@ public class ConsumeQueue {
             int midOffset, targetOffset = -1, leftOffset = -1, rightOffset = -1;
             long leftIndexValue = -1L, rightIndexValue = -1L;
             long minPhysicOffset = this.defaultMessageStore.getMinPhyOffset();
-            SelectMappedBufferResult sbr = mappedFile.selectMappedBuffer(0);
+            SelectMappedBufferResult sbr = mappedFile.selectMappedBuffer(0/*拿到整个文件的内容*/);
             if (null != sbr) {
                 ByteBuffer byteBuffer = sbr.getByteBuffer();
                 high = byteBuffer.limit() - CQ_STORE_UNIT_SIZE;
                 try {
+                    // 二分查找方法
                     while (high >= low) {
                         midOffset = (low + high) / (2 * CQ_STORE_UNIT_SIZE) * CQ_STORE_UNIT_SIZE;
                         byteBuffer.position(midOffset);
@@ -210,18 +211,21 @@ public class ConsumeQueue {
                             continue;
                         }
 
-                        long storeTime =
-                                this.defaultMessageStore.getCommitLog().pickupStoreTimestamp(phyOffset, size);
+                        long storeTime = this.defaultMessageStore.getCommitLog().pickupStoreTimestamp(phyOffset, size);
                         if (storeTime < 0) {
                             return 0;
                         } else if (storeTime == timestamp) {
+                            // 跳出循环的点
                             targetOffset = midOffset;
                             break;
                         } else if (storeTime > timestamp) {
+
+                            // 向左移动20字节
                             high = midOffset - CQ_STORE_UNIT_SIZE;
                             rightOffset = midOffset;
                             rightIndexValue = storeTime;
                         } else {
+                            // 向右移动20字节
                             low = midOffset + CQ_STORE_UNIT_SIZE;
                             leftOffset = midOffset;
                             leftIndexValue = storeTime;
@@ -232,6 +236,7 @@ public class ConsumeQueue {
 
                         offset = targetOffset;
                     } else {
+                        // 没有找到！！！
                         if (leftIndexValue == -1) {
 
                             offset = rightOffset;
@@ -243,7 +248,7 @@ public class ConsumeQueue {
                         }
                     }
 
-                    return (mappedFile.getFileFromOffset() + offset) / CQ_STORE_UNIT_SIZE;
+                    return (mappedFile.getFileFromOffset() + offset) / CQ_STORE_UNIT_SIZE;// 计算得到逻辑偏移量
                 } finally {
                     sbr.release();
                 }

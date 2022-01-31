@@ -325,7 +325,7 @@ public class HAService {
          */
         private final AtomicReference<String> masterAddress = new AtomicReference<>();
 
-        // 8 个字节，上保 offset 的时候使用，因为底层通信使用的 NIO 所有内容都是通过块传输的，所以上报 slave offset 的时候需要使用该 buffer
+        // 8 个字节，上报 offset 的时候使用，因为底层通信使用的 NIO 所有内容都是通过块传输的，所以上报 slave offset 的时候需要使用该 buffer
         private final ByteBuffer reportOffset = ByteBuffer.allocate(8);
 
         // 客户端与master的会话通道
