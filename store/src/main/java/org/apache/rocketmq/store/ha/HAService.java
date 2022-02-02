@@ -90,6 +90,12 @@ public class HAService {
         return result;
     }
 
+    /**
+     * 通知线程同步一些数据给slave节点
+     *
+     * @param slave 节点已经同步的位点
+     * @see HAService.HAClient#reportSlaveMaxOffset(long) slave 节点向 master 节点上报自己已经同步的位点
+     */
     public void notifyTransferSome(final long offset) {
         for (long value = this.push2SlaveMaxOffset.get(); offset > value; ) {
             boolean ok = this.push2SlaveMaxOffset.compareAndSet(value, offset);
