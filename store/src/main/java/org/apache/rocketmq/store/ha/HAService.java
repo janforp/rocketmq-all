@@ -237,14 +237,6 @@ public class HAService {
                 }
             }
         }
-
-        /**
-         * {@inheritDoc}
-         */
-        @Override
-        public String getServiceName() {
-            return AcceptSocketService.class.getSimpleName();
-        }
     }
 
     /**
