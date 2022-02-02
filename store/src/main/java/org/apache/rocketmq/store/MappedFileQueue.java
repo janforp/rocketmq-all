@@ -249,9 +249,9 @@ public class MappedFileQueue {
 
                     // 设置位点
                     // 这里不是准确值，准确值需要在 recover 方法中恢复 节点设置
-                    mappedFile.setWrotePosition(this.mappedFileSize);
-                    mappedFile.setFlushedPosition(this.mappedFileSize);
-                    mappedFile.setCommittedPosition(this.mappedFileSize);
+                    mappedFile.setWrotePosition(this.mappedFileSize/*位点都在文件最后*/);
+                    mappedFile.setFlushedPosition(this.mappedFileSize/*位点都在文件最后*/);
+                    mappedFile.setCommittedPosition(this.mappedFileSize/*位点都在文件最后*/);
 
                     // 加入集合
                     this.mappedFiles.add(mappedFile);

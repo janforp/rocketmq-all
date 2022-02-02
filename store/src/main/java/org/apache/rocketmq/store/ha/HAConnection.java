@@ -14,6 +14,7 @@ import java.nio.channels.SelectionKey;
 import java.nio.channels.Selector;
 import java.nio.channels.SocketChannel;
 
+@SuppressWarnings("all")
 public class HAConnection {
 
     private static final InternalLogger log = InternalLoggerFactory.getLogger(LoggerName.STORE_LOGGER_NAME);
@@ -23,6 +24,9 @@ public class HAConnection {
     @Getter
     private final SocketChannel socketChannel;
 
+    /**
+     * this.clientAddr = this.socketChannel.socket().getRemoteSocketAddress().toString();
+     */
     private final String clientAddr;
 
     // 写
@@ -34,7 +38,7 @@ public class HAConnection {
     /**
      * 在 slave 上报过 本地的 maxOffset 之后会被赋值。它 >= 0 之后同步数据的逻辑才会执行
      *
-     * why?因为 master 它不知道 slave 节点当前的消息存储进度是在哪里了？它就没办法去给slave推送数据
+     * why?因为 master 不知道 slave 节点当前的消息存储进度是在哪里了,它就没办法去给slave推送数据
      */
     private volatile long slaveRequestOffset = -1;
 
@@ -286,7 +290,13 @@ public class HAConnection {
             while (!this.isStopped()) {
                 try {
                     this.selector.select(1000);
+                    /**
+                     * 在 slave 上报过 本地的 maxOffset 之后会被赋值。它 >= 0 之后同步数据的逻辑才会执行
+                     *
+                     * why?因为 master 不知道 slave 节点当前的消息存储进度是在哪里了,它就没办法去给slave推送数据
+                     */
                     if (-1 == HAConnection.this.slaveRequestOffset) {
+                        // slave 节点还没上报自己的进度，master 节点就不知道从哪里开始发送数据，所以要等待
                         Thread.sleep(10);
                         continue;
                     }

@@ -29,7 +29,11 @@ import java.util.concurrent.atomic.AtomicReference;
 @SuppressWarnings("all")
 public class HAService {
 
-    // 表示当前主节点 有多少个 slave 节点 与其进行数据同步
+    /**
+     * 表示当前主节点 有多少个 slave 节点 与其进行数据同步
+     *
+     * @see HAConnection#HAConnection(org.apache.rocketmq.store.ha.HAService, java.nio.channels.SocketChannel)
+     */
     @Getter
     private final AtomicInteger connectionCount = new AtomicInteger(0);
 

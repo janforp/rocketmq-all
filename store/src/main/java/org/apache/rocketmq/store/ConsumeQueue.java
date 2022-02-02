@@ -461,17 +461,19 @@ public class ConsumeQueue {
             // 在消费队列中的偏移量
             long consumeQueueOffset = request.getConsumeQueueOffset();
             boolean result = this.putMessagePositionInfo(commitLogOffset, msgSize, tagsCode, consumeQueueOffset);
+
+            StoreCheckpoint storeCheckpoint = this.defaultMessageStore.getStoreCheckpoint();
             if (result) {
                 // 设置 checkPoint
 
                 if (this.defaultMessageStore.getMessageStoreConfig().getBrokerRole() == BrokerRole.SLAVE || this.defaultMessageStore.getMessageStoreConfig().isEnableDLegerCommitLog()) {
 
                     // 更新 checkPoint 的时间
-                    this.defaultMessageStore.getStoreCheckpoint().setPhysicMsgTimestamp(request.getStoreTimestamp());
+                    storeCheckpoint.setPhysicMsgTimestamp(request.getStoreTimestamp());
                 }
 
                 // checkPoint 记录最后一条CQData 所管理 msg 的存储时间
-                this.defaultMessageStore.getStoreCheckpoint().setLogicsMsgTimestamp(request.getStoreTimestamp());
+                storeCheckpoint.setLogicsMsgTimestamp(request.getStoreTimestamp());
                 return;
             } else {
                 // XXX: warn and notify me

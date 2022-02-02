@@ -420,9 +420,10 @@ public class IndexService {
 
         f.flush();
 
+        StoreCheckpoint storeCheckpoint = this.defaultMessageStore.getStoreCheckpoint();
         if (indexMsgTimestamp > 0) {
-            this.defaultMessageStore.getStoreCheckpoint().setIndexMsgTimestamp(indexMsgTimestamp);
-            this.defaultMessageStore.getStoreCheckpoint().flush();
+            storeCheckpoint.setIndexMsgTimestamp(indexMsgTimestamp);
+            storeCheckpoint.flush();
         }
     }
 

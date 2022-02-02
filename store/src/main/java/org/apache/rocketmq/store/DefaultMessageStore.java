@@ -221,7 +221,11 @@ public class DefaultMessageStore implements MessageStore {
             result = result && this.loadConsumeQueue();
             // 到这里 commitLog 跟 cq 中到位点没有恢复
             if (result) {
+
+                // /Users/zhuchenjian/Documents/code/learn/rocketmq/rocketmq-all/conf/home/broker/store 目录
                 String storePathRootDir = this.messageStoreConfig.getStorePathRootDir();
+
+                // conf/home/broker/store/checkpoint 文件
                 String storeCheckpoint = StorePathConfigHelper.getStoreCheckpoint(storePathRootDir);
 
                 // 加载 checkPoint

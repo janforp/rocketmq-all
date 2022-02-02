@@ -670,12 +670,15 @@ public class CommitLog {
 
         int magicCode = byteBuffer.getInt(MessageDecoder.MESSAGE_MAGIC_CODE_POSTION);
         if (magicCode != MESSAGE_MAGIC_CODE) {
+            // 魔法值不对，可能被人为损坏了文件，不能恢复
             return false;
         }
 
         int sysFlag = byteBuffer.getInt(MessageDecoder.SYSFLAG_POSITION);
         int bornhostLength = (sysFlag & MessageSysFlag.BORNHOST_V6_FLAG) == 0 ? 8 : 20;
         int msgStoreTimePos = 4 + 4 + 4 + 4 + 4 + 8 + 8 + 4 + 8 + bornhostLength;
+
+        // 该文件最后存储消息的时间
         long storeTimestamp = byteBuffer.getLong(msgStoreTimePos);
         if (0 == storeTimestamp) {
             return false;
@@ -684,17 +687,26 @@ public class CommitLog {
         MessageStoreConfig messageStoreConfig = this.defaultMessageStore.getMessageStoreConfig();
         StoreCheckpoint storeCheckpoint = this.defaultMessageStore.getStoreCheckpoint();
 
-        if (messageStoreConfig.isMessageIndexEnable() && messageStoreConfig.isMessageIndexSafe()) {
-            if (storeTimestamp <= storeCheckpoint.getMinTimestampIndex()) {
-                log.info("find check timestamp, {} {}", storeTimestamp, UtilAll.timeMillisToHumanString(storeTimestamp));
-                return true;
-            }
-        } else {
-            if (storeTimestamp <= storeCheckpoint.getMinTimestamp()) {
-                log.info("find check timestamp, {} {}", storeTimestamp, UtilAll.timeMillisToHumanString(storeTimestamp));
-                return true;
-            }
+        // 开启了 index
+        boolean indexEnable = messageStoreConfig.isMessageIndexEnable() && messageStoreConfig.isMessageIndexSafe();
+        long minTimeInFile = indexEnable ?
+                storeCheckpoint.getMinTimestampIndex()/*取 commitLog 文件跟 consumeQueue 文件 跟 indexFile 文件的最后存储时间的最小值*/ :
+                storeCheckpoint.getMinTimestamp(); // 取 commitLog 文件跟 consumeQueue 文件的最后存储时间的最小值
+        if (storeTimestamp <= minTimeInFile) {
+            return true;
         }
+        //if (indexEnable) {
+        //            long minTimestampIndex = storeCheckpoint.getMinTimestampIndex();
+        //            if (storeTimestamp <= minTimestampIndex) {
+        //                log.info("find check timestamp, {} {}", storeTimestamp, UtilAll.timeMillisToHumanString(storeTimestamp));
+        //                return true;
+        //            }
+        //        } else {
+        //            if (storeTimestamp <= storeCheckpoint.getMinTimestamp()) {
+        //                log.info("find check timestamp, {} {}", storeTimestamp, UtilAll.timeMillisToHumanString(storeTimestamp));
+        //                return true;
+        //            }
+        //        }
 
         return false;
     }
@@ -1270,10 +1282,12 @@ public class CommitLog {
             if (messageExt.isWaitStoreMsgOK()) {
                 // Determine whether to wait
 
-                if (service.isSlaveOK(result.getWroteOffset() + result.getWroteBytes())) {
-                    GroupCommitRequest request = new GroupCommitRequest(result.getWroteOffset() + result.getWroteBytes());
+                long masterPutWhere = result.getWroteOffset() + result.getWroteBytes();
+                if (service.isSlaveOK(masterPutWhere)) {
+                    GroupCommitRequest request = new GroupCommitRequest(masterPutWhere);
                     service.putRequest(request);
-                    service.getWaitNotifyObject().wakeupAll();
+                    WaitNotifyObject waitNotifyObject = service.getWaitNotifyObject();
+                    waitNotifyObject.wakeupAll();
                     PutMessageStatus replicaStatus = null;
                     try {
                         replicaStatus = request.future().get(messageStoreConfig.getSyncFlushTimeout(), TimeUnit.MILLISECONDS);
