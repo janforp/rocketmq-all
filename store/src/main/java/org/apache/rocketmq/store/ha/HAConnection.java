@@ -34,29 +34,42 @@ public class HAConnection {
     private final String clientAddr;
 
     // 写
+
+    /**
+     * master 节点 向 slave节点发送 commitLog 中的数据，进行主从复制
+     */
     private final WriteSocketService writeSocketService;
 
     // 读
+
+    /**
+     * slave 向 master 上报的是 slave 本地的同步进度，这个同步进度就是一个 long 值，
+     * 所以，该服务处理的桢格式为：
+     * [long][long][long][long]。。。。
+     */
     private final ReadSocketService readSocketService;
 
     /**
      * 在 slave 上报过 本地的 maxOffset 之后会被赋值。它 >= 0 之后同步数据的逻辑才会执行
      *
-     * why?因为 master 不知道 slave 节点当前的消息存储进度是在哪里了,它就没办法去给slave推送数据
+     * why?因为 master 不知道 跟他连接的 slave 节点当前的消息存储进度是在哪里了,它就没办法去给slave推送数据，因为不知道从哪个位点开始
      *
      * @see ReadSocketService#processReadEvent() 在该方法赋值
      */
     private volatile long slaveRequestOffset = -1;
 
     /**
-     * 保存最新的 slave 上的 offset 信息， slaveAckOffset 之前的数据，都可以认为   slave 已经全部同步完成了
-     * 对应的 生产者线程 需要被唤醒
+     * 保存最新的 slave 上的 offset 信息， slaveAckOffset 之前的数据，都可以认为 slave 已经全部同步完成了
+     * TODO 对应的 生产者线程 需要被唤醒 ！！！！！！
      *
      * @see ReadSocketService#processReadEvent() 在该方法赋值
      * @see HAService.HAClient#reportSlaveMaxOffset(long) slave 节点向 master 节点上报自己已经同步的位点
      */
     private volatile long slaveAckOffset = -1;
 
+    /**
+     * @see HAService.AcceptSocketService#run() 服务端接受到连接请求之后就会创建一个该对象
+     */
     public HAConnection(final HAService haService, final SocketChannel socketChannel) throws IOException {
         this.haService = haService;
         this.socketChannel = socketChannel;
@@ -109,7 +122,7 @@ public class HAConnection {
     class ReadSocketService extends ServiceThread {
 
         // 1 mb
-        private static final int READ_MAX_BUFFER_SIZE = 1024 * 1024;
+        private static final int READ_MAX_BUFFER_SIZE = 1024/*m*/ * 1024/*k*/ * 1;
 
         private final Selector selector;
 
@@ -118,7 +131,7 @@ public class HAConnection {
          */
         private final SocketChannel socketChannel;
 
-        // 1mb 读取缓冲区
+        // 1mb 读缓冲区
         private final ByteBuffer byteBufferRead = ByteBuffer.allocate(READ_MAX_BUFFER_SIZE);
 
         /**
@@ -141,8 +154,6 @@ public class HAConnection {
 
         @Override
         public void run() {
-            HAConnection.log.info(this.getServiceName() + " service started");
-
             while (!this.isStopped()) {
                 try {
                     // 最长阻塞 1 s
@@ -155,6 +166,8 @@ public class HAConnection {
                         // 跳出循环
                         break;
                     }
+
+                    // 长时间没有传输数据了
                     long interval = HAConnection.this.haService.getDefaultMessageStore().getSystemClock().now() - this.lastReadTimestamp;
                     if (interval > HAConnection.this.haService.getDefaultMessageStore().getMessageStoreConfig().getHaHousekeepingInterval()) {
                         log.warn("ha housekeeping, found this connection[" + HAConnection.this.clientAddr + "] expired, " + interval);
@@ -166,15 +179,20 @@ public class HAConnection {
                 }
             }
 
+            // 停止了
+
             this.makeStop();
 
+            // 将读服务对应的写服务也关闭
             writeSocketService.makeStop();
 
             // 移除连接
             haService.removeConnection(HAConnection.this);
 
+            // 自减
             HAConnection.this.haService.getConnectionCount().decrementAndGet();
 
+            // 取消事件
             SelectionKey sk = this.socketChannel.keyFor(this.selector);
             if (sk != null) {
                 // 半关闭了，本地的事件也应该取消
@@ -187,8 +205,6 @@ public class HAConnection {
             } catch (IOException e) {
                 HAConnection.log.error("", e);
             }
-
-            HAConnection.log.info(this.getServiceName() + " service end");
         }
 
         /**
@@ -226,13 +242,15 @@ public class HAConnection {
                         readSizeZeroTimes = 0;
                         // 记录最近一次读取到数据的时间
                         this.lastReadTimestamp/*当前时间戳*/ = HAConnection.this.haService.getDefaultMessageStore().getSystemClock().now();
-                        if ((this.byteBufferRead.position()/*从socket缓冲区读取数据到该缓冲块的时候 position 会向 limit 方向移动*/ - this.processPosition/*该缓冲块上次处理的位点，也就是说该位点之前的数据都是已经处理过的过期数据*/) >= 8 /* 本次读取到的数据两大于 8 个字节，一个 long 的值肯定没问题 */) {
+                        boolean existOneFrameData =
+                                (this.byteBufferRead.position()/*从socket缓冲区读取数据到该缓冲块的时候 position 会向 limit 方向移动*/ - this.processPosition/*该缓冲块上次处理的位点，也就是说该位点之前的数据都是已经处理过的过期数据*/) >= 8;/* 本次读取到的数据两大于 8 个字节，一个 long 的值肯定没问题 */
+                        if (existOneFrameData /* 本次读取到的数据两大于 8 个字节，一个 long 的值肯定没问题 */) {
 
                             // pos 是啥呢？
                             // pos = 100 - 100 % 8 = 96
                             // pos = 107 - 107 % 8 = 104
                             // pos = 104 - 104 % 8 = 104
-                            // pos 是 byteBufferRead 中可读数据 中的 最后一个（8字节） 桢的 数据，本次就是要从该 pos 位置开始读取数据 （前面的可以不要了）
+                            // pos 是 byteBufferRead 中可读数据 中的 最后一个（8字节） 桢的 数据，本次就是要从该 pos 位置开始读取数据 （前面的可以不要了因为 slave 端 上报的进度的间隔时间比较端，极有可能在较短时间内上报了多次，取最后一个即可）
                             int pos = this.byteBufferRead.position() - (this.byteBufferRead.position() % 8);
                             // 读取最后一个桢的数据，就是读取 slave 端的同步进度
                             long readOffset/*slave节点上报的位点*/ = this.byteBufferRead.getLong(pos - 8);

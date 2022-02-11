@@ -32,7 +32,7 @@ public class HAService {
     /**
      * 表示当前主节点 有多少个 slave 节点 与其进行数据同步
      *
-     * @see HAConnection#HAConnection(org.apache.rocketmq.store.ha.HAService, java.nio.channels.SocketChannel)
+     * @see HAConnection#HAConnection(org.apache.rocketmq.store.ha.HAService, java.nio.channels.SocketChannel) 构造成功只就会自增
      */
     @Getter
     private final AtomicInteger connectionCount = new AtomicInteger(0);
@@ -152,7 +152,7 @@ public class HAService {
      */
     class AcceptSocketService extends ServiceThread {
 
-        // master 服务器监听绑定的端口
+        // master 服务器监听绑定的端口 10912
         private final SocketAddress socketAddressListen;
 
         // 服务器端的通道
@@ -161,6 +161,10 @@ public class HAService {
         // 多路复用器
         private Selector selector;
 
+        /**
+         * @param port 10912
+         * @see HAService#HAService(org.apache.rocketmq.store.DefaultMessageStore)
+         */
         public AcceptSocketService(final int port /* 10912 */) {
             this.socketAddressListen = new InetSocketAddress(port);
         }
@@ -204,6 +208,7 @@ public class HAService {
         public void run() {
             while (!this.isStopped()) {
                 try {
+                    // 在多路复用器阻塞最多1s
                     this.selector.select(1000);
 
                     // 1.OP_ACCEPT 事件就绪，2.超时了
@@ -217,13 +222,16 @@ public class HAService {
                             if ((k.readyOps() & SelectionKey.OP_ACCEPT) != 0 /*当前事件是 客户端发起连接事件*/) {
 
                                 // 拿到客户端的连接
-                                SocketChannel sc = ((ServerSocketChannel) k.channel()).accept();
+                                ServerSocketChannel serverSocketChannel = (ServerSocketChannel) k.channel();
+                                // 与客户端的连接
+                                SocketChannel sc = (serverSocketChannel).accept();
                                 if (sc != null) {
                                     try {
                                         // 给每个 slave 发起的连接对象封装到 一个 HAConnection 对象中去
                                         HAConnection conn = new HAConnection(HAService.this, sc);
+                                        // 前端 HAConnection 对象，包括读数据，写数据服务
                                         conn.start();
-                                        // 塞入集合
+                                        // 塞入集合 this.connectionList.add(conn);
                                         HAService.this.addConnection(conn);
                                     } catch (Exception e) {
                                         sc.close();
