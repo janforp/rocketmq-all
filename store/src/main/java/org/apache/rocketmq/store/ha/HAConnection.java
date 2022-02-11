@@ -297,7 +297,7 @@ public class HAConnection {
         private final SocketChannel socketChannel;
 
         // 协议头大小
-        private final int headerSize = 8 + 4;
+        private final int headerSize = 8/*物理偏移量*/ + 4/*数据大小*/;
 
         // 桢头缓冲区
         private final ByteBuffer byteBufferHeader = ByteBuffer.allocate(headerSize/*偏移量+大小 共 12 个字节*/);
@@ -308,7 +308,7 @@ public class HAConnection {
          */
         private long nextTransferFromWhere = -1;
 
-        // 内部有 byteBuffer
+        // 内部有 byteBuffer，封装了 commitLog 数据
         private SelectMappedBufferResult selectMappedBufferResult;
 
         // 上一轮数据是否传输完毕？
@@ -320,7 +320,7 @@ public class HAConnection {
             this.selector = RemotingUtil.openSelector();
             this.socketChannel = socketChannel;
             // 注册事件
-            this.socketChannel.register(this.selector, SelectionKey.OP_WRITE);
+            this.socketChannel.register(this.selector, SelectionKey.OP_WRITE/*关注写数据事件*/);
             this.setDaemon(true);
         }
 
@@ -349,6 +349,8 @@ public class HAConnection {
 
                             // 计数 maxOffset 归属的 mappedFile 文件的 开始的 offset
                             int mappedFileSizeCommitLog = defaultMessageStore.getMessageStoreConfig().getMappedFileSizeCommitLog();
+
+                            // TODO  多次用到这个算法！！！！！
                             masterOffset = masterOffset - (masterOffset % mappedFileSizeCommitLog/*1G*/);
                             if (masterOffset < 0) {
                                 masterOffset = 0;
@@ -365,7 +367,7 @@ public class HAConnection {
 
                     // 执行到这，说明位点数值已经没问题了
 
-                    if (this.lastWriteOver /*上一轮的 桢 数据发送完成*/) {
+                    if (this.lastWriteOver /*上一轮的 桢 数据发送完成，默认是 true */) {
                         long interval/*上次写数据到目前为止的时间*/ = defaultMessageStore.getSystemClock().now() - this.lastWriteTimestamp;
                         if (interval/*上次写数据到目前为止的时间*/ > defaultMessageStore.getMessageStoreConfig().getHaSendHeartbeatInterval()/*5秒*/) {
                             // 如果超过了 5秒则写数据，否则继续循环
@@ -374,7 +376,7 @@ public class HAConnection {
                             this.byteBufferHeader.position(0);
                             this.byteBufferHeader.limit(headerSize/*12*/);
                             this.byteBufferHeader.putLong(this.nextTransferFromWhere/*偏移量*/);
-                            this.byteBufferHeader.putInt(0/*TODO size 还为0，后面会重新赋值*/);
+                            this.byteBufferHeader.putInt(0/*因为本次发送的是心跳数据*/);
                             this.byteBufferHeader.flip();
 
                             // 发送一个 header 数据包，用于维持长连接
@@ -384,8 +386,6 @@ public class HAConnection {
                             }
                         }
                     } else {
-                        // 上次写数据到 slave 的时间还没超过 5秒
-
                         /*上一轮的 桢 数据 没有发送完成*/
                         this.lastWriteOver = this.transferData();
                         if (!this.lastWriteOver) {
@@ -398,10 +398,9 @@ public class HAConnection {
                     // 到 commitLog 中查询 nextTransferFromWhere 开始位置的数据
                     SelectMappedBufferResult selectResult = defaultMessageStore.getCommitLogData(this.nextTransferFromWhere);
                     if (selectResult != null) {
-
-                        // size 可能很大
+                        // size 可能很大，有可能是一整个文件
                         int size = selectResult.getSize();
-                        if (size > defaultMessageStore.getMessageStoreConfig().getHaTransferBatchSize()) {
+                        if (size > defaultMessageStore.getMessageStoreConfig().getHaTransferBatchSize()/*32K*/) {
 
                             // 超过 32K 则设置 32K
                             size = defaultMessageStore.getMessageStoreConfig().getHaTransferBatchSize();
@@ -411,14 +410,14 @@ public class HAConnection {
                         // 增加size 大小，方便下一轮传输跳过本桢数据
                         this.nextTransferFromWhere = nextTransferFromWhere + size;
 
-                        selectResult.getByteBuffer().limit(size/*本次发送的字节数*/);
+                        selectResult.getByteBuffer().limit(size/*设置该缓冲区可访问区间，本次发送的字节数,最多32K*/);
                         this.selectMappedBufferResult = selectResult;
 
                         // Build Header
                         this.byteBufferHeader.position(0);
                         this.byteBufferHeader.limit(headerSize);
-                        this.byteBufferHeader.putLong(thisOffset);
-                        this.byteBufferHeader.putInt(size);
+                        this.byteBufferHeader.putLong(thisOffset/* 本桢数据的开始偏移量 */);
+                        this.byteBufferHeader.putInt(size /* 本桢数据大小 */);
                         this.byteBufferHeader.flip();
 
                         // true：不是处理完成
@@ -471,6 +470,8 @@ public class HAConnection {
                     this.lastWriteTimestamp/*当前时间*/ = HAConnection.this.haService.getDefaultMessageStore().getSystemClock().now();
                 } else if (writeSize == 0) {
                     if (++writeSizeZeroTimes >= 3) {
+
+                        // 读取循环一般从这里跳出
                         break;
                     }
                 } else {
@@ -479,25 +480,27 @@ public class HAConnection {
                 }
             }
 
-            if (null == this.selectMappedBufferResult) {
-                // 可能是心跳包而已，并不是发送数据
-                return !this.byteBufferHeader.hasRemaining();
+            // 当前桢数据发送成功之后，设置该字段为null
+            if (null == this.selectMappedBufferResult /* 心跳包 */) {
+                return !this.byteBufferHeader.hasRemaining() /* 心跳是否发送完成 */;
             }
 
             writeSizeZeroTimes = 0;
 
             // Write Body
-            if (!this.byteBufferHeader.hasRemaining()) {
-                while (this.selectMappedBufferResult.getByteBuffer().hasRemaining() /*有待处理数据*/) {
+            if (!this.byteBufferHeader.hasRemaining() /* 只有 header 全部写成功之后才开始写 body */) {
+                while (this.selectMappedBufferResult.getByteBuffer().hasRemaining() /* body 缓冲区中有待处理数据 */) {
                     int writeSize = this.socketChannel.write(this.selectMappedBufferResult.getByteBuffer());
                     if (writeSize > 0) {
                         writeSizeZeroTimes = 0;
                         this.lastWriteTimestamp = HAConnection.this.haService.getDefaultMessageStore().getSystemClock().now();
                     } else if (writeSize == 0) {
+                        // 写缓冲区满了
                         if (++writeSizeZeroTimes >= 3) {
                             break;
                         }
                     } else {
+                        // 连接关闭了
                         throw new Exception("ha master write body error < 0");
                     }
                 }
@@ -506,9 +509,10 @@ public class HAConnection {
             // 二者都没数据了则返回 true
             boolean result = !this.byteBufferHeader.hasRemaining() && !this.selectMappedBufferResult.getByteBuffer().hasRemaining();
 
-            if (!this.selectMappedBufferResult.getByteBuffer().hasRemaining()) {
+            if (!this.selectMappedBufferResult.getByteBuffer().hasRemaining() /* 表示 selectMappedBufferResult 数据全部写完成了 */) {
                 // help gc
                 this.selectMappedBufferResult.release();
+                // 当前桢数据发送成功之后，设置该字段为null
                 this.selectMappedBufferResult = null;
             }
 
