@@ -80,6 +80,9 @@ public class HAService {
         }
     }
 
+    /**
+     * @see CommitLog#handleHA 消息成功追加到 commitLog 之后就会调用该方法
+     */
     public void putRequest(final CommitLog.GroupCommitRequest request) {
         this.groupTransferService.putRequest(request);
     }
@@ -241,6 +244,8 @@ public class HAService {
 
     /**
      * GroupTransferService Service
+     *
+     * 主从复制服务
      */
     class GroupTransferService extends ServiceThread {
 

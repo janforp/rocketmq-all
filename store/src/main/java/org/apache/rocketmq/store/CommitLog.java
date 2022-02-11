@@ -1130,6 +1130,9 @@ public class CommitLog {
         return putMessageResult;
     }
 
+    /**
+     * @return 返回一个 future 调用线程字节决定是否直接调用 get 从而实现是同步等待还是异步直接返回
+     */
     private CompletableFuture<PutMessageStatus> submitFlushRequest(AppendMessageResult result/*写消息结果*/, PutMessageResult putMessageResult/*new PutMessageResult(PutMessageStatus.PUT_OK, result)*/, MessageExt messageExt) {
         // Synchronization flush
         FlushDiskType flushDiskType = this.defaultMessageStore.getMessageStoreConfig().getFlushDiskType();
@@ -1211,7 +1214,7 @@ public class CommitLog {
      * @param putMessageResult 消息写入到 commitLog 的结果
      * @param messageExt 消息
      */
-    public void handleDiskFlush(AppendMessageResult result, PutMessageResult putMessageResult/*消息写入到 commitLog 的结果*/, MessageExt messageExt) {
+    private void handleDiskFlush(AppendMessageResult result, PutMessageResult putMessageResult/*消息写入到 commitLog 的结果*/, MessageExt messageExt) {
         MessageStoreConfig messageStoreConfig = this.defaultMessageStore.getMessageStoreConfig();
         // Synchronization flush
         if (FlushDiskType.SYNC_FLUSH == messageStoreConfig.getFlushDiskType()) {
@@ -1231,7 +1234,7 @@ public class CommitLog {
                  */
                 service.putRequest(request);
 
-                // 写消息线程 试图 获取到 request.future(),当前线程在此阻塞等待
+                // 当前写消息线程 试图 获取到 request.future(),当前线程在此阻塞等待
                 CompletableFuture<PutMessageStatus> flushOkFuture = request.future();
                 PutMessageStatus flushStatus = null;
                 try {
@@ -1240,7 +1243,7 @@ public class CommitLog {
                      *
                      * @see GroupCommitRequest#wakeupCustomer(boolean) 通过这个方法唤醒当前线程
                      */
-                    flushStatus = flushOkFuture.get(messageStoreConfig.getSyncFlushTimeout()/*5 秒*/, TimeUnit.MILLISECONDS);
+                    flushStatus = flushOkFuture.get/*阻塞方法*/(messageStoreConfig.getSyncFlushTimeout()/*5 秒*/, TimeUnit.MILLISECONDS);
                 } catch (InterruptedException | ExecutionException | TimeoutException e) {
                     //flushOK=false;
                 }
@@ -1258,6 +1261,7 @@ public class CommitLog {
             // 异步刷盘
             if (!messageStoreConfig.isTransientStorePoolEnable()) {
                 // 唤醒一下就完事了
+                // 正常情况下走这里！！！！！！
                 flushCommitLogService.wakeup();
             } else {
                 // 唤醒一下就完事了
@@ -1290,7 +1294,8 @@ public class CommitLog {
                     waitNotifyObject.wakeupAll();
                     PutMessageStatus replicaStatus = null;
                     try {
-                        replicaStatus = request.future().get(messageStoreConfig.getSyncFlushTimeout(), TimeUnit.MILLISECONDS);
+                        CompletableFuture<PutMessageStatus> future = request.future();
+                        replicaStatus = future.get(messageStoreConfig.getSyncFlushTimeout()/*5秒*/, TimeUnit.MILLISECONDS);
                     } catch (InterruptedException | ExecutionException | TimeoutException e) {
                     }
                     if (replicaStatus != PutMessageStatus.PUT_OK) {
@@ -1519,24 +1524,34 @@ public class CommitLog {
         protected static final int RETRY_TIMES_OVER = 10;
     }
 
+    /**
+     * 异步刷盘
+     */
     class CommitRealTimeService extends FlushCommitLogService {
 
+        // 打印日志使用
         private long lastCommitTimestamp = 0;
 
         @Override
         public void run() {
             CommitLog.log.info(this.getServiceName() + " service started");
             while (!this.isStopped()) {
+
+                // 刷盘周期
                 int interval = CommitLog.this.defaultMessageStore.getMessageStoreConfig().getCommitIntervalCommitLog();
+
+                // 最少刷盘页数
                 int commitDataLeastPages = CommitLog.this.defaultMessageStore.getMessageStoreConfig().getCommitCommitLogLeastPages();
+
+                // 强制刷盘周期
                 int commitDataThoroughInterval = CommitLog.this.defaultMessageStore.getMessageStoreConfig().getCommitCommitLogThoroughInterval();
 
                 long begin = System.currentTimeMillis();
                 if (begin >= (this.lastCommitTimestamp + commitDataThoroughInterval)) {
+                    // 达到了强制刷盘周期
                     this.lastCommitTimestamp = begin;
                     commitDataLeastPages = 0;
                 }
-
                 try {
                     boolean result = CommitLog.this.mappedFileQueue.commit(commitDataLeastPages);
                     long end = System.currentTimeMillis();
@@ -1554,9 +1569,8 @@ public class CommitLog {
                     CommitLog.log.error(this.getServiceName() + " service has exception. ", e);
                 }
             }
-
             boolean result = false;
-            for (int i = 0; i < RETRY_TIMES_OVER && !result; i++) {
+            for (int i = 0; i < RETRY_TIMES_OVER/*10*/ && !result; i++) {
                 result = CommitLog.this.mappedFileQueue.commit(0);
                 CommitLog.log.info(this.getServiceName() + " service shutdown, retry " + (i + 1) + " times " + (result ? "OK" : "Not OK"));
             }
@@ -1695,6 +1709,9 @@ public class CommitLog {
         @Getter
         private final long nextOffset;
 
+        /**
+         * 同步逻辑依赖该对象实现
+         */
         private CompletableFuture<PutMessageStatus> flushOKFuture = new CompletableFuture<>();
 
         private final long startTimestamp = System.currentTimeMillis();
@@ -1728,7 +1745,7 @@ public class CommitLog {
              * 设置结果，这样就会唤醒在这个future 挂起的线程
              * @see CommitLog#handleDiskFlush(org.apache.rocketmq.store.AppendMessageResult, org.apache.rocketmq.store.PutMessageResult, org.apache.rocketmq.common.message.MessageExt)
              */
-            this.flushOKFuture.complete(result);
+            this.flushOKFuture.complete/* 唤醒在 future.get() 方法阻塞的线程 */(result);
         }
 
         public CompletableFuture<PutMessageStatus> future() {
@@ -1741,7 +1758,7 @@ public class CommitLog {
      * 同步落盘
      * GroupCommit Service
      *
-     * @see CommitLog#submitFlushRequest(org.apache.rocketmq.store.AppendMessageResult, org.apache.rocketmq.store.PutMessageResult, org.apache.rocketmq.common.message.MessageExt)
+     * @see CommitLog#submitFlushRequest 提交刷盘任务
      */
     class GroupCommitService extends FlushCommitLogService {
 
@@ -1759,11 +1776,21 @@ public class CommitLog {
          */
         private volatile List<GroupCommitRequest> requestsRead = new ArrayList<GroupCommitRequest>();
 
+        /**
+         * @see CommitLog#submitFlushRequest 提交刷盘任务
+         * @see CommitLog#handleDiskFlush
+         */
         private synchronized void putRequest(final GroupCommitRequest request) {
             synchronized (this.requestsWrite) {
                 this.requestsWrite.add(request);
             }
             if (hasNotified.compareAndSet(false, true)) {
+
+                /**
+                 * 在阻塞的地方往下执行了
+                 *
+                 * @see GroupCommitService#doCommit() 唤醒之后就执行该方法
+                 */
                 waitPoint.countDown(); // notify
             }
         }
@@ -1782,24 +1809,23 @@ public class CommitLog {
 
                             // 如果 flushOK 返回 true 则说明，req 关联的"生产者线程"需要被唤醒了，因为它关心的数据已经全部落盘了
 
-                            // 真实刷盘到了什么位置
+                            // 真实刷盘到了什么位置，拿到 commitLog 的刷盘进度
                             long flushedWhere = CommitLog.this.mappedFileQueue.getFlushedWhere();
-
                             // 该请求要求刷盘到 nextOffset 这个位置
                             long nextOffset = req.getNextOffset();
-
                             // 如果 真实刷盘位点已经大于等于 该请求要求的刷盘位点，则说明：在这个位点之前的数据都已经刷盘完成了
                             flushOK/* 如果为 true 则说明这个请求要刷盘的位点，已经被刷盘过了，不需要在执行这个刷盘请求了 */ = flushedWhere >= nextOffset;
-
-                            if (!flushOK) {
-                                // 如果上面返回还是没有刷盘，则强制刷盘
+                            if (!flushOK/* 只有该位点还没有刷到磁盘的情况下才会真正的去刷盘 */) {
+                                // 如果上面返回还是没有刷盘，则强制刷盘，刷盘之后会更新 {@link org.apache.rocketmq.store.MappedFileQueue.flushedWhere} 再次循环的时候就会发现该位点已刷盘成功了
                                 CommitLog.this.mappedFileQueue.flush(0 /* 0 的意思就是 强制刷盘，只要有没有刷盘的数据就会刷盘，之后上面的 flushOk 肯定会返回 true 自然就退出循环了*/);
                             }
                         }
                         // req 刷盘请求刷盘完成，设置 future 结果
+                        // 唤醒同步等待的线程
                         req.wakeupCustomer(flushOK);
                     }
 
+                    // commitLog 刷盘成功之后更新检查点文件
                     long storeTimestamp = CommitLog.this.mappedFileQueue.getStoreTimestamp();
                     if (storeTimestamp > 0) {
                         CommitLog.this.defaultMessageStore.getStoreCheckpoint().setPhysicMsgTimestamp(storeTimestamp);
