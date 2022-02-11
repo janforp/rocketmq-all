@@ -11,5 +11,5 @@ public class DelayOffsetSerializeWrapper extends RemotingSerializable {
 
     @Getter
     @Setter
-    private ConcurrentMap<Integer /* level */, Long/* offset */> offsetTable = new ConcurrentHashMap<Integer, Long>(32);
+    private ConcurrentMap<Integer /* level 延迟级别*/, Long/* offset 偏移量*/> offsetTable = new ConcurrentHashMap<>(32);
 }
