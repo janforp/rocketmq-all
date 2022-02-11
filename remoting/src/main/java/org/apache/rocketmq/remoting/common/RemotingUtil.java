@@ -172,6 +172,8 @@ public class RemotingUtil {
             socket.setTcpNoDelay(true);
             socket.setReceiveBufferSize(1024 * 64);
             socket.setSendBufferSize(1024 * 64);
+
+            // 发起连接
             socket.connect(remote, timeoutMillis);
             // 非阻塞
             sc.configureBlocking(false);

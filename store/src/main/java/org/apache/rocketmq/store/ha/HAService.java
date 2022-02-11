@@ -353,7 +353,7 @@ public class HAService {
         /**
          * 上次会话通信时间，用于控制连接（socketChannel） 是否关闭，如果长时间连接空闲，则可能要关闭该连接
          *
-         * @see HAClient#reportSlaveMaxOffset(long)
+         * @see HAClient#reportSlaveMaxOffset(long) 上报进度到master成功之后会更新该字段
          */
         private long lastWriteTimestamp = System.currentTimeMillis();
 
@@ -371,6 +371,7 @@ public class HAService {
         // 0 ... ................. ............ position ..................limit
         // 0 ... dispatchPosition ............. position ..................limit
         // 处于 dispatchPosition 到 position 之间的字节是还没有处理的字节
+        // 每处理一桢数据之后，让 dispatchPosition 前进一桢的长度，则 dispatchPosition 之前的数据就是已经处理过的数据
         private int dispatchPosition = 0;
 
         /**
@@ -382,6 +383,8 @@ public class HAService {
          * phyOffset:数据区间的开始偏移量，并不表示一条具体的消息，表示的数据块开始的偏移量
          * size:同步数据块的大小
          * data:数据块，最大32kb，可能包含多条消息的数据
+         *
+         * @see HAClient#processReadEvent()
          */
 
         // 用于到 socket 读缓冲区 加载 就绪的数据使用，4mb
@@ -465,7 +468,7 @@ public class HAService {
             // 0 ... dispatchPosition ............. 这一部分数据是半包数据 ..................limit/position(满了)
             // 处于 dispatchPosition 到 position 之间的字节是还没有处理的字节
             // 未处理的数量
-            int remain = READ_MAX_BUFFER_SIZE/*4Mb*/ - this.dispatchPosition;
+            int remain = READ_MAX_BUFFER_SIZE/*4Mb，其实就是 byteBufferRead 的 limit */ - this.dispatchPosition;
 
             if (remain > 0 /* 说明最后一桢是半包数据 */) {
                 this.byteBufferRead.position(this.dispatchPosition);
@@ -480,7 +483,7 @@ public class HAService {
 
             // 复原 byteBufferRead，因为已经存储了上面的半包数据
             // 后续读取数据的是从 remain 向后开始
-            this.byteBufferRead.position(remain);
+            this.byteBufferRead.position(remain/*半包的时候不为0*/);
             this.byteBufferRead.limit(READ_MAX_BUFFER_SIZE);
 
             // 恢复，因为交换之后 byteBufferRead 是一个全新的了，需要从头开始处理
@@ -496,13 +499,13 @@ public class HAService {
         /**
          * HAClient 的核心方法
          *
-         * 处理从 master 发送给 slave 的 commitLog 数据的逻辑
+         * 处理 master 发送给 slave  commitLog 数据的逻辑
          *
          * @return true:表示处理成功，false表示 socket 处于关闭状态，需要上层重新创建 haClient
          */
         private boolean processReadEvent() {
 
-            // 控制 while 循环的一个条件变量
+            // 控制 while 循环的一个条件变量，如果连续多次每读取到数据，则跳出循环
             int readSizeZeroTimes = 0;
 
             while (this.byteBufferRead.hasRemaining() /* 只要有空闲的控制就一直试图去读取数据 ，正常情况都会有空闲*/) {
@@ -547,9 +550,10 @@ public class HAService {
 
             // 每桢的数据
             // {[phyOffset1][size1][data1]}{[phyOffset2][size2][data2]}{[phyOffset3][size3][data3]}
-            final int msgHeaderSize = 8 + 4; // phyoffset + size，协议头大小
+            final int msgHeaderSize = 8/*phyoffset*/ + 4/*size*/; // phyoffset + size，协议头大小
 
             // 该变量记录 byteBufferRead 处理数据之前的 pos 值，用于处理完数据之后恢复 pos 指针
+            // 0 ... ................. ............ position ..................limit
             int readSocketPos = this.byteBufferRead.position();
 
             while (true) {
@@ -559,7 +563,7 @@ public class HAService {
                 // 处于 dispatchPosition 到 position 之间的字节是还没有处理的字节
 
                 // 表示 当前 byteBufferRead 还剩余多少 byte 没处理
-                // 每处理一桢数据就会更新 dispatchPosition，让他增加一桢的长度
+                // 每处理一桢数据就会更新 dispatchPosition，让他前进一桢的长度，则 dispatchPosition 之前的数据就是已经处理过的数据
                 int diff = this.byteBufferRead.position() - this.dispatchPosition /* 初始状态是 0  */;
                 if (diff >= msgHeaderSize /* 条件成立，说明：byteBufferRead 内部至少有一个完整的 header 数据的  */) {
                     // 读取 header
@@ -581,11 +585,11 @@ public class HAService {
                     if (diff >= (msgHeaderSize + bodySize) /* 该条件成立，说明：当前  byteBufferRead  内部最起码包含当前桢的全部数据的，下面就是处理桢数据*/) {
 
                         // 用于存储桢中的数据块
-                        byte[] bodyData = new byte[bodySize];
+                        byte[] bodyData = new byte[bodySize/*该桢数据中 commitLog 数据的大小*/];
                         // {[phyOffset1][size1][data1]}{[phyOffset2][size2][data2]}{[phyOffset3][size3][data3]}
                         // 其实就是读取 data 部分的数据
                         // 0 ... dispatchPosition ............. position ..................limit
-                        this.byteBufferRead.position(this.dispatchPosition + msgHeaderSize /* 跳过头，从 body 开始读取 */);
+                        this.byteBufferRead.position(this.dispatchPosition + msgHeaderSize /* 跳过头部12个字节，从 body 开始读取 */);
                         // 把数据读到数组中
                         this.byteBufferRead.get(bodyData);
 
@@ -600,19 +604,20 @@ public class HAService {
                         // 更新，加一桢数据长度，方便处理下一条数据使用
                         int frameSize = msgHeaderSize + bodySize;
                         // 0 ... dispatchPosition ............. position ..................limit
-                        this.dispatchPosition = dispatchPosition + frameSize;
+                        this.dispatchPosition = dispatchPosition + frameSize /* 让 dispatchPosition 前进一桢的长度，则 dispatchPosition 之前的数据就是已经处理过的数据 */;
 
                         if (!reportSlaveMaxOffsetPlus() /* 上报 slave 的同步进度 */) {
                             return false;
                         }
 
-                        // 处理下一条
+                        // 处理下一桢数据
                         continue;
                     }
                 }
 
                 // 当 diff >= msgHeaderSize 不成立 或者 diff >= (msgHeaderSize + bodySize) 不成立的时候会执行下面的代码
                 // 如果执行到这里，则说明 byteBufferRead 中最后部分数据是半包，并且写满了
+                // 意思就是 byteBufferRead 中最后一部分数据不够1桢的时候
                 if (!this.byteBufferRead.hasRemaining()) {
 
                     // 说明 byteBufferRead 写满了
@@ -656,16 +661,14 @@ public class HAService {
 
                     SocketAddress socketAddress = RemotingUtil.string2SocketAddress(addr);
                     if (socketAddress != null) {
-
                         // 建立连接
                         this.socketChannel = RemotingUtil.connect/*通过master节点的地址，slave节点主动发起连接*/(socketAddress);
                         if (this.socketChannel != null) {
-                            // 注册到多路复用器 关注 OP_READ 事件，读取 master 端发送来的数据没
+                            // 注册到多路复用器 关注 OP_READ 事件，读取 master 端发送来的数据
                             this.socketChannel.register(this.selector, SelectionKey.OP_READ);
                         }
                     }
                 }
-
                 // 获取当前 slave 节点的 commitLog 上的最大物理偏移量
                 this.currentReportedOffset = HAService.this.defaultMessageStore.getMaxPhyOffset();
                 // 更新时间，避免误关闭连接
@@ -698,11 +701,16 @@ public class HAService {
             }
         }
 
+        /**
+         * slave节点会执行
+         * 1.每5秒上报当前进度给master
+         * 2.每秒中读取master节点发生过来的数据
+         */
         @Override
         public void run() {
             while (!this.isStopped()) {
                 try {
-                    if (this.connectMaster() /* slave 节点成功连接到 master 节点才会返回 true，如果当前节点是 master 节点因为 masterAddress 是空，会返回false,再者就是连接失败的是返回 false */) {
+                    if (this.connectMaster() /* 当前slave节点与master节点成功连接的时候返回true */) {
                         if (this.isTimeToReportOffset()/*上次上报的时间已经超过5秒了，就需要再次上报进度到 master*/) {
                             // 上报 slave 同步进度到 master
                             boolean result/*上报结果*/ = this.reportSlaveMaxOffset(this.currentReportedOffset/*首次跟master连接的时候就会更新该字段：this.currentReportedOffset = HAService.this.defaultMessageStore.getMaxPhyOffset();*/);
@@ -711,13 +719,13 @@ public class HAService {
                             }
                         }
 
-                        // 阻塞 1 s，因为该连接注册的是读时间，读到数据之后就会往下执行
+                        // 阻塞 1 s，因为该连接注册的是读事件，读到数据之后就会往下执行
                         this.selector.select(1000);
 
                         /**
                          * 执行到这里，又2个情况：
                          * 1. socketChannel 的 OP_READ 就绪
-                         * 2.多路复用器的select 方法超时
+                         * 2.多路复用器的select 方法超时1秒
                          */
 
                         // HAClient 的核心方法
