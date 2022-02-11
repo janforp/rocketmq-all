@@ -70,7 +70,7 @@ public class HAService {
     }
 
     /**
-     * 该方法是给 slave 节点调用的
+     * 该方法是给 slave 节点调用的，master节点是不会调用该方法的！
      *
      * @param newAddr 地址
      */
@@ -321,7 +321,7 @@ public class HAService {
     class HAClient extends ServiceThread {
 
         // 4 mb
-        private static final int READ_MAX_BUFFER_SIZE = 1024 * 1024 * 4;
+        private static final int READ_MAX_BUFFER_SIZE = 1024/*k*/ * 1024/*m*/ * 4;
 
         /**
          * ip:port 表示 master 节点启动时监听的 HA 会话端口（和 netty 绑定的服务端口不是同一个）
@@ -334,6 +334,7 @@ public class HAService {
 
         /**
          * 8 个字节，上报 offset 的时候使用，因为底层通信使用的 NIO 所有内容都是通过块传输的，所以上报 slave offset 的时候需要使用该 buffer
+         * 刚好一个long类型的长度！！
          *
          * @see HAClient#reportSlaveMaxOffset(long)
          */
@@ -377,7 +378,7 @@ public class HAService {
          *
          * master 与 slave 之间传输的数据格式：
          *
-         * {[phyOffset1  固定8字节][size1 同步数据块的大小][data1 数据块，最大32kb，可能包含多条消息的数据]}{[phyOffset2][size2][data2]}{[phyOffset3][size3][data3]}
+         * {[phyOffset1  固定8字节][size1 同步数据块的大小][data1 数据块，最大32kb，可能包含多条消息的数据，最后一条消息也有可能是不完整的]}{[phyOffset2][size2][data2]}{[phyOffset3][size3][data3]}
          * phyOffset:数据区间的开始偏移量，并不表示一条具体的消息，表示的数据块开始的偏移量
          * size:同步数据块的大小
          * data:数据块，最大32kb，可能包含多条消息的数据
@@ -455,6 +456,8 @@ public class HAService {
 
         /**
          * // 当 diff >= msgHeaderSize 不成立 或者 diff >= (msgHeaderSize + bodySize) 不成立的时候会执行下面的代码
+         *
+         * byteBufferRead 最后一个桢的数据是一个半包数据的时候就会执行该方法
          *
          * reallocate：重新分配
          */
@@ -546,7 +549,7 @@ public class HAService {
             // {[phyOffset1][size1][data1]}{[phyOffset2][size2][data2]}{[phyOffset3][size3][data3]}
             final int msgHeaderSize = 8 + 4; // phyoffset + size，协议头大小
 
-            // 该变化记录 byteBufferRead 处理数据之前的 pos 值，用于处理完数据之后恢复pos 指针
+            // 该变量记录 byteBufferRead 处理数据之前的 pos 值，用于处理完数据之后恢复 pos 指针
             int readSocketPos = this.byteBufferRead.position();
 
             while (true) {
@@ -624,6 +627,8 @@ public class HAService {
 
         private boolean reportSlaveMaxOffsetPlus() {
             boolean result = true;
+
+            // 当前 slave 上 commitLog 的最大偏移量
             long currentPhyOffset = HAService.this.defaultMessageStore.getMaxPhyOffset();
             if (currentPhyOffset > this.currentReportedOffset) {
                 this.currentReportedOffset = currentPhyOffset;
@@ -731,6 +736,8 @@ public class HAService {
                             this.closeMaster();
                         }
                     } else {
+
+                        // slave 连接 master 失败，则等待一会
                         this.waitForRunning(1000 * 5);
                     }
                 } catch (Exception e) {
