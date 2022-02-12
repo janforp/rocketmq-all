@@ -98,6 +98,8 @@ public class TransactionalMessageServiceImpl implements TransactionalMessageServ
     }
 
     /**
+     * 事务回查
+     *
      * @see TransactionalMessageCheckService#onWaitEnd()
      * @see DefaultTransactionalMessageCheckListener 回查监听器
      */
