@@ -1,5 +1,6 @@
 package org.apache.rocketmq.broker.transaction.queue;
 
+import org.apache.rocketmq.broker.topic.TopicConfigManager;
 import org.apache.rocketmq.broker.transaction.AbstractTransactionalMessageCheckListener;
 import org.apache.rocketmq.common.TopicConfig;
 import org.apache.rocketmq.common.constant.LoggerName;
@@ -22,16 +23,23 @@ public class DefaultTransactionalMessageCheckListener extends AbstractTransactio
         super();
     }
 
+    /**
+     * 该条消息回查次数超过了15次，放弃回查
+     *
+     * @param msgExt Message to be discarded. 放弃
+     */
     @Override
     public void resolveDiscardMsg(MessageExt msgExt) {
         log.error("MsgExt:{} has been checked too many times, so discard it by moving it to system topic TRANS_CHECK_MAXTIME_TOPIC", msgExt);
 
         try {
+
+            // 保存到一个指定的系统主题中：TRANS_CHECK_MAX_TIME_TOPIC
             MessageExtBrokerInner brokerInner = toMessageExtBrokerInner(msgExt);
             PutMessageResult putMessageResult = this.getBrokerController().getMessageStore().putMessage(brokerInner);
             if (putMessageResult != null && putMessageResult.getPutMessageStatus() == PutMessageStatus.PUT_OK) {
-                log.info("Put checked-too-many-time half message to TRANS_CHECK_MAXTIME_TOPIC OK. Restored in queueOffset={}, " +
-                        "commitLogOffset={}, real topic={}", msgExt.getQueueOffset(), msgExt.getCommitLogOffset(), msgExt.getUserProperty(MessageConst.PROPERTY_REAL_TOPIC));
+                String msg = "Put checked-too-many-time half message to TRANS_CHECK_MAXTIME_TOPIC OK. Restored in queueOffset={}, " + "commitLogOffset={}, real topic={}";
+                log.info(msg, msgExt.getQueueOffset(), msgExt.getCommitLogOffset(), msgExt.getUserProperty(MessageConst.PROPERTY_REAL_TOPIC));
             } else {
                 log.error("Put checked-too-many-time half message to TRANS_CHECK_MAXTIME_TOPIC failed, real topic={}, msgId={}", msgExt.getTopic(), msgExt.getMsgId());
             }
@@ -41,9 +49,13 @@ public class DefaultTransactionalMessageCheckListener extends AbstractTransactio
 
     }
 
+    @SuppressWarnings("all")
     private MessageExtBrokerInner toMessageExtBrokerInner(MessageExt msgExt) {
-        TopicConfig topicConfig = this.getBrokerController().getTopicConfigManager().createTopicOfTranCheckMaxTime(TCMT_QUEUE_NUMS, PermName.PERM_READ | PermName.PERM_WRITE);
-        int queueId = Math.abs(random.nextInt() % 99999999) % TCMT_QUEUE_NUMS;
+        TopicConfigManager topicConfigManager = this.getBrokerController().getTopicConfigManager();
+
+        // 保存到主题：TRANS_CHECK_MAX_TIME_TOPIC
+        TopicConfig topicConfig = topicConfigManager.createTopicOfTranCheckMaxTime(TCMT_QUEUE_NUMS, PermName.PERM_READ | PermName.PERM_WRITE);
+        int queueId/*就是 0*/ = Math.abs(random.nextInt() % 99999999) % TCMT_QUEUE_NUMS;
         MessageExtBrokerInner inner = new MessageExtBrokerInner();
         inner.setTopic(topicConfig.getTopicName());
         inner.setBody(msgExt.getBody());

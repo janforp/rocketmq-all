@@ -57,24 +57,37 @@ public class TransactionalMessageServiceImpl implements TransactionalMessageServ
         return transactionalMessageBridge.putHalfMessage(messageInner);
     }
 
+    /**
+     * 该消息的回查次数超过了15次，可以已经放弃了
+     *
+     * @param msgExt 待回查消息
+     * @param transactionCheckMax 最大次数
+     * @return 是否可以放弃
+     */
     private boolean needDiscard(MessageExt msgExt, int transactionCheckMax) {
-        String checkTimes = msgExt.getProperty(MessageConst.PROPERTY_TRANSACTION_CHECK_TIMES);
+        String checkTimes = msgExt.getProperty(MessageConst.PROPERTY_TRANSACTION_CHECK_TIMES/*TRANSACTION_CHECK_TIMES*/);
         int checkTime = 1;
         if (null != checkTimes) {
             checkTime = getInt(checkTimes);
             if (checkTime >= transactionCheckMax) {
+                // 该消息的回查次数超过了15次，可以已经放弃了
                 return true;
             } else {
                 checkTime++;
             }
         }
+
+        // 如果没有超过最大回查次数，则回查次数 +1 之后再次保存到消息属性中
         msgExt.putUserProperty(MessageConst.PROPERTY_TRANSACTION_CHECK_TIMES, String.valueOf(checkTime));
         return false;
     }
 
     private boolean needSkip(MessageExt msgExt) {
         long valueOfCurrentMinusBorn = System.currentTimeMillis() - msgExt.getBornTimestamp();
-        if (valueOfCurrentMinusBorn > transactionalMessageBridge.getBrokerController().getMessageStoreConfig().getFileReservedTime() * 3600L * 1000) {
+
+        // 72
+        int fileReservedTime = transactionalMessageBridge.getBrokerController().getMessageStoreConfig().getFileReservedTime();
+        if (valueOfCurrentMinusBorn > fileReservedTime/*72*/ * 3600L * 1000) {
             log.info("Half message exceed file reserved time ,so skip it.messageId {},bornTime {}", msgExt.getMsgId(), msgExt.getBornTimestamp());
             return true;
         }
@@ -87,12 +100,8 @@ public class TransactionalMessageServiceImpl implements TransactionalMessageServ
             msgExt.setQueueOffset(putMessageResult.getAppendMessageResult().getLogicsOffset());
             msgExt.setCommitLogOffset(putMessageResult.getAppendMessageResult().getWroteOffset());
             msgExt.setMsgId(putMessageResult.getAppendMessageResult().getMsgId());
-            log.debug(
-                    "Send check message, the offset={} restored in queueOffset={} " + "commitLogOffset={} " + "newMsgId={} realMsgId={} topic={}",
-                    offset, msgExt.getQueueOffset(), msgExt.getCommitLogOffset(), msgExt.getMsgId(), msgExt.getUserProperty(MessageConst.PROPERTY_UNIQ_CLIENT_MESSAGE_ID_KEYIDX), msgExt.getTopic());
             return true;
         } else {
-            log.error("PutBackToHalfQueueReturnResult write failed, topic: {}, queueId: {}, " + "msgId: {}", msgExt.getTopic(), msgExt.getQueueId(), msgExt.getMsgId());
             return false;
         }
     }
@@ -175,6 +184,7 @@ public class TransactionalMessageServiceImpl implements TransactionalMessageServ
                         }
 
                         if (needDiscard(msgExt, transactionCheckMax) || needSkip(msgExt)) {
+                            // 保存到一个指定的系统主题中：TRANS_CHECK_MAX_TIME_TOPIC
                             listener.resolveDiscardMsg(msgExt);
                             newOffset = i + 1;
                             i++;
@@ -469,7 +479,6 @@ public class TransactionalMessageServiceImpl implements TransactionalMessageServ
 
     @Override
     public void close() {
-
+        // emtpy
     }
-
 }
