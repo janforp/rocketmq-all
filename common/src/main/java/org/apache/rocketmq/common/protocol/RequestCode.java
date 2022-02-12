@@ -83,6 +83,7 @@ public class RequestCode {
 
     /**
      * @see org.apache.rocketmq.client.impl.MQClientAPIImpl#endTransactionOneway(java.lang.String, org.apache.rocketmq.common.protocol.header.EndTransactionRequestHeader, java.lang.String, long)
+     * @see org.apache.rocketmq.broker.processor.EndTransactionProcessor#processRequest(io.netty.channel.ChannelHandlerContext, org.apache.rocketmq.remoting.protocol.RemotingCommand)
      */
     public static final int END_TRANSACTION = 37;
 
@@ -92,6 +93,10 @@ public class RequestCode {
      */
     public static final int GET_CONSUMER_LIST_BY_GROUP = 38;
 
+    /**
+     * @see org.apache.rocketmq.client.impl.ClientRemotingProcessor#checkTransactionState(io.netty.channel.ChannelHandlerContext, org.apache.rocketmq.remoting.protocol.RemotingCommand)
+     * @see org.apache.rocketmq.broker.client.net.Broker2Client#checkProducerTransactionState(java.lang.String, io.netty.channel.Channel, org.apache.rocketmq.common.protocol.header.CheckTransactionStateRequestHeader, org.apache.rocketmq.common.message.MessageExt)
+     */
     public static final int CHECK_TRANSACTION_STATE = 39;
 
     public static final int NOTIFY_CONSUMER_IDS_CHANGED = 40;

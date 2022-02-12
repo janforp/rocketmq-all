@@ -5,6 +5,8 @@ import lombok.AllArgsConstructor;
 import org.apache.rocketmq.broker.BrokerController;
 import org.apache.rocketmq.broker.transaction.OperationResult;
 import org.apache.rocketmq.broker.transaction.TransactionalMessageService;
+import org.apache.rocketmq.broker.transaction.queue.TransactionalMessageServiceImpl;
+import org.apache.rocketmq.client.impl.producer.DefaultMQProducerImpl;
 import org.apache.rocketmq.common.TopicFilterType;
 import org.apache.rocketmq.common.constant.LoggerName;
 import org.apache.rocketmq.common.message.MessageAccessor;
@@ -36,6 +38,10 @@ public class EndTransactionProcessor extends AsyncNettyRequestProcessor implemen
 
     private final BrokerController brokerController;
 
+    /**
+     * @see DefaultMQProducerImpl#endTransaction 请求发起代码
+     */
+    @SuppressWarnings("all")
     @Override
     public RemotingCommand processRequest(ChannelHandlerContext ctx, RemotingCommand request) throws RemotingCommandException {
         final RemotingCommand response = RemotingCommand.createResponseCommand(null);
@@ -47,8 +53,9 @@ public class EndTransactionProcessor extends AsyncNettyRequestProcessor implemen
             return response;
         }
         Boolean fromTransactionCheck = requestHeader.getFromTransactionCheck();
+        Integer commitOrRollback = requestHeader.getCommitOrRollback();
         if (fromTransactionCheck) {
-            switch (requestHeader.getCommitOrRollback()) {
+            switch (commitOrRollback) {
                 case MessageSysFlag.TRANSACTION_NOT_TYPE: {
                     LOGGER.warn("Check producer[{}] transaction state, but it's pending status." + "RequestHeader: {} Remark: {}",
                             RemotingHelper.parseChannelRemoteAddr(ctx.channel()), requestHeader.toString(), request.getRemark());
@@ -71,7 +78,7 @@ public class EndTransactionProcessor extends AsyncNettyRequestProcessor implemen
                     return null;
             }
         } else {
-            switch (requestHeader.getCommitOrRollback()) {
+            switch (commitOrRollback) {
                 case MessageSysFlag.TRANSACTION_NOT_TYPE: {
                     LOGGER.warn("The producer[{}] end transaction in sending message,  and it's pending status." + "RequestHeader: {} Remark: {}",
                             RemotingHelper.parseChannelRemoteAddr(ctx.channel()), requestHeader.toString(), request.getRemark());
@@ -91,23 +98,27 @@ public class EndTransactionProcessor extends AsyncNettyRequestProcessor implemen
                     return null;
             }
         }
+
+        // 事务消息的二阶段提交还是混滚就看下面的逻辑即可！！！
+
         OperationResult result = new OperationResult();
 
         // 分提交还是回滚分别处理
+        /**
+         * @see TransactionalMessageServiceImpl
+         */
         TransactionalMessageService transactionalMessageService = this.brokerController.getTransactionalMessageService();
 
-        if (MessageSysFlag.TRANSACTION_COMMIT_TYPE == requestHeader.getCommitOrRollback()) {
+        if (MessageSysFlag.TRANSACTION_COMMIT_TYPE == commitOrRollback) {
             // 提交
-
             result = transactionalMessageService.commitMessage(requestHeader);
             if (result.getResponseCode() == ResponseCode.SUCCESS) {
                 MessageExt prepareMessage = result.getPrepareMessage();
                 RemotingCommand res = checkPrepareMessage(prepareMessage, requestHeader);
                 if (res.getCode() == ResponseCode.SUCCESS) {
-
                     // 新建一条消息
                     MessageExtBrokerInner msgInner = endMessageTransaction(prepareMessage);
-                    msgInner.setSysFlag(MessageSysFlag.resetTransactionValue(msgInner.getSysFlag(), requestHeader.getCommitOrRollback()));
+                    msgInner.setSysFlag(MessageSysFlag.resetTransactionValue(msgInner.getSysFlag(), commitOrRollback));
                     msgInner.setQueueOffset(requestHeader.getTranStateTableOffset());
                     msgInner.setPreparedTransactionOffset(requestHeader.getCommitLogOffset());
                     msgInner.setStoreTimestamp(prepareMessage.getStoreTimestamp());
@@ -122,7 +133,7 @@ public class EndTransactionProcessor extends AsyncNettyRequestProcessor implemen
                 }
                 return res;
             }
-        } else if (MessageSysFlag.TRANSACTION_ROLLBACK_TYPE == requestHeader.getCommitOrRollback()) {
+        } else if (MessageSysFlag.TRANSACTION_ROLLBACK_TYPE == commitOrRollback) {
             // 回滚
 
             result = transactionalMessageService.rollbackMessage(requestHeader);
@@ -175,7 +186,9 @@ public class EndTransactionProcessor extends AsyncNettyRequestProcessor implemen
         return response;
     }
 
-    // 新建一条消息，把半消息的部分数据塞进去
+    /**
+     * 新建一条消息，把半消息的部分数据塞进去,其中主题跟队列使用真实的
+     */
     private MessageExtBrokerInner endMessageTransaction(MessageExt msgExt) {
         MessageExtBrokerInner msgInner = new MessageExtBrokerInner();
 

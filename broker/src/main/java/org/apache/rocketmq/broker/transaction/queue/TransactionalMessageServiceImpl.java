@@ -2,6 +2,7 @@ package org.apache.rocketmq.broker.transaction.queue;
 
 import org.apache.rocketmq.broker.transaction.AbstractTransactionalMessageCheckListener;
 import org.apache.rocketmq.broker.transaction.OperationResult;
+import org.apache.rocketmq.broker.transaction.TransactionalMessageCheckService;
 import org.apache.rocketmq.broker.transaction.TransactionalMessageService;
 import org.apache.rocketmq.client.consumer.PullResult;
 import org.apache.rocketmq.client.consumer.PullStatus;
@@ -27,6 +28,7 @@ import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 
+@SuppressWarnings("all")
 public class TransactionalMessageServiceImpl implements TransactionalMessageService {
 
     private static final InternalLogger log = InternalLoggerFactory.getLogger(LoggerName.TRANSACTION_LOGGER_NAME);
@@ -95,10 +97,15 @@ public class TransactionalMessageServiceImpl implements TransactionalMessageServ
         }
     }
 
+    /**
+     * @see TransactionalMessageCheckService#onWaitEnd()
+     * @see DefaultTransactionalMessageCheckListener 回查监听器
+     */
     @Override
     public void check(long transactionTimeout, int transactionCheckMax, AbstractTransactionalMessageCheckListener listener) {
         try {
             // RMQ_SYS_TRANS_HALF_TOPIC
+            // 半消息主题
             String topic = MixAll.RMQ_SYS_TRANS_HALF_TOPIC;
             Set<MessageQueue> msgQueues = transactionalMessageBridge.fetchMessageQueues(topic);
             if (msgQueues == null || msgQueues.size() == 0) {
@@ -110,8 +117,12 @@ public class TransactionalMessageServiceImpl implements TransactionalMessageServ
             // 遍历主题下面的所有队列
             for (MessageQueue messageQueue : msgQueues) {
                 long startTime = System.currentTimeMillis();
+                // ConcurrentHashMap<MessageQueue/*半消息*/, MessageQueue /*操作队列*/> opQueueMap
+                // 拿到 op 队列
                 MessageQueue opQueue = getOpQueue(messageQueue);
+                // 拿到半消息消费进度
                 long halfOffset = transactionalMessageBridge.fetchConsumeOffset(messageQueue);
+                // 拿到op消息消费进度
                 long opOffset = transactionalMessageBridge.fetchConsumeOffset(opQueue);
                 log.info("Before check, the queue={} msgOffset={} opOffset={}", messageQueue, halfOffset, opOffset);
                 if (halfOffset < 0 || opOffset < 0) {
@@ -168,8 +179,7 @@ public class TransactionalMessageServiceImpl implements TransactionalMessageServ
                             continue;
                         }
                         if (msgExt.getStoreTimestamp() >= startTime) {
-                            log.debug("Fresh stored. the miss offset={}, check it later, store={}", i,
-                                    new Date(msgExt.getStoreTimestamp()));
+                            log.debug("Fresh stored. the miss offset={}, check it later, store={}", i, new Date(msgExt.getStoreTimestamp()));
                             break;
                         }
 
@@ -192,10 +202,10 @@ public class TransactionalMessageServiceImpl implements TransactionalMessageServ
                             }
                         }
                         List<MessageExt> opMsg = pullResult.getMsgFoundList();
-                        boolean isNeedCheck =
+                        boolean needCheck =
                                 (opMsg == null && valueOfCurrentMinusBorn > checkImmunityTime) || (opMsg != null && (opMsg.get(opMsg.size() - 1).getBornTimestamp() - startTime > transactionTimeout)) || (valueOfCurrentMinusBorn <= -1);
 
-                        if (isNeedCheck) {
+                        if (needCheck) {
                             if (!putBackHalfMsgQueue(msgExt, i)) {
                                 continue;
                             }

@@ -239,14 +239,23 @@ public class BrokerController {
 
     private FileWatchService fileWatchService;
 
+    /**
+     * 负责 broker 回查事务消息
+     */
     @Getter
     @Setter
     private TransactionalMessageCheckService transactionalMessageCheckService;
 
+    /**
+     * @see TransactionalMessageServiceImpl
+     */
     @Getter
     @Setter
     private TransactionalMessageService transactionalMessageService;
 
+    /**
+     * @see DefaultTransactionalMessageCheckListener
+     */
     @Getter
     @Setter
     private AbstractTransactionalMessageCheckListener transactionalMessageCheckListener;

@@ -1366,6 +1366,7 @@ public class DefaultMQProducerImpl implements MQProducerInner {
         }
 
         // ignore DelayTimeLevel parameter
+        // 事务消息不支持延迟消息！！！！
         if (msg.getDelayTimeLevel() != 0) {
             MessageAccessor.clearProperty(msg, MessageConst.PROPERTY_DELAY_TIME_LEVEL);
         }
@@ -1383,7 +1384,8 @@ public class DefaultMQProducerImpl implements MQProducerInner {
 
         LocalTransactionState localTransactionState = LocalTransactionState.UNKNOW;
         Throwable localException = null;
-        switch (sendResult.getSendStatus()) {
+        SendStatus sendStatus = sendResult.getSendStatus();
+        switch (sendStatus) {
             case SEND_OK: {
                 // 如果消息发送成功； 则需要执行本地事务！！！！
 
@@ -1429,13 +1431,13 @@ public class DefaultMQProducerImpl implements MQProducerInner {
 
             // 本地事务结果拿到之后，就进行二阶段提交！！！！
 
-            this.endTransaction(sendResult, localTransactionState, localException);
+            this.endTransaction(sendResult/*half消息发送结果*/, localTransactionState/*本地事务执行结果*/, localException/*本地事务执行的时候出现的异常*/);
         } catch (Exception e) {
             log.warn("local transaction execute " + localTransactionState + ", but end broker transaction failed", e);
         }
 
         TransactionSendResult transactionSendResult = new TransactionSendResult();
-        transactionSendResult.setSendStatus(sendResult.getSendStatus());
+        transactionSendResult.setSendStatus(sendStatus);
         transactionSendResult.setMessageQueue(sendResult.getMessageQueue());
         transactionSendResult.setMsgId(sendResult.getMsgId());
         transactionSendResult.setQueueOffset(sendResult.getQueueOffset());
@@ -1453,10 +1455,13 @@ public class DefaultMQProducerImpl implements MQProducerInner {
         return send(msg, sendMsgTimeout);
     }
 
-    public void endTransaction(final SendResult sendResult, final LocalTransactionState localTransactionState, final Throwable localException) throws RemotingException, MQBrokerException, InterruptedException, UnknownHostException {
+    private void endTransaction(final SendResult sendResult/*half消息发送结果*/, final LocalTransactionState localTransactionState/*本地事务执行结果*/, final Throwable localException/*本地事务执行的时候出现的异常*/)
+            throws RemotingException, MQBrokerException, InterruptedException, UnknownHostException {
+
         final MessageId id;
-        if (sendResult.getOffsetMsgId() != null) {
-            id = MessageDecoder.decodeMessageId(sendResult.getOffsetMsgId());
+        String offsetMsgId = sendResult.getOffsetMsgId();
+        if (offsetMsgId != null) {
+            id = MessageDecoder.decodeMessageId(offsetMsgId);
         } else {
             id = MessageDecoder.decodeMessageId(sendResult.getMsgId());
         }

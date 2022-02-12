@@ -4,6 +4,7 @@ import com.alibaba.fastjson.JSON;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
+import org.apache.rocketmq.common.message.MessageId;
 import org.apache.rocketmq.common.message.MessageQueue;
 
 @NoArgsConstructor
@@ -30,6 +31,9 @@ public class SendResult {
     @Setter
     private String transactionId;
 
+    /**
+     * @see MessageId 该字段由2个东西拼接
+     */
     @Getter
     @Setter
     private String offsetMsgId;

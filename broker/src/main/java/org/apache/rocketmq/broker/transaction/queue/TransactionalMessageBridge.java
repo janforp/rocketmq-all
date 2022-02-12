@@ -1,6 +1,7 @@
 package org.apache.rocketmq.broker.transaction.queue;
 
 import org.apache.rocketmq.broker.BrokerController;
+import org.apache.rocketmq.broker.offset.ConsumerOffsetManager;
 import org.apache.rocketmq.client.consumer.PullResult;
 import org.apache.rocketmq.client.consumer.PullStatus;
 import org.apache.rocketmq.common.TopicConfig;
@@ -61,8 +62,9 @@ public class TransactionalMessageBridge {
     }
 
     public long fetchConsumeOffset(MessageQueue mq) {
-        long offset = brokerController.getConsumerOffsetManager().queryOffset(TransactionalMessageUtil.buildConsumerGroup(),
-                mq.getTopic(), mq.getQueueId());
+        ConsumerOffsetManager consumerOffsetManager = brokerController.getConsumerOffsetManager();
+        String buildConsumerGroup/*CID_RMQ_SYS_TRANS*/ = TransactionalMessageUtil.buildConsumerGroup();
+        long offset = consumerOffsetManager.queryOffset(buildConsumerGroup, mq.getTopic(), mq.getQueueId());
         if (offset == -1) {
             offset = store.getMinOffsetInQueue(mq.getTopic(), mq.getQueueId());
         }
@@ -220,12 +222,10 @@ public class TransactionalMessageBridge {
 
     public boolean putMessage(MessageExtBrokerInner messageInner) {
         PutMessageResult putMessageResult = store.putMessage(messageInner);
-        if (putMessageResult != null
-                && putMessageResult.getPutMessageStatus() == PutMessageStatus.PUT_OK) {
+        if (putMessageResult != null && putMessageResult.getPutMessageStatus() == PutMessageStatus.PUT_OK) {
             return true;
         } else {
-            LOGGER.error("Put message failed, topic: {}, queueId: {}, msgId: {}",
-                    messageInner.getTopic(), messageInner.getQueueId(), messageInner.getMsgId());
+            LOGGER.error("Put message failed, topic: {}, queueId: {}, msgId: {}", messageInner.getTopic(), messageInner.getQueueId(), messageInner.getMsgId());
             return false;
         }
     }
@@ -323,7 +323,9 @@ public class TransactionalMessageBridge {
         if (opQueue == null) {
             opQueue = new MessageQueue(TransactionalMessageUtil.buildOpTopic(), mq.getBrokerName(), mq.getQueueId());
         }
-        putMessage(makeOpMessageInner(message, opQueue));
+
+        MessageExtBrokerInner messageExtBrokerInner = makeOpMessageInner(message, opQueue);
+        putMessage(messageExtBrokerInner);
     }
 
     private MessageQueue getOpQueueByHalf(MessageQueue halfMQ) {

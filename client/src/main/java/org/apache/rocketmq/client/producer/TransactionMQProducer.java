@@ -29,6 +29,9 @@ public class TransactionMQProducer extends DefaultMQProducer {
     @Setter
     private int checkThreadPoolMaxSize = 1;
 
+    /**
+     * 回查线程池任务队列最大数量
+     */
     @Getter
     @Setter
     private int checkRequestHoldMax = 2000;
