@@ -1,7 +1,9 @@
 package org.apache.rocketmq.broker.transaction.queue;
 
+import lombok.Getter;
 import org.apache.rocketmq.broker.BrokerController;
 import org.apache.rocketmq.broker.offset.ConsumerOffsetManager;
+import org.apache.rocketmq.broker.topic.TopicConfigManager;
 import org.apache.rocketmq.client.consumer.PullResult;
 import org.apache.rocketmq.client.consumer.PullStatus;
 import org.apache.rocketmq.common.TopicConfig;
@@ -35,12 +37,14 @@ import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 
+@SuppressWarnings("all")
 public class TransactionalMessageBridge {
 
     private static final InternalLogger LOGGER = InnerLoggerFactory.getLogger(LoggerName.TRANSACTION_LOGGER_NAME);
 
-    private final ConcurrentHashMap<MessageQueue, MessageQueue> opQueueMap = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<MessageQueue/*半消息*/, MessageQueue/*操作消息*/> opQueueMap = new ConcurrentHashMap<>();
 
+    @Getter
     private final BrokerController brokerController;
 
     private final MessageStore store;
@@ -51,9 +55,7 @@ public class TransactionalMessageBridge {
         try {
             this.brokerController = brokerController;
             this.store = store;
-            this.storeHost =
-                    new InetSocketAddress(brokerController.getBrokerConfig().getBrokerIP1(),
-                            brokerController.getNettyServerConfig().getListenPort());
+            this.storeHost = new InetSocketAddress(brokerController.getBrokerConfig().getBrokerIP1(), brokerController.getNettyServerConfig().getListenPort());
         } catch (Exception e) {
             LOGGER.error("Init TransactionBridge error", e);
             throw new RuntimeException(e);
@@ -87,9 +89,10 @@ public class TransactionalMessageBridge {
     }
 
     public void updateConsumeOffset(MessageQueue mq, long offset) {
-        this.brokerController.getConsumerOffsetManager().commitOffset(
-                RemotingHelper.parseSocketAddressAddr(this.storeHost), TransactionalMessageUtil.buildConsumerGroup(), mq.getTopic(),
-                mq.getQueueId(), offset);
+        ConsumerOffsetManager consumerOffsetManager = this.brokerController.getConsumerOffsetManager();
+        String addressAddr = RemotingHelper.parseSocketAddressAddr(this.storeHost);
+        String consumerGroup = TransactionalMessageUtil.buildConsumerGroup();
+        consumerOffsetManager.commitOffset(addressAddr, consumerGroup, mq.getTopic(), mq.getQueueId(), offset);
     }
 
     public PullResult getHalfMessage(int queueId, long offset, int nums) {
@@ -107,8 +110,7 @@ public class TransactionalMessageBridge {
         return getMessage(group, topic, queueId, offset, nums, sub);
     }
 
-    private PullResult getMessage(String group, String topic, int queueId, long offset, int nums,
-            SubscriptionData sub) {
+    private PullResult getMessage(String group, String topic, int queueId, long offset, int nums, SubscriptionData sub) {
         GetMessageResult getMessageResult = store.getMessage(group, topic, queueId, offset, nums, null);
 
         if (getMessageResult != null) {
@@ -118,28 +120,22 @@ public class TransactionalMessageBridge {
                 case FOUND:
                     pullStatus = PullStatus.FOUND;
                     foundList = decodeMsgList(getMessageResult);
-                    this.brokerController.getBrokerStatsManager().incGroupGetNums(group, topic,
-                            getMessageResult.getMessageCount());
-                    this.brokerController.getBrokerStatsManager().incGroupGetSize(group, topic,
-                            getMessageResult.getBufferTotalSize());
+                    this.brokerController.getBrokerStatsManager().incGroupGetNums(group, topic, getMessageResult.getMessageCount());
+                    this.brokerController.getBrokerStatsManager().incGroupGetSize(group, topic, getMessageResult.getBufferTotalSize());
                     this.brokerController.getBrokerStatsManager().incBrokerGetNums(getMessageResult.getMessageCount());
                     if (foundList == null || foundList.size() == 0) {
                         break;
                     }
-                    this.brokerController.getBrokerStatsManager().recordDiskFallBehindTime(group, topic, queueId,
-                            this.brokerController.getMessageStore().now() - foundList.get(foundList.size() - 1)
-                                    .getStoreTimestamp());
+                    this.brokerController.getBrokerStatsManager().recordDiskFallBehindTime(group, topic, queueId, this.brokerController.getMessageStore().now() - foundList.get(foundList.size() - 1).getStoreTimestamp());
                     break;
                 case NO_MATCHED_MESSAGE:
                     pullStatus = PullStatus.NO_MATCHED_MSG;
-                    LOGGER.warn("No matched message. GetMessageStatus={}, topic={}, groupId={}, requestOffset={}",
-                            getMessageResult.getStatus(), topic, group, offset);
+                    LOGGER.warn("No matched message. GetMessageStatus={}, topic={}, groupId={}, requestOffset={}", getMessageResult.getStatus(), topic, group, offset);
                     break;
                 case NO_MESSAGE_IN_QUEUE:
                 case OFFSET_OVERFLOW_ONE:
                     pullStatus = PullStatus.NO_NEW_MSG;
-                    LOGGER.warn("No new message. GetMessageStatus={}, topic={}, groupId={}, requestOffset={}",
-                            getMessageResult.getStatus(), topic, group, offset);
+                    LOGGER.warn("No new message. GetMessageStatus={}, topic={}, groupId={}, requestOffset={}", getMessageResult.getStatus(), topic, group, offset);
                     break;
                 case MESSAGE_WAS_REMOVING:
                 case NO_MATCHED_LOGIC_QUEUE:
@@ -147,20 +143,17 @@ public class TransactionalMessageBridge {
                 case OFFSET_OVERFLOW_BADLY:
                 case OFFSET_TOO_SMALL:
                     pullStatus = PullStatus.OFFSET_ILLEGAL;
-                    LOGGER.warn("Offset illegal. GetMessageStatus={}, topic={}, groupId={}, requestOffset={}",
-                            getMessageResult.getStatus(), topic, group, offset);
+                    LOGGER.warn("Offset illegal. GetMessageStatus={}, topic={}, groupId={}, requestOffset={}", getMessageResult.getStatus(), topic, group, offset);
                     break;
                 default:
                     assert false;
                     break;
             }
 
-            return new PullResult(pullStatus, getMessageResult.getNextBeginOffset(), getMessageResult.getMinOffset(),
-                    getMessageResult.getMaxOffset(), foundList);
+            return new PullResult(pullStatus, getMessageResult.getNextBeginOffset(), getMessageResult.getMinOffset(), getMessageResult.getMaxOffset(), foundList);
 
         } else {
-            LOGGER.error("Get message from store return null. topic={}, groupId={}, requestOffset={}", topic, group,
-                    offset);
+            LOGGER.error("Get message from store return null. topic={}, groupId={}, requestOffset={}", topic, group, offset);
             return null;
         }
     }
@@ -198,7 +191,8 @@ public class TransactionalMessageBridge {
         msgInner.setSysFlag(MessageSysFlag.resetTransactionValue(msgInner.getSysFlag(), MessageSysFlag.TRANSACTION_NOT_TYPE));
 
         // ！！！！！ 半消息存储的主题
-        msgInner.setTopic(TransactionalMessageUtil.buildHalfTopic()); // RMQ_SYS_TRANS_HALF_TOPIC 半消息 主题
+        String halfTopic = TransactionalMessageUtil.buildHalfTopic();
+        msgInner.setTopic(halfTopic/*RMQ_SYS_TRANS_HALF_TOPIC*/); // RMQ_SYS_TRANS_HALF_TOPIC 半消息 主题
         msgInner.setQueueId(0); // 半消息存储的队列id
         msgInner.setPropertiesString(MessageDecoder.messageProperties2String(msgInner.getProperties()));
         return msgInner;
@@ -234,15 +228,11 @@ public class TransactionalMessageBridge {
         MessageExtBrokerInner msgInner = renewHalfMessageInner(msgExt);
         String queueOffsetFromPrepare = msgExt.getUserProperty(MessageConst.PROPERTY_TRANSACTION_PREPARED_QUEUE_OFFSET);
         if (null != queueOffsetFromPrepare) {
-            MessageAccessor.putProperty(msgInner, MessageConst.PROPERTY_TRANSACTION_PREPARED_QUEUE_OFFSET,
-                    String.valueOf(queueOffsetFromPrepare));
+            MessageAccessor.putProperty(msgInner, MessageConst.PROPERTY_TRANSACTION_PREPARED_QUEUE_OFFSET, queueOffsetFromPrepare);
         } else {
-            MessageAccessor.putProperty(msgInner, MessageConst.PROPERTY_TRANSACTION_PREPARED_QUEUE_OFFSET,
-                    String.valueOf(msgExt.getQueueOffset()));
+            MessageAccessor.putProperty(msgInner, MessageConst.PROPERTY_TRANSACTION_PREPARED_QUEUE_OFFSET, String.valueOf(msgExt.getQueueOffset()));
         }
-
         msgInner.setPropertiesString(MessageDecoder.messageProperties2String(msgInner.getProperties()));
-
         return msgInner;
     }
 
@@ -283,10 +273,10 @@ public class TransactionalMessageBridge {
     }
 
     private TopicConfig selectTopicConfig(String topic) {
-        TopicConfig topicConfig = brokerController.getTopicConfigManager().selectTopicConfig(topic);
+        TopicConfigManager topicConfigManager = brokerController.getTopicConfigManager();
+        TopicConfig topicConfig = topicConfigManager.selectTopicConfig(topic);
         if (topicConfig == null) {
-            topicConfig = this.brokerController.getTopicConfigManager().createTopicInSendMessageBackMethod(
-                    topic, 1, PermName.PERM_WRITE | PermName.PERM_READ, 0);
+            topicConfig = topicConfigManager.createTopicInSendMessageBackMethod(topic, 1, PermName.PERM_WRITE | PermName.PERM_READ, 0);
         }
         return topicConfig;
     }
@@ -338,9 +328,5 @@ public class TransactionalMessageBridge {
 
     public MessageExt lookMessageByOffset(final long commitLogOffset) {
         return this.store.lookMessageByOffset(commitLogOffset);
-    }
-
-    public BrokerController getBrokerController() {
-        return brokerController;
     }
 }

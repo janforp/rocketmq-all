@@ -57,21 +57,19 @@ public class EndTransactionProcessor extends AsyncNettyRequestProcessor implemen
         if (fromTransactionCheck) {
             switch (commitOrRollback) {
                 case MessageSysFlag.TRANSACTION_NOT_TYPE: {
-                    LOGGER.warn("Check producer[{}] transaction state, but it's pending status." + "RequestHeader: {} Remark: {}",
-                            RemotingHelper.parseChannelRemoteAddr(ctx.channel()), requestHeader.toString(), request.getRemark());
+                    LOGGER.warn("Check producer[{}] transaction state, but it's pending status." + "RequestHeader: {} Remark: {}", RemotingHelper.parseChannelRemoteAddr(ctx.channel()), requestHeader.toString(), request.getRemark());
                     return null;
                 }
 
                 case MessageSysFlag.TRANSACTION_COMMIT_TYPE: {
-                    LOGGER.warn("Check producer[{}] transaction state, the producer commit the message." + "RequestHeader: {} Remark: {}",
-                            RemotingHelper.parseChannelRemoteAddr(ctx.channel()), requestHeader.toString(), request.getRemark());
+                    LOGGER.warn("Check producer[{}] transaction state, the producer commit the message." + "RequestHeader: {} Remark: {}", RemotingHelper.parseChannelRemoteAddr(ctx.channel()), requestHeader.toString(), request.getRemark());
 
                     break;
                 }
 
                 case MessageSysFlag.TRANSACTION_ROLLBACK_TYPE: {
-                    LOGGER.warn("Check producer[{}] transaction state, the producer rollback the message." + "RequestHeader: {} Remark: {}",
-                            RemotingHelper.parseChannelRemoteAddr(ctx.channel()), requestHeader.toString(), request.getRemark());
+                    LOGGER.warn("Check producer[{}] transaction state, the producer rollback the message." + "RequestHeader: {} Remark: {}", RemotingHelper.parseChannelRemoteAddr(ctx.channel()), requestHeader.toString(),
+                            request.getRemark());
                     break;
                 }
                 default:
@@ -80,8 +78,8 @@ public class EndTransactionProcessor extends AsyncNettyRequestProcessor implemen
         } else {
             switch (commitOrRollback) {
                 case MessageSysFlag.TRANSACTION_NOT_TYPE: {
-                    LOGGER.warn("The producer[{}] end transaction in sending message,  and it's pending status." + "RequestHeader: {} Remark: {}",
-                            RemotingHelper.parseChannelRemoteAddr(ctx.channel()), requestHeader.toString(), request.getRemark());
+                    LOGGER.warn("The producer[{}] end transaction in sending message,  and it's pending status." + "RequestHeader: {} Remark: {}", RemotingHelper.parseChannelRemoteAddr(ctx.channel()), requestHeader.toString(),
+                            request.getRemark());
                     return null;
                 }
 
@@ -90,8 +88,8 @@ public class EndTransactionProcessor extends AsyncNettyRequestProcessor implemen
                 }
 
                 case MessageSysFlag.TRANSACTION_ROLLBACK_TYPE: {
-                    LOGGER.warn("The producer[{}] end transaction in sending message, rollback the message." + "RequestHeader: {} Remark: {}",
-                            RemotingHelper.parseChannelRemoteAddr(ctx.channel()), requestHeader.toString(), request.getRemark());
+                    LOGGER.warn("The producer[{}] end transaction in sending message, rollback the message." + "RequestHeader: {} Remark: {}", RemotingHelper.parseChannelRemoteAddr(ctx.channel()), requestHeader.toString(),
+                            request.getRemark());
                     break;
                 }
                 default:
@@ -135,7 +133,6 @@ public class EndTransactionProcessor extends AsyncNettyRequestProcessor implemen
             }
         } else if (MessageSysFlag.TRANSACTION_ROLLBACK_TYPE == commitOrRollback) {
             // 回滚
-
             result = transactionalMessageService.rollbackMessage(requestHeader);
             if (result.getResponseCode() == ResponseCode.SUCCESS) {
                 RemotingCommand res = checkPrepareMessage(result.getPrepareMessage(), requestHeader);
@@ -194,7 +191,6 @@ public class EndTransactionProcessor extends AsyncNettyRequestProcessor implemen
 
         // 设置真实的 topic
         msgInner.setTopic(msgExt.getUserProperty(MessageConst.PROPERTY_REAL_TOPIC));
-
         // 设置真实的 queueId
         msgInner.setQueueId(Integer.parseInt(msgExt.getUserProperty(MessageConst.PROPERTY_REAL_QUEUE_ID)));
         msgInner.setBody(msgExt.getBody());
@@ -204,11 +200,9 @@ public class EndTransactionProcessor extends AsyncNettyRequestProcessor implemen
         msgInner.setStoreHost(msgExt.getStoreHost());
         msgInner.setReconsumeTimes(msgExt.getReconsumeTimes());
         msgInner.setWaitStoreMsgOK(false);
-        msgInner.setTransactionId(msgExt.getUserProperty(MessageConst.PROPERTY_UNIQ_CLIENT_MESSAGE_ID_KEYIDX));
+        msgInner.setTransactionId(msgExt.getUserProperty(MessageConst.PROPERTY_UNIQ_CLIENT_MESSAGE_ID_KEYIDX/*UNIQ_KEY*/));
         msgInner.setSysFlag(msgExt.getSysFlag());
-        TopicFilterType topicFilterType =
-                (msgInner.getSysFlag() & MessageSysFlag.MULTI_TAGS_FLAG) == MessageSysFlag.MULTI_TAGS_FLAG ? TopicFilterType.MULTI_TAG
-                        : TopicFilterType.SINGLE_TAG;
+        TopicFilterType topicFilterType = (msgInner.getSysFlag() & MessageSysFlag.MULTI_TAGS_FLAG) == MessageSysFlag.MULTI_TAGS_FLAG ? TopicFilterType.MULTI_TAG : TopicFilterType.SINGLE_TAG;
         long tagsCodeValue = MessageExtBrokerInner.tagsString2tagsCode(topicFilterType, msgInner.getTags());
         msgInner.setTagsCode(tagsCodeValue);
         MessageAccessor.setProperties(msgInner, msgExt.getProperties());
