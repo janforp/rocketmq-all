@@ -77,7 +77,7 @@ public class NettyRemotingServer extends NettyRemotingAbstract implements Remoti
     private final ExecutorService publicExecutor;
 
     /**
-     * @see org.apache.rocketmq.namesrv.routeinfo.BrokerHousekeepingService namesrv使用
+     * @see org.apache.rocketmq.namesrv.routeinfo.BrokerHousekeepingService namesrv使用,监听 与 broker 之间的连接状态
      * @see org.apache.rocketmq.broker.client.ClientHousekeepingService broker 使用,监听客户端的连接状态
      */
     @Getter
@@ -103,6 +103,7 @@ public class NettyRemotingServer extends NettyRemotingAbstract implements Remoti
 
     private static final String FILE_REGION_ENCODER_NAME = "fileRegionEncoder";
 
+    // 共享，多个 channel 公用
     // sharable handlers
     private HandshakeHandler handshakeHandler;
 
@@ -268,7 +269,7 @@ public class NettyRemotingServer extends NettyRemotingAbstract implements Remoti
                         .channel(useEpoll() ? EpollServerSocketChannel.class : NioServerSocketChannel.class)
 
                         // 服务端通道选项
-                        .option(ChannelOption.SO_BACKLOG, 1024)
+                        .option(ChannelOption.SO_BACKLOG/*连接队列最大长度*/, 1024)
                         .option(ChannelOption.SO_REUSEADDR, true)
                         .option(ChannelOption.SO_KEEPALIVE, false)
                         .childOption(ChannelOption.TCP_NODELAY, true)
@@ -304,7 +305,7 @@ public class NettyRemotingServer extends NettyRemotingAbstract implements Remoti
                             }
                         });
 
-        if (nettyServerConfig.isServerPooledByteBufAllocatorEnable()) {
+        if (nettyServerConfig.isServerPooledByteBufAllocatorEnable()/* 默认 true */) {
             // 开启 netty 内存池
             PooledByteBufAllocator pooledByteBufAllocator = PooledByteBufAllocator.DEFAULT;
             childHandler.childOption(ChannelOption.ALLOCATOR, pooledByteBufAllocator);
@@ -386,6 +387,7 @@ public class NettyRemotingServer extends NettyRemotingAbstract implements Remoti
     public void registerProcessor(int requestCode/*业务代码*/, NettyRequestProcessor processor/*业务处理器*/, ExecutorService executor/*处理业务逻辑的时候，在该线程池资源中执行*/) {
         ExecutorService executorThis = executor;
         if (null == executor) {
+            // 没有指定线程池，则使用公共线程池
             executorThis = this.publicExecutor;
         }
 

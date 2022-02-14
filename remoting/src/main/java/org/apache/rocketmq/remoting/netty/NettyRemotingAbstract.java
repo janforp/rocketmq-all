@@ -200,7 +200,7 @@ public abstract class NettyRemotingAbstract {
     public void processRequestCommand(final ChannelHandlerContext ctx, final RemotingCommand cmd) {
         // 根据业务代码找到合适的处理器和线程池资源---pair
         int code = cmd.getCode();
-        final Pair<NettyRequestProcessor/*业务处理器*/, ExecutorService> matched = this.processorTable.get(code);
+        final Pair<NettyRequestProcessor/*业务处理器*/, ExecutorService/*处理线程池*/> matched = this.processorTable.get(code);
         // 如果没找到，则使用默认的
         /**
          * @see org.apache.rocketmq.namesrv.processor.DefaultRequestProcessor namesrv使用这个处理器
@@ -523,7 +523,7 @@ public abstract class NettyRemotingAbstract {
              * @see NettyRemotingAbstract#processResponseCommand(io.netty.channel.ChannelHandlerContext, org.apache.rocketmq.remoting.protocol.RemotingCommand)
              * @see ResponseFuture#putResponse(org.apache.rocketmq.remoting.protocol.RemotingCommand) 响应的时候调用这个方法唤醒
              */
-            RemotingCommand responseCommand = responseFuture.waitResponse/*业务线程阻塞在这里*/(timeoutMillis);
+            RemotingCommand responseCommand = responseFuture.waitResponse/* TODO 业务线程阻塞在这里*/(timeoutMillis);
             // 线程执行到这里
             // 1.正常情况：客户端返回数据了，IO线程将业务线程唤醒
             // 2.非正常全情况：超时了
@@ -571,7 +571,7 @@ public abstract class NettyRemotingAbstract {
                 throw new RemotingTimeoutException("invokeAsyncImpl call timeout");
             }
             // 创建响应对象
-            final ResponseFuture responseFuture = new ResponseFuture(channel,/*客户端ch*/opaque,/*请求id*/timeoutMillis - costTime,/*剩余的超时时间*/invokeCallback/*回调处理对象*/, once/*信号量释放对象*/);
+            final ResponseFuture responseFuture = new ResponseFuture(channel/*客户端ch*/, opaque/*请求id*/, timeoutMillis - costTime/*剩余的超时时间*/, invokeCallback/*回调处理对象*/, once/*信号量释放对象*/);
             // 加入映射表中
             this.responseTable.put(opaque, responseFuture);
             try {

@@ -5,6 +5,9 @@ import lombok.AllArgsConstructor;
 import org.apache.rocketmq.namesrv.NamesrvController;
 import org.apache.rocketmq.remoting.ChannelEventListener;
 
+/**
+ * namesrv使用,监听 与 broker 之间的连接状态
+ */
 @AllArgsConstructor
 public class BrokerHousekeepingService implements ChannelEventListener {
 
