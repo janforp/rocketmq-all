@@ -74,20 +74,20 @@ public class NamesrvController {
     private RemotingServer remotingServer;
 
     /**
-     * @see ChannelEventListener
+     * @see ChannelEventListener public class BrokerHousekeepingService implements ChannelEventListener
      * 一个org.apache.rocketmq.remoting.ChannelEventListener实例
      * 用于监听 channel 状态，当 channel 状态发生变化时，如 close, idle ... 会向事件队列发送事件，事件最终由该 service 处理
      * @see RouteInfoManager#onChannelDestroy(java.lang.String, io.netty.channel.Channel) 最终还是调用这个方法
      */
     private final BrokerHousekeepingService brokerHousekeepingService;
 
-    // 业务线程池
+    // 业务线程池，netty线程主要是解析报文，将报文解析成RemoteingCommand 对象，然后将该对象交给业务线程池继续处理
     private ExecutorService remotingExecutor;
 
     @Getter
     private final Configuration configuration;
 
-    // 安全
+    // 安全相关
     private FileWatchService fileWatchService;
 
     public NamesrvController(NamesrvConfig namesrvConfig, NettyServerConfig nettyServerConfig) {
@@ -114,6 +114,7 @@ public class NamesrvController {
         this.kvConfigManager.load();
         // RemotingServer是负责接受来自Broker的注册网络通信
         this.remotingServer = new NettyRemotingServer(this.nettyServerConfig, this.brokerHousekeepingService/*连接销毁，断开的时候的回调方法*/);
+        // 业务线程池，netty线程主要是解析报文，将报文解析成RemoteingCommand 对象，然后将该对象交给业务线程池继续处理
         this.remotingExecutor = Executors.newFixedThreadPool(nettyServerConfig.getServerWorkerThreads()/*默认8，可以配置*/, new ThreadFactoryImpl("RemotingExecutorThread_"));
         // 注册协议处理器
         this.registerProcessor();

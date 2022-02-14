@@ -50,6 +50,8 @@ import java.util.concurrent.atomic.AtomicLong;
  * 封装了 namesrv 能处理的所有业务
  *
  * namesrv 其实就是 crud
+ *
+ * @see NamesrvController#registerProcessor()
  */
 @SuppressWarnings("all")
 @AllArgsConstructor

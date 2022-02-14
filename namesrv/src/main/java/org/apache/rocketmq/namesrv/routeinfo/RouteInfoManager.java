@@ -64,7 +64,7 @@ public class RouteInfoManager {
      * <p>
      * 消息队列路由消息,消息发送会根据路由表负责均衡
      */
-    private final HashMap<String/* topic */, List<QueueData> /*该主题下面的各个队列的属性*/> topicQueueTable;
+    private final HashMap<String/* topic */, List<QueueData/*包含 broker 的队列信息*/> /*该主题下面的各个队列的属性*/> topicQueueTable;
 
     /**
      * broker 地址 映射表
