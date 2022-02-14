@@ -105,7 +105,7 @@ public class NettyRemotingServer extends NettyRemotingAbstract implements Remoti
     private HandshakeHandler handshakeHandler;
 
     /**
-     * 通用解码器
+     * 通用编码器
      *
      * @see RemotingCommand
      */
@@ -244,7 +244,7 @@ public class NettyRemotingServer extends NettyRemotingAbstract implements Remoti
     @Override
     public void start() {
         // 当向 channel pipeline 添加 handler 时，制定了 GROUp时候，网络事件传播到当前 handler 时，事件处理器由分配给 handler 的线程执行
-        this.defaultEventExecutorGroup = new DefaultEventExecutorGroup(nettyServerConfig.getServerWorkerThreads(),/*配置的线程数量*/
+        this.defaultEventExecutorGroup = new DefaultEventExecutorGroup(nettyServerConfig.getServerWorkerThreads(),/*配置的线程数量 8 */
                 // 线程工厂
                 new ThreadFactory() {
                     private final AtomicInteger threadIndex = new AtomicInteger(0);
@@ -291,7 +291,7 @@ public class NettyRemotingServer extends NettyRemotingAbstract implements Remoti
                                         .addLast(defaultEventExecutorGroup,// 这些理器工作在指定的线程中
                                                 encoder, // 编码 RemotingCommand
                                                 new NettyDecoder(), // 解码 RemotingCommand
-                                                new IdleStateHandler(0, 0, nettyServerConfig.getServerChannelMaxIdleTimeSeconds()),// 监听当前通道的空闲时间
+                                                new IdleStateHandler(0, 0, nettyServerConfig.getServerChannelMaxIdleTimeSeconds()/*120*/),// 监听当前通道的空闲时间
                                                 /**
                                                  * 连接管理处理器，监听通道状态发送改变，如关闭，连接，异常等
                                                  * @see NettyRemotingAbstract#nettyEventExecutor

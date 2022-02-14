@@ -191,9 +191,12 @@ public class NamesrvController {
     }
 
     public void start() throws Exception {
-        //服务器 网络层 启动
-        //获取netty的remoteServer
-        // 启动 netty 服务端
+        /**
+         * 服务器 网络层 启动
+         * 获取netty的remoteServer
+         * 启动 netty 服务端
+         * @see NettyRemotingServer#start()
+         */
         this.remotingServer.start();
         if (this.fileWatchService != null) {
             //文件监视服务开启
