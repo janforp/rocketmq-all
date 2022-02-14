@@ -29,6 +29,7 @@ import java.util.concurrent.TimeUnit;
 /**
  * nameserv的主要控制类，负责初始化和后台任务启动，Controller包含的主要组件都在构造函数中做了初始化
  */
+@SuppressWarnings("all")
 public class NamesrvController {
 
     /**
@@ -65,6 +66,8 @@ public class NamesrvController {
 
     /**
      * 网络层封装对象，重要
+     *
+     * @see NettyRemotingServer
      */
     @Getter
     @Setter
@@ -73,8 +76,7 @@ public class NamesrvController {
     /**
      * @see ChannelEventListener
      * 一个org.apache.rocketmq.remoting.ChannelEventListener实例
-     * 用于监听 channel 状态，当 channel 状态发生变化时，如 close, idle ... 会向事件队列
-     * 发送事件，事件最终由该 service 处理
+     * 用于监听 channel 状态，当 channel 状态发生变化时，如 close, idle ... 会向事件队列发送事件，事件最终由该 service 处理
      * @see RouteInfoManager#onChannelDestroy(java.lang.String, io.netty.channel.Channel) 最终还是调用这个方法
      */
     private final BrokerHousekeepingService brokerHousekeepingService;
@@ -175,12 +177,17 @@ public class NamesrvController {
             String productEnvName = namesrvConfig.getProductEnvName();
             ClusterTestRequestProcessor clusterTestRequestProcessor = new ClusterTestRequestProcessor(this, productEnvName);
             this.remotingServer.registerDefaultProcessor(clusterTestRequestProcessor, this.remotingExecutor);
-        } else {
-
-            // 注册一个默认的请求处理器
-            DefaultRequestProcessor defaultRequestProcessor = new DefaultRequestProcessor(this);
-            this.remotingServer.registerDefaultProcessor(defaultRequestProcessor, this.remotingExecutor);
+            return;
         }
+
+        // 看下面的就行了
+
+        // 注册一个默认的请求处理器
+        DefaultRequestProcessor defaultRequestProcessor = new DefaultRequestProcessor(this);
+        /**
+         * @see NettyRemotingServer#registerDefaultProcessor
+         */
+        this.remotingServer.registerDefaultProcessor(defaultRequestProcessor, this.remotingExecutor);
     }
 
     public void start() throws Exception {

@@ -147,6 +147,7 @@ public class NamesrvStartup {
             System.exit(0);
         }
 
+        // 将启动时候命令行的参数赋值到 namesrvConfig
         MixAll.properties2Object(ServerUtil.commandLine2Properties(commandLine), namesrvConfig);
 
         if (null == namesrvConfig.getRocketmqHome()) {

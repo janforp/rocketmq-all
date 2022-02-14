@@ -828,7 +828,7 @@ class BrokerLiveInfo {
     private long lastUpdateTimestamp;
 
     /**
-     *
+     * 版本
      */
     @Setter
     @Getter

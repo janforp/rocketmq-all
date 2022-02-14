@@ -65,7 +65,6 @@ public class DefaultRequestProcessor extends AsyncNettyRequestProcessor implemen
         if (ctx != null) {
             log.debug("receive request, {} {} {}", requestCode, RemotingHelper.parseChannelRemoteAddr(ctx.channel()), request);
         }
-
         switch (requestCode) {
             case RequestCode.PUT_KV_CONFIG:
                 return this.putKVConfig(ctx, request);
@@ -529,5 +528,4 @@ public class DefaultRequestProcessor extends AsyncNettyRequestProcessor implemen
         response.setRemark(null);
         return response;
     }
-
 }

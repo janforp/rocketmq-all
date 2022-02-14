@@ -40,16 +40,19 @@ public class NettyServerConfig implements Cloneable {
     @Setter
     private int serverAsyncSemaphoreValue = 64;
 
+    /**
+     * channel 最大的空闲存活时间
+     */
     @Getter
     @Setter
     private int serverChannelMaxIdleTimeSeconds = 120;
 
-    // 65535
+    // 写缓冲区 65535
     @Getter
     @Setter
     private int serverSocketSndBufSize = NettySystemConfig.socketSndbufSize;
 
-    // 65535
+    // 读缓冲区 65535
     @Getter
     @Setter
     private int serverSocketRcvBufSize = NettySystemConfig.socketRcvbufSize;
