@@ -141,6 +141,7 @@ public class TransactionalMessageServiceImpl implements TransactionalMessageServ
                     continue;
                 }
 
+                // 已经完成的offset
                 List<Long> doneOpOffset = new ArrayList<>();
                 /*
                  * key：
@@ -286,8 +287,9 @@ public class TransactionalMessageServiceImpl implements TransactionalMessageServ
             return pullResult;
         }
         for (MessageExt opMessageExt : opMsg) {
+
+            // 操作队列消息体存储的是半消息队列的逻辑偏移量
             Long queueOffset = getLong(new String(opMessageExt.getBody(), TransactionalMessageUtil.charset));
-            log.debug("Topic: {} tags: {}, OpOffset: {}, HalfOffset: {}", opMessageExt.getTopic(), opMessageExt.getTags(), opMessageExt.getQueueOffset(), queueOffset);
             if (TransactionalMessageUtil.REMOVETAG.equals(opMessageExt.getTags())) {
                 if (queueOffset < miniOffset) {
                     doneOpOffset.add(opMessageExt.getQueueOffset());
@@ -413,10 +415,19 @@ public class TransactionalMessageServiceImpl implements TransactionalMessageServ
 
     }
 
+    /**
+     * 根据半消息队列查询对应的op队列
+     *
+     * @param messageQueue 半消息队列
+     * @return op队列
+     */
     private MessageQueue getOpQueue(MessageQueue messageQueue) {
+
+        // ConcurrentHashMap<MessageQueue/*半消息*/, MessageQueue /*操作队列*/> opQueueMap
         MessageQueue opQueue = opQueueMap.get(messageQueue);
         if (opQueue == null) {
-            opQueue = new MessageQueue(TransactionalMessageUtil.buildOpTopic(), messageQueue.getBrokerName(), messageQueue.getQueueId());
+            String buildOpTopic = TransactionalMessageUtil.buildOpTopic();
+            opQueue = new MessageQueue(buildOpTopic/*RMQ_SYS_TRANS_OP_HALF_TOPIC*/, messageQueue.getBrokerName(), messageQueue.getQueueId());
             opQueueMap.put(messageQueue, opQueue);
         }
         return opQueue;
