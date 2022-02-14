@@ -217,6 +217,7 @@ public abstract class NettyRemotingAbstract {
             return;
         }
         // 核心逻辑 start
+        final NettyRequestProcessor nettyRequestProcessor = pair.getObject1();
         Runnable run = new Runnable() {
             @Override
             public void run() {
@@ -258,7 +259,7 @@ public abstract class NettyRemotingAbstract {
                     };
 
                     // 获取到处理器
-                    final NettyRequestProcessor requestProcessor = pair.getObject1();
+                    final NettyRequestProcessor requestProcessor = nettyRequestProcessor;
                     if (requestProcessor instanceof AsyncNettyRequestProcessor) {
                         // namesrv 进入这里
                         AsyncNettyRequestProcessor processor = (AsyncNettyRequestProcessor) requestProcessor;
@@ -266,8 +267,8 @@ public abstract class NettyRemotingAbstract {
                          * 以 namesrv 注册 broker 为例
                          * 执行任务，不返回响应，而是通过异步的方式
                          * @see org.apache.rocketmq.namesrv.processor.DefaultRequestProcessor namesrv 使用的处理器
-                         * @see AsyncNettyRequestProcessor#asyncProcessRequest(io.netty.channel.ChannelHandlerContext, org.apache.rocketmq.remoting.protocol.RemotingCommand, org.apache.rocketmq.remoting.netty.RemotingResponseCallback) namesrv首先调用这个方法
-                         * @see org.apache.rocketmq.namesrv.processor.DefaultRequestProcessor#processRequest(io.netty.channel.ChannelHandlerContext, org.apache.rocketmq.remoting.protocol.RemotingCommand) namesrv然后调用这个方法
+                         * @see AsyncNettyRequestProcessor#asyncProcessRequest namesrv首先调用这个方法
+                         * @see org.apache.rocketmq.namesrv.processor.DefaultRequestProcessor#processRequest namesrv然后调用这个方法
                          */
                         processor.asyncProcessRequest(ctx, cmd, callback);
                     } else {
@@ -294,7 +295,7 @@ public abstract class NettyRemotingAbstract {
         // 核心逻辑 over
 
         // Pair<NettyRequestProcessor, ExecutorService>
-        if (pair.getObject1().rejectRequest()) {
+        if (nettyRequestProcessor.rejectRequest()) {
             // 如果拒绝了请求
             final RemotingCommand response = RemotingCommand.createResponseCommand(RemotingSysResponseCode.SYSTEM_BUSY, "[REJECTREQUEST]system busy, start flow control for a while");
             response.setOpaque(opaque);

@@ -108,6 +108,7 @@ public class NettyRemotingClient extends NettyRemotingAbstract implements Remoti
     private ExecutorService callbackExecutor;
 
     // 客户端这里是 null
+    @Getter
     private final ChannelEventListener channelEventListener;
 
     // Channel Pipeline 内的 handler 使用的线程资源
@@ -644,11 +645,6 @@ public class NettyRemotingClient extends NettyRemotingAbstract implements Remoti
     @Override
     public List<String> getNameServerAddressList() {
         return this.namesrvAddrList.get();
-    }
-
-    @Override
-    public ChannelEventListener getChannelEventListener() {
-        return channelEventListener;
     }
 
     @Override
