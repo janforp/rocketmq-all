@@ -110,6 +110,9 @@ public class ResponseFuture {
         return diff > this.timeoutMillis;
     }
 
+    /**
+     * @see NettyRemotingAbstract#invokeSyncImpl(io.netty.channel.Channel, org.apache.rocketmq.remoting.protocol.RemotingCommand, long)
+     */
     @SuppressWarnings("all")
     public RemotingCommand waitResponse(final long timeoutMillis) throws InterruptedException {
         // 线程挂起原理！业务线程阻塞在这里

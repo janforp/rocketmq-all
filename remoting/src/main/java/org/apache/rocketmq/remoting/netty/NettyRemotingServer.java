@@ -52,6 +52,8 @@ import java.util.concurrent.atomic.AtomicInteger;
 /**
  * 主要负责网络层的调用
  * 报文的编解码
+ *
+ * @see RemotingCommand 网络层传输协议对象
  */
 
 @SuppressWarnings("all")

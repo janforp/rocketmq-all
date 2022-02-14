@@ -712,8 +712,6 @@ public abstract class NettyRemotingAbstract {
 
         @Override
         public void run() {
-            log.info(this.getServiceName() + " service started");
-
             /**
              * @see org.apache.rocketmq.broker.client.ClientHousekeepingService
              * @see org.apache.rocketmq.namesrv.routeinfo.BrokerHousekeepingService
@@ -745,13 +743,6 @@ public abstract class NettyRemotingAbstract {
                     log.warn(this.getServiceName() + " service has exception. ", e);
                 }
             }
-
-            log.info(this.getServiceName() + " service end");
-        }
-
-        @Override
-        public String getServiceName() {
-            return NettyEventExecutor.class.getSimpleName();
         }
     }
 }

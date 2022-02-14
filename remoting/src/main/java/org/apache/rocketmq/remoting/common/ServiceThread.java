@@ -31,7 +31,11 @@ public abstract class ServiceThread implements Runnable {
      *
      * @return 服务名称
      */
-    public abstract String getServiceName();
+    public String getServiceName() {
+        return this.getClass().getSimpleName();
+    }
+
+    ;
 
     @Override
     public abstract void run();

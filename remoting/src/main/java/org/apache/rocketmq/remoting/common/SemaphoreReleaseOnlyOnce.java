@@ -8,7 +8,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 // 一个对象只是否一次
 public class SemaphoreReleaseOnlyOnce {
 
-    // 一个对象只是否一次
+    // 一个对象只释放一次
     private final AtomicBoolean released = new AtomicBoolean(false);
 
     @Getter
