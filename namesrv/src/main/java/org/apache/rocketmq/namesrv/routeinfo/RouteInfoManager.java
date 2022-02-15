@@ -359,13 +359,14 @@ public class RouteInfoManager {
 
                 this.filterServerTable.remove(brokerAddr);
 
+                // 因为一个 brokerName 下面可能存在多个 broker，如果该 brokerName 下到所有 broker 都剔除了，则把该 brokerName 相关的所有信息都剔除，此时 removeBrokerName = true
                 boolean removeBrokerName = false;
                 BrokerData brokerData = this.brokerAddrTable.get(brokerName);
                 if (null != brokerData) {
-                    String addr = brokerData.getBrokerAddrs().remove(brokerId);
-                    log.info("unregisterBroker, remove addr from brokerAddrTable {}, {}", addr != null ? "OK" : "Failed", brokerAddr);
+                    // 移除该 brokerId 地址
+                    brokerData.getBrokerAddrs().remove(brokerId);
 
-                    if (brokerData.getBrokerAddrs().isEmpty()) {
+                    if (brokerData.getBrokerAddrs().isEmpty()/* 如果移除该 brokerId 之后该 brokerName 下面都broker地址为空了，则说明需要移除该 brokerName */) {
                         this.brokerAddrTable.remove(brokerName);
                         log.info("unregisterBroker, remove name from brokerAddrTable OK, {}", brokerName);
 
@@ -417,6 +418,12 @@ public class RouteInfoManager {
         }
     }
 
+    /**
+     * 在namesrv中查询该主题topic的路由信息
+     *
+     * @param topic 主题
+     * @return 该主题topic的路由信息
+     */
     public TopicRouteData pickupTopicRouteData(final String topic) {
         TopicRouteData topicRouteData = new TopicRouteData();
         boolean foundQueueData = false;
