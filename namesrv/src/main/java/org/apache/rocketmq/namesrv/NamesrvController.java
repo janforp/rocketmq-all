@@ -82,6 +82,7 @@ public class NamesrvController {
     private final BrokerHousekeepingService brokerHousekeepingService;
 
     // 业务线程池，netty线程主要是解析报文，将报文解析成RemoteingCommand 对象，然后将该对象交给业务线程池继续处理
+    // this.remotingServer.registerDefaultProcessor(defaultRequestProcessor, this.remotingExecutor); 该线程池会被注册到处理器对中
     private ExecutorService remotingExecutor;
 
     @Getter
@@ -126,51 +127,55 @@ public class NamesrvController {
 
         // 最后就是处理关于SSL/TLS的事情.说明一下,RocketMQ需要定义路径:CertPath、KeyPath和TrustCertPath的地址,是为了写入文件.如果没有权限会报错的.
         if (TlsSystemConfig.tlsMode != TlsMode.DISABLED) {
-            // Register a listener to reload SslContext
-            try {
-                fileWatchService = new FileWatchService(
-                        new String[] {
-                                TlsSystemConfig.tlsServerCertPath,
-                                TlsSystemConfig.tlsServerKeyPath,
-                                TlsSystemConfig.tlsServerTrustCertPath
-                        },
-                        new FileWatchService.Listener() {
-
-                            // //证书更改、键值更改
-                            boolean certChanged = false;
-
-                            // //证书更改、键值更改
-                            boolean keyChanged = false;
-
-                            @Override
-                            public void onChanged(String path) {
-                                if (path.equals(TlsSystemConfig.tlsServerTrustCertPath)) {
-                                    log.info("The trust certificate changed, reload the ssl context");
-                                    reloadServerSslContext();
-                                }
-                                if (path.equals(TlsSystemConfig.tlsServerCertPath)) {
-                                    certChanged = true;
-                                }
-                                if (path.equals(TlsSystemConfig.tlsServerKeyPath)) {
-                                    keyChanged = true;
-                                }
-                                if (certChanged && keyChanged) {
-                                    log.info("The certificate and private key changed, reload the ssl context");
-                                    certChanged = keyChanged = false;
-                                    reloadServerSslContext();
-                                }
-                            }
-
-                            private void reloadServerSslContext() {
-                                ((NettyRemotingServer) remotingServer).loadSslContext();
-                            }
-                        });
-            } catch (Exception e) {
-                log.warn("FileWatchService created error, can't load the certificate dynamically");
-            }
+            fuckTsl();
         }
 
         return true;
+    }
+
+    private void fuckTsl() {
+        // Register a listener to reload SslContext
+        try {
+            fileWatchService = new FileWatchService(
+                    new String[] {
+                            TlsSystemConfig.tlsServerCertPath,
+                            TlsSystemConfig.tlsServerKeyPath,
+                            TlsSystemConfig.tlsServerTrustCertPath
+                    },
+                    new FileWatchService.Listener() {
+
+                        // //证书更改、键值更改
+                        boolean certChanged = false;
+
+                        // //证书更改、键值更改
+                        boolean keyChanged = false;
+
+                        @Override
+                        public void onChanged(String path) {
+                            if (path.equals(TlsSystemConfig.tlsServerTrustCertPath)) {
+                                log.info("The trust certificate changed, reload the ssl context");
+                                reloadServerSslContext();
+                            }
+                            if (path.equals(TlsSystemConfig.tlsServerCertPath)) {
+                                certChanged = true;
+                            }
+                            if (path.equals(TlsSystemConfig.tlsServerKeyPath)) {
+                                keyChanged = true;
+                            }
+                            if (certChanged && keyChanged) {
+                                log.info("The certificate and private key changed, reload the ssl context");
+                                certChanged = keyChanged = false;
+                                reloadServerSslContext();
+                            }
+                        }
+
+                        private void reloadServerSslContext() {
+                            ((NettyRemotingServer) remotingServer).loadSslContext();
+                        }
+                    });
+        } catch (Exception e) {
+            log.warn("FileWatchService created error, can't load the certificate dynamically");
+        }
     }
 
     private void registerProcessor() {
