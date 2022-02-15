@@ -106,12 +106,9 @@ public class TopicRouteData extends RemotingSerializable {
             return false;
         }
         if (filterServerTable == null) {
-            if (other.filterServerTable != null) {
-                return false;
-            }
-        } else if (!filterServerTable.equals(other.filterServerTable)) {
-            return false;
+            return other.filterServerTable == null;
+        } else {
+            return filterServerTable.equals(other.filterServerTable);
         }
-        return true;
     }
 }

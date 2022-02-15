@@ -928,6 +928,8 @@ public class BrokerController {
             @Override
             public void run() {
                 try {
+
+                    // broker 每隔30s向 namesrv 发送心跳
                     BrokerController.this.registerBrokerAll(true, false, brokerConfig.isForceRegister());
                 } catch (Throwable e) {
                     log.error("registerBrokerAll Exception", e);
@@ -960,15 +962,30 @@ public class BrokerController {
         doRegisterBrokerAll(true, false, topicConfigSerializeWrapper);
     }
 
+    /**
+     * broker 每隔30s向 namesrv 发送心跳
+     */
     public synchronized void registerBrokerAll(final boolean checkOrderConfig /*true*/, boolean oneway/*false*/, boolean forceRegister/*true*/) {
+
+        // 该节点上配置主题的对象
         TopicConfigManager topicConfigManager = this.getTopicConfigManager();
+        // 该 broker 节点上的所有 主题信息
         TopicConfigSerializeWrapper topicConfigWrapper = topicConfigManager.buildTopicConfigSerializeWrapper();
 
-        if (!PermName.isWriteable(this.getBrokerConfig().getBrokerPermission()) || !PermName.isReadable(this.getBrokerConfig().getBrokerPermission())) {
+        // 当前 broker 的权限
+        int brokerPermission = this.getBrokerConfig().getBrokerPermission();
+        if (!PermName.isWriteable(brokerPermission) || !PermName.isReadable(brokerPermission)) {
+            // 当前节点不可读或者不可写
             ConcurrentHashMap<String, TopicConfig> topicConfigTable = new ConcurrentHashMap<>();
-            for (TopicConfig topicConfig : topicConfigWrapper.getTopicConfigTable().values()) {
-                TopicConfig tmp = new TopicConfig(topicConfig.getTopicName(), topicConfig.getReadQueueNums(), topicConfig.getWriteQueueNums(), this.brokerConfig.getBrokerPermission());
-                topicConfigTable.put(topicConfig.getTopicName(), tmp);
+
+            for (TopicConfig topicConfig/* 遍历该 broker 节点上的所有主题信息 */ : topicConfigWrapper.getTopicConfigTable().values()) {
+                String topicName = topicConfig.getTopicName();
+                int readQueueNums = topicConfig.getReadQueueNums();
+                int writeQueueNums = topicConfig.getWriteQueueNums();
+
+                // 创建主题配置对象
+                TopicConfig tmp = new TopicConfig(topicName, readQueueNums, writeQueueNums, brokerPermission);
+                topicConfigTable.put(topicName, tmp);
             }
             topicConfigWrapper.setTopicConfigTable(topicConfigTable);
         }
