@@ -39,6 +39,9 @@ import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 
+/**
+ * 服务端网络层跟客户端网络层都继承自该类
+ */
 @SuppressWarnings("all")
 public abstract class NettyRemotingAbstract {
 
@@ -60,7 +63,7 @@ public abstract class NettyRemotingAbstract {
     protected final Semaphore semaphoreAsync;
 
     /**
-     * This map caches all on-going requests.
+     * This map caches all on-going（进行中） requests.
      * 请求响应映射表
      * 如果服务端发起请求到客户端，则服务端会有这样一个映射表
      * 如果客户端发起请求到服务端，则客户端会有这样一个映射表
@@ -124,6 +127,8 @@ public abstract class NettyRemotingAbstract {
      * Custom channel event listener.
      *
      * @return custom channel event listener if defined; null otherwise.
+     * @see org.apache.rocketmq.namesrv.routeinfo.BrokerHousekeepingService
+     * @see org.apache.rocketmq.broker.client.ClientHousekeepingService
      */
     public abstract ChannelEventListener getChannelEventListener();
 
@@ -206,6 +211,7 @@ public abstract class NettyRemotingAbstract {
          * @see org.apache.rocketmq.namesrv.processor.DefaultRequestProcessor namesrv使用这个处理器
          */
         final Pair<NettyRequestProcessor, ExecutorService> pair = (null == matched) ? this.defaultRequestProcessor/*未注册处理器，则使用默认处理器，namesrv就是使用默认处理器*/ : matched;
+        final String remoteAddr/* 通过channel解析出远程的地址 */ = RemotingHelper.parseChannelRemoteAddr(ctx.channel());
         // 拿到请求id
         final int opaque = cmd.getOpaque();
         if (pair == null) {
@@ -213,7 +219,7 @@ public abstract class NettyRemotingAbstract {
             final RemotingCommand response = RemotingCommand.createResponseCommand(RemotingSysResponseCode.REQUEST_CODE_NOT_SUPPORTED, error);
             response.setOpaque(opaque);
             ctx.writeAndFlush(response);
-            log.error(RemotingHelper.parseChannelRemoteAddr(ctx.channel()) + error);
+            log.error(remoteAddr + error);
             return;
         }
         // 核心逻辑 start
@@ -223,14 +229,14 @@ public abstract class NettyRemotingAbstract {
             public void run() {
                 try {
                     // 执行rpc调用前的钩子函数
-                    doBeforeRpcHooks(RemotingHelper.parseChannelRemoteAddr(ctx.channel()) /* 通过channel解析出远程的地址 */, cmd);
+                    doBeforeRpcHooks(remoteAddr /* 通过channel解析出远程的地址 */, cmd);
 
                     // 如果是异步的，任务执行完成之后会回调到该对象的 callback 函数
                     final RemotingResponseCallback callback = new RemotingResponseCallback() {
                         @Override
                         public void callback(RemotingCommand response) {
                             // 执行rpc调用后的钩子函数
-                            doAfterRpcHooks(RemotingHelper.parseChannelRemoteAddr(ctx.channel())/* 通过channel解析出远程的地址 */, cmd, response);
+                            doAfterRpcHooks(remoteAddr/* 通过channel解析出远程的地址 */, cmd, response);
                             if (cmd.isOnewayRPC()) {
                                 // 是否时单向的，如果时，则不响应了
                                 return;
@@ -246,21 +252,15 @@ public abstract class NettyRemotingAbstract {
                                     // 真正的在网络层响应,交给netty做 IO线程做,返回给对端
                                     ctx.writeAndFlush(response);
                                 } catch (Throwable e) {
-                                    log.error("process request over, but response failed", e);
-                                    log.error(cmd.toString());
-                                    log.error(response.toString());
+                                    // ignore
                                 }
                             }
-
-                            /**
-                             * 如果 response 为 null ，则不给对端发送数据
-                             */
                         }
                     };
 
                     // 获取到处理器
                     final NettyRequestProcessor requestProcessor = nettyRequestProcessor;
-                    if (requestProcessor instanceof AsyncNettyRequestProcessor) {
+                    if (requestProcessor instanceof AsyncNettyRequestProcessor/*异步*/) {
                         // namesrv 进入这里
                         AsyncNettyRequestProcessor processor = (AsyncNettyRequestProcessor) requestProcessor;
                         /**
@@ -276,13 +276,11 @@ public abstract class NettyRemotingAbstract {
                         // 执行任务，拿到响应
                         RemotingCommand response = requestProcessor.processRequest(ctx, cmd);
                         // 执行rpc调用后的钩子函数
-                        doAfterRpcHooks(RemotingHelper.parseChannelRemoteAddr(ctx.channel())/* 通过channel解析出远程的地址 */, cmd, response);
+                        doAfterRpcHooks(remoteAddr/* 通过channel解析出远程的地址 */, cmd, response);
                         // 同步的任务，当前线程自己主动调用 callback，把结果写到对端
                         callback.callback(response);
                     }
                 } catch (Throwable e) {
-                    log.error("process request exception", e);
-                    log.error(cmd.toString());
                     if (!cmd.isOnewayRPC()) {
                         // 如果不是单向请求，则发生异常的时候也需要响应给对端
                         final RemotingCommand response = RemotingCommand.createResponseCommand(RemotingSysResponseCode.SYSTEM_ERROR, RemotingHelper.exceptionSimpleDesc(e));
@@ -311,15 +309,11 @@ public abstract class NettyRemotingAbstract {
             // 提交到线程池，里面会执行上面封装的 run 方法
             ExecutorService executorService = pair.getObject2();
             executorService.submit(requestTask);
-        } catch (RejectedExecutionException e) {
-            if ((System.currentTimeMillis() % 10000) == 0) {
-                log.warn(RemotingHelper.parseChannelRemoteAddr(ctx.channel()) + ", too many requests and system thread pool busy, RejectedExecutionException " + pair.getObject2().toString() + " request code: " + code);
-            }
+        } catch (RejectedExecutionException e/*线程池任务队列满了，被拒绝了*/) {
             if (!cmd.isOnewayRPC()) {
                 // 如果该请求不是单向的，则至少给对端一个响应
                 final RemotingCommand response = RemotingCommand.createResponseCommand(RemotingSysResponseCode.SYSTEM_BUSY, "[OVERLOAD]system busy, start flow control for a while");
                 response.setOpaque(opaque);
-
                 // 通过 netty 写入到对端
                 ctx.writeAndFlush(response);
             }
@@ -340,8 +334,6 @@ public abstract class NettyRemotingAbstract {
         // 远端返回的响应，则需要根据 opaque 找到发起请求时候的 future
         final ResponseFuture responseFuture = responseTable.get(opaque);
         if (responseFuture == null) {
-            log.warn("receive response, but not matched any request, " + RemotingHelper.parseChannelRemoteAddr(ctx.channel()));
-            log.warn(cmd.toString());
             return;
         }
 
@@ -434,30 +426,26 @@ public abstract class NettyRemotingAbstract {
      * </p>
      */
     public void scanResponseTable() {
+        // 需要移除的队列
         final List<ResponseFuture> rfList = new LinkedList<ResponseFuture>();
-        // ConcurrentMap<Integer /* opaque */, ResponseFuture> responseTable
-        // key:opaque,value:ResponseFuture
-        // ConcurrentMap<Integer /* opaque */, ResponseFuture> responseTable
-        Iterator<Entry<Integer/* opaque */, ResponseFuture>> iterator = this.responseTable.entrySet().iterator();
+        Iterator<Entry<Integer/* opaque */, ResponseFuture/*响应，里面封装了异步转同步的逻辑*/>> iterator = this.responseTable.entrySet().iterator();
         while (iterator.hasNext()) {
             // key:opaque,value:ResponseFuture
             Entry<Integer/* opaque */, ResponseFuture> next = iterator.next();
             ResponseFuture responseFuture = next.getValue();
-            if ((responseFuture.getBeginTimestamp() + responseFuture.getTimeoutMillis() + 1000) <= System.currentTimeMillis() /*超时的请求*/) {
-                // 超时的需要定时清理
+            if ((responseFuture.getBeginTimestamp()/*开始请求的时间*/ + responseFuture.getTimeoutMillis()/*超时时间*/ + 1000) <= System.currentTimeMillis() /*超时的请求*/) {
+                // 超时的需要定时清理,并发度-1
                 responseFuture.release();
                 // 从列表中移除
                 iterator.remove();
-
                 // 添加到超时列表中，后面会统一处理
                 rfList.add(responseFuture);
-                log.warn("remove timeout request, " + responseFuture);
             }
         }
 
         for (ResponseFuture rf : rfList) {
             try {
-                // 超时的直接执行回调？？为什么呢？？
+                // 超时的直接执行回调
                 executeInvokeCallback(rf);
             } catch (Throwable e) {
                 log.warn("scanResponseTable, operationComplete Exception", e);
@@ -475,14 +463,11 @@ public abstract class NettyRemotingAbstract {
      * @param timeoutMillis 超时时长
      * @return 请求？
      */
-    public RemotingCommand invokeSyncImpl(final Channel channel, final RemotingCommand request, final long timeoutMillis) throws InterruptedException, RemotingSendRequestException, RemotingTimeoutException {
+    public RemotingCommand invokeSyncImpl(final Channel channel/*客户端跟服务端的连接*/, final RemotingCommand request/*请求*/, final long timeoutMillis) throws InterruptedException, RemotingSendRequestException, RemotingTimeoutException {
         // 请求 id
         final int opaque = request.getOpaque();
         try {
             final ResponseFuture responseFuture = new ResponseFuture(channel, opaque, timeoutMillis, null, null);
-            // 先不管那么多，先放到映射表
-            // key:opaque
-
             // 因为 netty 是一个异步的网络通信框架，怎么实现同步调用呢？答案就在这个映射表中！
             this.responseTable.put(opaque, responseFuture);
 
@@ -494,7 +479,6 @@ public abstract class NettyRemotingAbstract {
             // 注册监听器:channel线程回调
             channelFuture.addListener(new ChannelFutureListener() {
                 // 提取注册监听器，注意：在操作完成之后再回调这个方法，并不是马上执行的！！！！！
-
                 @Override
                 public void operationComplete(ChannelFuture future) {
                     // 如果写成功，则
@@ -512,8 +496,6 @@ public abstract class NettyRemotingAbstract {
                         responseTable.remove(opaque);
                         responseFuture.setCause(future.cause());
                         responseFuture.putResponse(null);
-
-                        log.warn("send a request command to channel <" + addr + "> failed.");
                     }
                 }
             });
@@ -590,7 +572,6 @@ public abstract class NettyRemotingAbstract {
                         }
                         // 失败
                         requestFail(opaque);
-                        log.warn("send a request command to channel <{}> failed.", RemotingHelper.parseChannelRemoteAddr(channel));
                     }
                 });
             } catch (Exception e) {
@@ -607,6 +588,41 @@ public abstract class NettyRemotingAbstract {
                 throw new RemotingTooMuchRequestException("invokeAsyncImpl invoke too fast");
             } else {
                 String info = String.format("invokeAsyncImpl tryAcquire semaphore timeout, %dms, waiting thread nums: %d semaphoreAsyncValue: %d", timeoutMillis, this.semaphoreAsync.getQueueLength(), this.semaphoreAsync.availablePermits());
+                log.warn(info);
+                throw new RemotingTimeoutException(info);
+            }
+        }
+    }
+
+    // 请求发送完成即可，不关心结果
+    public void invokeOnewayImpl(final Channel channel, final RemotingCommand request, final long timeoutMillis) throws InterruptedException, RemotingTooMuchRequestException, RemotingTimeoutException, RemotingSendRequestException {
+        // 在请求中做一个标记，告诉客户端不用返回结果
+        request.markOnewayRPC();
+        // 单向请求的并发控制
+        boolean acquired = this.semaphoreOneway.tryAcquire(timeoutMillis, TimeUnit.MILLISECONDS);
+        if (acquired) {
+            // 传递引用，响应拿到的时候需要是否信号量
+            final SemaphoreReleaseOnlyOnce once = new SemaphoreReleaseOnlyOnce(this.semaphoreOneway);
+            try {
+                ChannelFuture writeAndFlush = channel.writeAndFlush/*通过网络发送请求*/(request);
+                writeAndFlush.addListener(new ChannelFutureListener() {
+                    @Override
+                    public void operationComplete(ChannelFuture f) {
+                        // 操作完成，不管成功失败，都释放信号量
+                        once.release();
+                    }
+                });
+            } catch (Exception e) {
+                once.release();
+                log.warn("write send a request command to channel <" + channel.remoteAddress() + "> failed.");
+                throw new RemotingSendRequestException(RemotingHelper.parseChannelRemoteAddr(channel), e);
+            }
+        } else {
+            if (timeoutMillis <= 0) {
+                throw new RemotingTooMuchRequestException("invokeOnewayImpl invoke too fast");
+            } else {
+                String msg = "invokeOnewayImpl tryAcquire semaphore timeout, %dms, waiting thread nums: %d semaphoreAsyncValue: %d";
+                String info = String.format(msg, timeoutMillis, this.semaphoreOneway.getQueueLength(), this.semaphoreOneway.availablePermits());
                 log.warn(info);
                 throw new RemotingTimeoutException(info);
             }
@@ -640,52 +656,14 @@ public abstract class NettyRemotingAbstract {
      * @param channel the channel which is close already
      */
     protected void failFast(final Channel channel) {
-        // ConcurrentMap<Integer /* opaque */, ResponseFuture> responseTable
-        for (Entry<Integer, ResponseFuture> entry : responseTable.entrySet()) {
-            if (entry.getValue().getProcessChannel() == channel) {
+        for (Entry<Integer/* opaque */, ResponseFuture> entry : responseTable.entrySet()) {
+            ResponseFuture responseFuture = entry.getValue();
+            Channel processChannel = responseFuture.getProcessChannel();
+            if (processChannel == channel) {
                 Integer opaque = entry.getKey();
                 if (opaque != null) {
                     requestFail(opaque);
                 }
-            }
-        }
-    }
-
-    // 请求发送完成即可，不关心结果
-    public void invokeOnewayImpl(final Channel channel, final RemotingCommand request, final long timeoutMillis) throws InterruptedException, RemotingTooMuchRequestException, RemotingTimeoutException, RemotingSendRequestException {
-        // 在请求中做一个标记，告诉客户端不用返回结果
-        request.markOnewayRPC();
-        // 单向请求的并发控制
-        boolean acquired = this.semaphoreOneway.tryAcquire(timeoutMillis, TimeUnit.MILLISECONDS);
-        if (acquired) {
-            // 传递引用，响应拿到的时候需要是否信号量
-            final SemaphoreReleaseOnlyOnce once = new SemaphoreReleaseOnlyOnce(this.semaphoreOneway);
-            try {
-                ChannelFuture writeAndFlush = channel.writeAndFlush(request);
-                writeAndFlush.addListener(new ChannelFutureListener() {
-                    @Override
-                    public void operationComplete(ChannelFuture f) {
-                        // 操作完成，不管成功失败，都释放信号量
-                        once.release();
-                        if (!f.isSuccess()) {
-                            // 失败打印日志
-                            log.warn("send a request command to channel <" + channel.remoteAddress() + "> failed.");
-                        }
-                    }
-                });
-            } catch (Exception e) {
-                once.release();
-                log.warn("write send a request command to channel <" + channel.remoteAddress() + "> failed.");
-                throw new RemotingSendRequestException(RemotingHelper.parseChannelRemoteAddr(channel), e);
-            }
-        } else {
-            if (timeoutMillis <= 0) {
-                throw new RemotingTooMuchRequestException("invokeOnewayImpl invoke too fast");
-            } else {
-                String msg = "invokeOnewayImpl tryAcquire semaphore timeout, %dms, waiting thread nums: %d semaphoreAsyncValue: %d";
-                String info = String.format(msg, timeoutMillis, this.semaphoreOneway.getQueueLength(), this.semaphoreOneway.availablePermits());
-                log.warn(info);
-                throw new RemotingTimeoutException(info);
             }
         }
     }

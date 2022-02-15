@@ -17,12 +17,31 @@ import java.util.concurrent.ExecutorService;
  */
 public interface RemotingServer extends RemotingService {
 
+    /**
+     * 注册处理器
+     *
+     * @param requestCode 业务代码
+     * @param processor 处理器
+     * @param executor 执行该业务代码的线程池
+     */
     void registerProcessor(final int requestCode, final NettyRequestProcessor processor, final ExecutorService executor);
 
+    /**
+     * 注册默认处理器
+     *
+     * @param processor 处理器
+     * @param executor 执行该业务代码的线程池
+     */
     void registerDefaultProcessor(final NettyRequestProcessor processor, final ExecutorService executor);
 
     int localListenPort();
 
+    /**
+     * 获取该业务代码的处理器对
+     *
+     * @param requestCode 业务代码
+     * @return 处理器对
+     */
     Pair<NettyRequestProcessor, ExecutorService> getProcessorPair(final int requestCode);
 
     RemotingCommand invokeSync(final Channel channel, final RemotingCommand request, final long timeoutMillis) throws InterruptedException, RemotingSendRequestException, RemotingTimeoutException;

@@ -101,6 +101,7 @@ public class ResponseFuture {
 
     public void release() {
         if (this.once != null) {
+            // 并发度-1
             this.once.release();
         }
     }
