@@ -22,7 +22,7 @@ public class ResponseFuture {
     private final int opaque;
 
     /**
-     * 发送请求的时候与服务端建立的连接
+     * 发送请求的时候与服务端建立的连接,对端响应过来的时候需要找到连接才能写数据
      */
     @Getter
     private final Channel processChannel;
@@ -46,7 +46,7 @@ public class ResponseFuture {
      *
      * 发起请求的线程在这个对象等待
      *
-     * 异步转同步的关机所在！！！
+     * 异步转同步的关键所在！！！
      */
     private final CountDownLatch countDownLatch = new CountDownLatch(1);
 

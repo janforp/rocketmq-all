@@ -63,10 +63,10 @@ public abstract class NettyRemotingAbstract {
     protected final Semaphore semaphoreAsync;
 
     /**
-     * This map caches all on-going（进行中） requests.
+     * This map caches all on-going requests. -- 此映射缓存所有正在进行的请求。
      * 请求响应映射表
-     * 如果服务端发起请求到客户端，则服务端会有这样一个映射表
-     * 如果客户端发起请求到服务端，则客户端会有这样一个映射表
+     * 如果服务端发起请求到客户端，则服务端会有这样一个映射表 {@link NettyRemotingServer} 服务端实现类
+     * 如果客户端发起请求到服务端，则客户端会有这样一个映射表 {@link NettyRemotingClient} 客户端实现类
      * 主要目的是待对端响应的时候跟唯一opaque能够找到响应到哪个对象
      *
      * 因为发起请求跟得到响应，两个步骤之间是有一定时间间隔的！
@@ -78,8 +78,8 @@ public abstract class NettyRemotingAbstract {
     protected final ConcurrentMap<Integer /* opaque */, ResponseFuture/*响应，里面封装了异步转同步的逻辑*/> responseTable = new ConcurrentHashMap<Integer, ResponseFuture>(256);
 
     /**
-     * This container holds all processors per request code, aka, for each incoming request, we may look up the
-     * responding processor in this map to handle the request.
+     * This container holds all processors per request code, aka, for each incoming request, we may look up the responding processor in this map to handle the request.
+     * 这个容器包含每个请求代码的所有处理器，也就是对于每个传入的请求，我们可以在这个映射中查找响应处理器来处理请求。
      */
     protected final HashMap<Integer/* request code */, Pair<NettyRequestProcessor/*业务处理器*/, ExecutorService/*处理业务逻辑的时候，在该线程池资源中执行*/>> processorTable = new HashMap<Integer, Pair<NettyRequestProcessor, ExecutorService>>(64);
 
@@ -122,15 +122,6 @@ public abstract class NettyRemotingAbstract {
         this.semaphoreOneway = new Semaphore(permitsOneway, true);
         this.semaphoreAsync = new Semaphore(permitsAsync, true);
     }
-
-    /**
-     * Custom channel event listener.
-     *
-     * @return custom channel event listener if defined; null otherwise.
-     * @see org.apache.rocketmq.namesrv.routeinfo.BrokerHousekeepingService
-     * @see org.apache.rocketmq.broker.client.ClientHousekeepingService
-     */
-    public abstract ChannelEventListener getChannelEventListener();
 
     /**
      * Put a netty event to the executor.
@@ -411,14 +402,6 @@ public abstract class NettyRemotingAbstract {
         }
         return null;
     }
-
-    /**
-     * This method specifies thread pool to use while invoking callback methods.
-     *
-     * @return Dedicated thread pool instance if specified; or null if the callback is supposed to be executed in the
-     * netty event-loop thread.
-     */
-    public abstract ExecutorService getCallbackExecutor();
 
     /**
      * <p>
@@ -724,4 +707,23 @@ public abstract class NettyRemotingAbstract {
             }
         }
     }
+
+    //************* 下面为抽象方法 *********//
+
+    /**
+     * Custom channel event listener.
+     *
+     * @return custom channel event listener if defined; null otherwise.
+     * @see org.apache.rocketmq.namesrv.routeinfo.BrokerHousekeepingService
+     * @see org.apache.rocketmq.broker.client.ClientHousekeepingService
+     */
+    public abstract ChannelEventListener getChannelEventListener();
+
+    /**
+     * This method specifies thread pool to use while invoking callback methods.
+     *
+     * @return Dedicated thread pool instance if specified; or null if the callback is supposed to be executed in the
+     * netty event-loop thread.
+     */
+    public abstract ExecutorService getCallbackExecutor();
 }
