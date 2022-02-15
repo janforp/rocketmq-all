@@ -245,6 +245,13 @@ public class DefaultRequestProcessor extends AsyncNettyRequestProcessor implemen
         return response;
     }
 
+    /**
+     * @param ctx
+     * @param request
+     * @return
+     * @throws RemotingCommandException
+     * @see org.apache.rocketmq.broker.out.BrokerOuterAPI#registerBroker(java.lang.String, boolean, int, org.apache.rocketmq.common.protocol.header.namesrv.RegisterBrokerRequestHeader, byte[])
+     */
     private RemotingCommand registerBroker(ChannelHandlerContext ctx, RemotingCommand request) throws RemotingCommandException {
         // response 中包含了 RegisterBrokerResponseHeader 对象
         final RemotingCommand response = RemotingCommand.createResponseCommand(RegisterBrokerResponseHeader.class);

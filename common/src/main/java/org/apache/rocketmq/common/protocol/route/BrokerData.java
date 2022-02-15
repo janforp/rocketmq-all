@@ -27,6 +27,8 @@ public class BrokerData implements Comparable<BrokerData> {
 
     /**
      * 集群名称，brokerClusterName=rocketmq-cluster
+     *
+     * 同一个集群下面会存在多个 brokerName,同一个 brokerName 可能有多台 broker 服务，包括主从
      */
     @Getter
     @Setter

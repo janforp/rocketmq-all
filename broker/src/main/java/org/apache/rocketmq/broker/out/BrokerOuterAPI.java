@@ -107,6 +107,8 @@ public class BrokerOuterAPI {
 
         final List<RegisterBrokerResult> registerBrokerResultList = Lists.newArrayList();
         List<String> nameServerAddressList = this.remotingClient.getNameServerAddressList();
+
+        // broker 路由信息需要注册到所有的 namesrv 上
         if (nameServerAddressList != null && nameServerAddressList.size() > 0) {
 
             final RegisterBrokerRequestHeader requestHeader = new RegisterBrokerRequestHeader();
@@ -128,6 +130,7 @@ public class BrokerOuterAPI {
             final CountDownLatch countDownLatch = new CountDownLatch(nameServerAddressList.size());
 
             // 遍历所有的 namesrv
+            // broker 路由信息需要注册到所有的 namesrv 上
             for (final String namesrvAddr : nameServerAddressList) {
                 brokerOuterExecutor.execute(() -> {
                     try {

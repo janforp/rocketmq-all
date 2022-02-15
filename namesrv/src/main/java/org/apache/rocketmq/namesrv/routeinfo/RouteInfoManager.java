@@ -63,6 +63,8 @@ public class RouteInfoManager {
      * Topic和broker的Map，保存了topic在每个broker上的读写Queue的个数以及读写权限
      * <p>
      * 消息队列路由消息,消息发送会根据路由表负责均衡
+     *
+     * 集群部署的时候，topic 是可以分布在不同的 brokerName 上的！！！！
      */
     private final HashMap<String/* topic */, List<QueueData/*包含 broker 的队列信息*/> /*该主题下面的各个队列的属性*/> topicQueueTable;
 
@@ -154,6 +156,11 @@ public class RouteInfoManager {
         return topicList.encode();
     }
 
+    /**
+     * broker 启动的时候会把自己注册到每个 namesrv 上
+     *
+     * @see org.apache.rocketmq.broker.out.BrokerOuterAPI#registerBroker(java.lang.String, boolean, int, org.apache.rocketmq.common.protocol.header.namesrv.RegisterBrokerRequestHeader, byte[])
+     */
     // crud
     public RegisterBrokerResult registerBroker(
             final String clusterName/*集群名称*/, final String brokerAddr/*节点ip地址*/, final String brokerName/*节点名称*/, final long brokerId/*节点id:0为主节点*/, final String haServerAddr/*ha节点地址*/,
