@@ -164,7 +164,7 @@ public class RouteInfoManager {
     // crud
     public RegisterBrokerResult registerBroker(
             final String clusterName/*集群名称*/, final String brokerAddr/*节点ip地址*/, final String brokerName/*节点名称*/, final long brokerId/*节点id:0为主节点*/, final String haServerAddr/*ha节点地址*/,
-            final TopicConfigSerializeWrapper topicConfigWrapper/*当前节点的主题信息*/, final List<String> filterServerList/*过滤服务器列表*/, final Channel channel/*当前服务端与客户端的通信ch*/) {
+            final TopicConfigSerializeWrapper topicConfigWrapper/*当前broker节点的主题信息*/, final List<String> filterServerList/*过滤服务器列表*/, final Channel channel/*当前服务端与客户端的通信ch*/) {
         RegisterBrokerResult result = new RegisterBrokerResult();
         try {
             try {
@@ -187,14 +187,13 @@ public class RouteInfoManager {
                 }
 
                 // 获取物理节点数据 map 表
-                // HashMap<Long/* brokerId */, String/* broker address */>
-                Map<Long, String> brokerAddrsMap = brokerData.getBrokerAddrs();
+                Map<Long/* brokerId */, String/* broker address */> brokerAddrsMap = brokerData.getBrokerAddrs();
                 //Switch slave to master: first remove <1, IP:PORT> in namesrv, then add <0, IP:PORT>
                 //The same IP:PORT must only have one record in brokerAddrTable
 
                 // 遍历
                 // 当前物理节点角色发生变化了，此时需要将它从 broker 物理节点映射表中移除，后面会重新写进去
-                brokerAddrsMap.entrySet().removeIf(item -> null != brokerAddr && brokerAddr.equals(item.getValue()) && brokerId != item.getKey());
+                brokerAddrsMap.entrySet().removeIf(item -> null != brokerAddr && brokerAddr.equals(item.getValue()) && brokerId != item.getKey()/* brokeId 发生了变化 */);
 
                 // 重写
                 HashMap<Long, String> brokerDataBrokerAddrs = brokerData.getBrokerAddrs();
@@ -202,7 +201,7 @@ public class RouteInfoManager {
                 String oldAddr = brokerDataBrokerAddrs.put(brokerId, brokerAddr);
                 registerFirst = registerFirst || (null == oldAddr);
 
-                if (null != topicConfigWrapper && MixAll.MASTER_ID == brokerId/*当前物理节点是主节点*/) {
+                if (null != topicConfigWrapper/*当前broker节点的主题信息*/ && MixAll.MASTER_ID == brokerId/*当前物理节点是主节点*/) {
                     DataVersion dataVersion = topicConfigWrapper.getDataVersion();
                     boolean brokerTopicConfigChanged = this.isBrokerTopicConfigChanged(brokerAddr, dataVersion/*其实就是比较版本是否一致*/);
                     if (brokerTopicConfigChanged || registerFirst) {
@@ -210,10 +209,10 @@ public class RouteInfoManager {
                         ConcurrentMap<String/*topic*/ , TopicConfig/*主题信息*/> tcTable = topicConfigWrapper.getTopicConfigTable();
                         if (tcTable != null) {
                             // 加入 或者 更新到 namesrv中
-                            for (Map.Entry<String, TopicConfig> entry : tcTable.entrySet()) {
+                            for (Map.Entry<String/*topic*/, TopicConfig> entry : tcTable.entrySet()) {
                                 TopicConfig topicConfig = entry.getValue();
                                 // private final HashMap<String/* topic */, List<QueueData/*包含 broker 的队列信息*/> /*该主题下面的各个队列的属性*/> topicQueueTable;
-                                this.createAndUpdateQueueData(brokerName, topicConfig);
+                                this.createAndUpdateQueueData(brokerName, topicConfig/*每个主题的信息*/);
                             }
                         }
                     }
@@ -300,6 +299,9 @@ public class RouteInfoManager {
             this.topicQueueTable.put(topicName, queueDataList);
             log.info("new topic registered, {} {}", topicName, queueData);
         } else {
+
+            // 这么麻烦，为啥不用 Set 呢？
+
             boolean addNewOne = true;
             Iterator<QueueData> it = queueDataList.iterator();
             while (it.hasNext()) {
@@ -512,17 +514,18 @@ public class RouteInfoManager {
      *
      * @param remoteAddr 移除的 broker 地址
      * @param channel 可能存在的连接
+     * @see RouteInfoManager#scanNotActiveBroker() 定时任务调用
+     * @see BrokerHousekeepingService#channelDestroy(java.lang.String, io.netty.channel.Channel)
      */
     public void onChannelDestroy(String remoteAddr, Channel channel) {
-        // 127.0.0.1:10911
+        // 根据channel查询到的 broker 地址，如：127.0.0.1:10911
         String brokerAddrFound = null;
         if (channel != null) {
             try {
                 try {
                     this.lock.readLock().lockInterruptibly();
-                    // HashMap<String/* brokerAddr，如 127.0.0.1:10911 在整个集群中是唯一的 */, BrokerLiveInfo /*封装了该broker最近心跳的时间,broker是否存活也依赖该时间*/> brokerLiveTable;
-                    for (Entry<String, BrokerLiveInfo> entry : this.brokerLiveTable.entrySet()) {
-                        BrokerLiveInfo brokerLiveInfo = entry.getValue();
+                    for (Entry<String/* brokerAddr，如 127.0.0.1:10911 在整个集群中是唯一的 */, BrokerLiveInfo/*封装了该broker最近心跳的时间,broker是否存活也依赖该时间*/> entry : this.brokerLiveTable.entrySet()) {
+                        BrokerLiveInfo brokerLiveInfo/*封装了该broker最近心跳的时间,broker是否存活也依赖该时间*/ = entry.getValue();
                         if (brokerLiveInfo.getChannel() == channel) {
                             brokerAddrFound = entry.getKey(); // 127.0.0.1:10911
                             break;

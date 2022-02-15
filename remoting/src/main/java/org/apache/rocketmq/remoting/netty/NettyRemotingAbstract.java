@@ -222,7 +222,11 @@ public abstract class NettyRemotingAbstract {
                     // 执行rpc调用前的钩子函数
                     doBeforeRpcHooks(remoteAddr /* 通过channel解析出远程的地址 */, cmd);
 
-                    // 如果是异步的，任务执行完成之后会回调到该对象的 callback 函数
+                    /**
+                     * 如果是异步的，任务执行完成之后会回调到该对象的 callback 函数
+                     *
+                     * @see AsyncNettyRequestProcessor#asyncProcessRequest 这个方法中调用回调
+                     */
                     final RemotingResponseCallback callback = new RemotingResponseCallback() {
                         @Override
                         public void callback(RemotingCommand response) {
