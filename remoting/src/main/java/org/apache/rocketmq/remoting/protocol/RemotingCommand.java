@@ -470,7 +470,7 @@ public class RemotingCommand {
 
         // 2> header data length
         byte[] headerData = this.headerEncode();
-        length += headerData.length;
+        length = length + headerData.length;
 
         // 3> body data length
         if (this.body != null) {
@@ -503,10 +503,16 @@ public class RemotingCommand {
         if (SerializeType.ROCKETMQ == serializeTypeCurrentRPC) {
             return RocketMQSerializable.rocketMQProtocolEncode(this);
         } else {
+
+            // 一般是这个
             return RemotingSerializable.encode(this);
         }
     }
 
+    /**
+     * 自定义头到网络
+     * 把  {@link RemotingCommand#customHeader} 转换到 {@link RemotingCommand#extFields}
+     */
     public void makeCustomHeaderToNet() {
         if (this.customHeader == null) {
             return;
@@ -516,6 +522,7 @@ public class RemotingCommand {
             this.extFields = new HashMap<String, String>();
         }
 
+        // 遍历所有字段
         for (Field field : fields) {
             if (Modifier.isStatic(field.getModifiers())) {
                 continue;
@@ -524,6 +531,9 @@ public class RemotingCommand {
             if (name.startsWith("this")) {
                 continue;
             }
+
+            // 正常逻辑在下面
+
             Object value = null;
             try {
                 field.setAccessible(true);
@@ -544,7 +554,10 @@ public class RemotingCommand {
      * @see NettyEncoder#encode(io.netty.channel.ChannelHandlerContext, org.apache.rocketmq.remoting.protocol.RemotingCommand, io.netty.buffer.ByteBuf)
      */
     public ByteBuffer encodeHeader() {
-        return encodeHeader(this.body != null ? this.body.length : 0);
+
+        int bodyLen = this.body != null ? this.body.length : 0;
+
+        return encodeHeader(bodyLen);
     }
 
     public ByteBuffer encodeHeader(final int bodyLength) {

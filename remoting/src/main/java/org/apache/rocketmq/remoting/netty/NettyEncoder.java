@@ -21,13 +21,13 @@ public class NettyEncoder extends MessageToByteEncoder<RemotingCommand> {
     private static final InternalLogger log = InternalLoggerFactory.getLogger(RemotingHelper.ROCKETMQ_REMOTING);
 
     @Override
-    public void encode(ChannelHandlerContext ctx, RemotingCommand remotingCommand, ByteBuf out) throws Exception {
+    public void encode(ChannelHandlerContext ctx, RemotingCommand remotingCommand/*待编码对象*/, ByteBuf out) throws Exception {
         try {
-            ByteBuffer header = remotingCommand.encodeHeader();
-            out.writeBytes(header);
+            ByteBuffer header = remotingCommand.encodeHeader()/*编码成字节*/;
+            out.writeBytes(header/*写入头*/);
             byte[] body = remotingCommand.getBody();
             if (body != null) {
-                out.writeBytes(body);
+                out.writeBytes(body/*写入体*/);
             }
         } catch (Exception e) {
             log.error("encode exception, " + RemotingHelper.parseChannelRemoteAddr(ctx.channel()), e);
