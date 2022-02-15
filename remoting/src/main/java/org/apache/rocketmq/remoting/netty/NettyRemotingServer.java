@@ -61,6 +61,12 @@ public class NettyRemotingServer extends NettyRemotingAbstract implements Remoti
 
     private static final InternalLogger log = InternalLoggerFactory.getLogger(RemotingHelper.ROCKETMQ_REMOTING);
 
+    private static final String HANDSHAKE_HANDLER_NAME = "handshakeHandler";
+
+    private static final String TLS_HANDLER_NAME = "sslHandler";
+
+    private static final String FILE_REGION_ENCODER_NAME = "fileRegionEncoder";
+
     // netty服务端启动对象
     private final ServerBootstrap serverBootstrap;
 
@@ -96,12 +102,6 @@ public class NettyRemotingServer extends NettyRemotingAbstract implements Remoti
 
     // 服务器绑定端口,启动成功后赋值
     private int port = 0;
-
-    private static final String HANDSHAKE_HANDLER_NAME = "handshakeHandler";
-
-    private static final String TLS_HANDLER_NAME = "sslHandler";
-
-    private static final String FILE_REGION_ENCODER_NAME = "fileRegionEncoder";
 
     // 共享，多个 channel 公用
     // sharable handlers
@@ -155,7 +155,7 @@ public class NettyRemotingServer extends NettyRemotingAbstract implements Remoti
          * ##
          * serverCallbackExecutorThreads=0
          */
-        int publicThreadNums = nettyServerConfig.getServerCallbackExecutorThreads();
+        int publicThreadNums = nettyServerConfig.getServerCallbackExecutorThreads()/*默认0*/;
         if (publicThreadNums <= 0) {
             publicThreadNums = 4;
         }
@@ -172,6 +172,7 @@ public class NettyRemotingServer extends NettyRemotingAbstract implements Remoti
 
         // 创建 boss,work 线程组
         if (useEpoll()) {
+            // boss
             this.eventLoopGroupBoss = new EpollEventLoopGroup(1, new ThreadFactory() {
                 private final AtomicInteger threadIndex = new AtomicInteger(0);
 
@@ -181,7 +182,8 @@ public class NettyRemotingServer extends NettyRemotingAbstract implements Remoti
                 }
             });
 
-            this.eventLoopGroupSelector = new EpollEventLoopGroup(nettyServerConfig.getServerSelectorThreads(), new ThreadFactory() {
+            // worker
+            this.eventLoopGroupSelector = new EpollEventLoopGroup(nettyServerConfig.getServerSelectorThreads()/*3*/, new ThreadFactory() {
                 private final AtomicInteger threadIndex = new AtomicInteger(0);
 
                 private final int threadTotal = nettyServerConfig.getServerSelectorThreads();
@@ -192,6 +194,8 @@ public class NettyRemotingServer extends NettyRemotingAbstract implements Remoti
                 }
             });
         } else {
+
+            // boss
             this.eventLoopGroupBoss = new NioEventLoopGroup(1, new ThreadFactory() {
                 private final AtomicInteger threadIndex = new AtomicInteger(0);
 
@@ -201,6 +205,7 @@ public class NettyRemotingServer extends NettyRemotingAbstract implements Remoti
                 }
             });
 
+            // worker
             this.eventLoopGroupSelector = new NioEventLoopGroup(nettyServerConfig.getServerSelectorThreads(), new ThreadFactory() {
                 private final AtomicInteger threadIndex = new AtomicInteger(0);
 
@@ -214,7 +219,6 @@ public class NettyRemotingServer extends NettyRemotingAbstract implements Remoti
         }
 
         // 创建完，但是并没有启动
-
         loadSslContext();
     }
 
@@ -235,9 +239,9 @@ public class NettyRemotingServer extends NettyRemotingAbstract implements Remoti
     }
 
     private boolean useEpoll() {
-        return RemotingUtil.isLinuxPlatform()
-                && nettyServerConfig.isUseEpollNativeSelector()
-                && Epoll.isAvailable();
+        return RemotingUtil.isLinuxPlatform() // 操作系统是 linux
+                && nettyServerConfig.isUseEpollNativeSelector() // 配置开启
+                && Epoll.isAvailable(); // 是否允许使用
     }
 
     /**
@@ -246,7 +250,7 @@ public class NettyRemotingServer extends NettyRemotingAbstract implements Remoti
      */
     @Override
     public void start() {
-        // 当向 channel pipeline 添加 handler 时，制定了 GROUp时候，网络事件传播到当前 handler 时，事件处理器由分配给 handler 的线程执行
+        // 当向 channel pipeline 添加 handler 时，指定了 GROUP时候，网络事件传播到当前 handler 时，事件处理器由分配给 handler 的线程执行
         this.defaultEventExecutorGroup = new DefaultEventExecutorGroup(nettyServerConfig.getServerWorkerThreads(),/*配置的线程数量 8 */
                 // 线程工厂
                 new ThreadFactory() {
@@ -526,7 +530,6 @@ public class NettyRemotingServer extends NettyRemotingAbstract implements Remoti
 
         @Override
         protected void channelRead0(ChannelHandlerContext ctx, RemotingCommand msg/*该对象是 org.apache.rocketmq.remoting.netty.NettyDecoder 解码器转化过来的，这就是 netty 的使用方法！！！*/) {
-
             // 对端有数据过来啦啊
             processMessageReceived(ctx, msg);
         }

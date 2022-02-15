@@ -404,8 +404,10 @@ public abstract class NettyRemotingAbstract {
     }
 
     /**
+     * 定时任务会定时执行该方法，每秒钟执行一次，由{@link NettyRemotingServer#timer} 执行
      * <p>
      * This method is periodically invoked to scan and expire deprecated request.
+     * 定期调用此方法来扫描和过期不推荐使用的请求。
      * </p>
      */
     public void scanResponseTable() {
