@@ -77,7 +77,7 @@ public class RouteInfoManager {
      * <p>
      * Broker基础信息.所在集群名称、brokerName以及主备Broker地址
      */
-    private final HashMap<String/* brokerName，如：broker-a */, BrokerData /* broker 信息,包括主从 broker，只要 brokerName 相关的 broker 都会封装在一个对象中，其实都是有配置决定 */> brokerAddrTable;
+    private final HashMap<String/* brokerName，如：broker-a */, BrokerData /* broker 信息,包括主从 broker，只要 brokerName 相关的 broker 都会封装在一个对象中，其实都是由配置决定 */> brokerAddrTable;
 
     /**
      * broker的集群对应关系
@@ -172,14 +172,9 @@ public class RouteInfoManager {
                 // 获取当前集群上的 broker 列表
                 // HashMap<String/* clusterName 集群名称 */, Set<String/* brokerName */> /*某个集群下面的所有 broker 名称集合*/> clusterAddrTable;
                 Set<String> brokerNames = this.clusterAddrTable.computeIfAbsent(clusterName, k -> new HashSet<>() /* 如果当前 集群名称 还没有对于的 Set，则新创建一个空集合赛进去 */);
-                // 如果为空，则说明是第一次注册
-                // 添加新集群映射数据
-                // key 集群名称
-                // value 集群brokerNames
-                // 当前的broker添加到集合
-                // 某个集群下面的所有 broker 名称集合
                 brokerNames.add(brokerName);
-                // boker是否首次注册？
+
+                // broker是否首次注册？因为一个 brokerName 可能存在多台机器，他们的 name 相同，只有第一次注册的时候 registerFirst 为 true
                 boolean registerFirst = false;
                 // HashMap<String/* brokerName，如：broker-a */, BrokerData /* broker 信息,包括主从 broker，只要 brokerName 相关的 broker 都会封装在一个对象中，其实都是有配置决定 */> brokerAddrTable;
                 BrokerData brokerData = this.brokerAddrTable.get(brokerName);
@@ -203,6 +198,7 @@ public class RouteInfoManager {
 
                 // 重写
                 HashMap<Long, String> brokerDataBrokerAddrs = brokerData.getBrokerAddrs();
+                // 把地址添加到映射表
                 String oldAddr = brokerDataBrokerAddrs.put(brokerId, brokerAddr);
                 registerFirst = registerFirst || (null == oldAddr);
 
@@ -216,6 +212,7 @@ public class RouteInfoManager {
                             // 加入 或者 更新到 namesrv中
                             for (Map.Entry<String, TopicConfig> entry : tcTable.entrySet()) {
                                 TopicConfig topicConfig = entry.getValue();
+                                // private final HashMap<String/* topic */, List<QueueData/*包含 broker 的队列信息*/> /*该主题下面的各个队列的属性*/> topicQueueTable;
                                 this.createAndUpdateQueueData(brokerName, topicConfig);
                             }
                         }
