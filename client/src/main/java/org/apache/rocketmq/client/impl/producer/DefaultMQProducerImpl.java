@@ -407,17 +407,16 @@ public class DefaultMQProducerImpl implements MQProducerInner {
         // 创建一个任务
         Runnable request = new Runnable() {
             private final String brokerAddr = addr;
-
             private final MessageExt message = msg;
-
             private final CheckTransactionStateRequestHeader checkRequestHeader = header;
-
             private final String group = DefaultMQProducerImpl.this.defaultMQProducer.getProducerGroup();
 
             @Override
             public void run() {
                 // 内部类的巧妙之处！
+                // 老的
                 TransactionCheckListener transactionCheckListener = DefaultMQProducerImpl.this.checkListener();
+                // 新的
                 TransactionListener transactionListener = getCheckListener();
                 if (transactionCheckListener != null || transactionListener != null) {
                     LocalTransactionState localTransactionState = LocalTransactionState.UNKNOW;
@@ -438,17 +437,17 @@ public class DefaultMQProducerImpl implements MQProducerInner {
                     }
                     this.processTransactionState(localTransactionState, group, exception);
                 } else {
+                    // 没有配置事务回查监听器，怎么过
                     log.warn("CheckTransactionState, pick transactionCheckListener by group[{}] failed", group);
                 }
             }
 
-            private void processTransactionState(final LocalTransactionState localTransactionState, final String producerGroup, final Throwable exception) {
+            private void processTransactionState(final LocalTransactionState localTransactionState/*事务消息回查结果*/, final String producerGroup, final Throwable exception/*回查过程异常*/) {
                 final EndTransactionRequestHeader thisHeader = new EndTransactionRequestHeader();
                 thisHeader.setCommitLogOffset(checkRequestHeader.getCommitLogOffset());
                 thisHeader.setProducerGroup(producerGroup);
                 thisHeader.setTranStateTableOffset(checkRequestHeader.getTranStateTableOffset());
                 thisHeader.setFromTransactionCheck(true);
-
                 String uniqueKey = message.getProperties().get(MessageConst.PROPERTY_UNIQ_CLIENT_MESSAGE_ID_KEYIDX/*UNIQ_KEY*/);
                 if (uniqueKey == null) {
                     uniqueKey = message.getMsgId();
@@ -470,14 +469,15 @@ public class DefaultMQProducerImpl implements MQProducerInner {
                     default:
                         break;
                 }
-
                 String remark = null;
                 if (exception != null) {
+                    // 回查发生了异常
                     remark = "checkLocalTransactionState Exception: " + RemotingHelper.exceptionSimpleDesc(exception);
                 }
-
                 try {
-                    DefaultMQProducerImpl.this.mQClientFactory.getMQClientAPIImpl().endTransactionOneway(brokerAddr, thisHeader, remark, 3000);
+                    // 事务回查之后，把回查结果返回给 broker，broker 根据该结果决定事务消息的进一步处理
+                    MQClientAPIImpl mqClientAPIImpl = DefaultMQProducerImpl.this.mQClientFactory.getMQClientAPIImpl();
+                    mqClientAPIImpl.endTransactionOneway(brokerAddr, thisHeader, remark, 3000);
                 } catch (Exception e) {
                     log.error("endTransactionOneway exception", e);
                 }
@@ -548,7 +548,6 @@ public class DefaultMQProducerImpl implements MQProducerInner {
 
     public MessageExt viewMessage(String msgId) throws RemotingException, MQBrokerException, InterruptedException, MQClientException {
         this.makeSureStateOK();
-
         return this.mQClientFactory.getMQAdminImpl().viewMessage(msgId);
     }
 

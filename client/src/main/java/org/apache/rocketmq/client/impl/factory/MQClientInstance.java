@@ -271,7 +271,7 @@ public class MQClientInstance {
         this.consumerStatsManager = new ConsumerStatsManager(this.scheduledExecutorService);
     }
 
-    public static TopicPublishInfo topicRouteData2TopicPublishInfo(final String topic, final TopicRouteData route) {
+    public static TopicPublishInfo topicRouteData2TopicPublishInfo(final String topic, final TopicRouteData route/*主题路由信息*/) {
         TopicPublishInfo info = new TopicPublishInfo();
         info.setTopicRouteData(route);
 
@@ -295,11 +295,14 @@ public class MQClientInstance {
             // 队列信息
             List<QueueData> queueDataList = route.getQueueDatas();
             Collections.sort(queueDataList);
-            for (QueueData qd : queueDataList) {
-                if (PermName.isWriteable(qd.getPerm())) {
+            for (QueueData qd : queueDataList/*遍历该主题的所有队列*/) {
+                if (PermName.isWriteable(qd.getPerm())/*当前队列是可写的*/) {
                     // 可写的队列
 
+                    // 下面是试图找到当前 队列 对应的 brokerData 数据
                     BrokerData brokerData = null;
+
+                    // 该主题所在的所有 broker 信息列表
                     List<BrokerData> brokerDataList = route.getBrokerDatas();
                     for (BrokerData bd : brokerDataList) {
                         if (bd.getBrokerName().equals(qd.getBrokerName())) {
@@ -309,13 +312,16 @@ public class MQClientInstance {
                     }
 
                     if (null == brokerData) {
+                        // 没有找到 broker 数据
                         continue;
                     }
 
-                    if (!brokerData.getBrokerAddrs().containsKey(MixAll.MASTER_ID)) {
+                    if (!brokerData.getBrokerAddrs().containsKey(MixAll.MASTER_ID)/*找到了 broker 节点数据，但是该 broker 没有 master 节点*/) {
                         // 如果找到的 broker 节点不包含主节点，则继续下次循环
                         continue;
                     }
+
+                    // 在保证有主节点的情况下，根据写队列数量创建 消息队列
 
                     // 找到了主节点
                     for (int i = 0; i < qd.getWriteQueueNums(); i++) {
@@ -344,7 +350,6 @@ public class MQClientInstance {
                 }
             }
         }
-
         return mqList;
     }
 

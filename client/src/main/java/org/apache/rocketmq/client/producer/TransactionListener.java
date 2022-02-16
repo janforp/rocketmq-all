@@ -1,5 +1,6 @@
 package org.apache.rocketmq.client.producer;
 
+import org.apache.rocketmq.client.impl.producer.DefaultMQProducerImpl;
 import org.apache.rocketmq.common.message.Message;
 import org.apache.rocketmq.common.message.MessageExt;
 
@@ -23,6 +24,7 @@ public interface TransactionListener {
      *
      * @param msg Check message
      * @return Transaction state 查询该半消息对应事务的状态
+     * @see DefaultMQProducerImpl#checkTransactionState(java.lang.String, org.apache.rocketmq.common.message.MessageExt, org.apache.rocketmq.common.protocol.header.CheckTransactionStateRequestHeader)
      */
     LocalTransactionState checkLocalTransaction(final MessageExt msg);
 }

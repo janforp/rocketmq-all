@@ -116,17 +116,19 @@ public class MQAdminImpl {
 
     public List<MessageQueue> fetchPublishMessageQueues(String topic) throws MQClientException {
         try {
-            TopicRouteData topicRouteData = this.mQClientFactory.getMQClientAPIImpl().getTopicRouteInfoFromNameServer(topic, timeoutMillis);
+            MQClientAPIImpl mqClientAPIImpl = this.mQClientFactory.getMQClientAPIImpl();
+            // 从 namesrv 服务器获取该状态的路由信息
+            TopicRouteData topicRouteData = mqClientAPIImpl.getTopicRouteInfoFromNameServer(topic, timeoutMillis);
             if (topicRouteData != null) {
+                // 把主题路由信息转化成主题发布信息
                 TopicPublishInfo topicPublishInfo = MQClientInstance.topicRouteData2TopicPublishInfo(topic, topicRouteData);
-                if (topicPublishInfo != null && topicPublishInfo.ok()) {
+                if (topicPublishInfo.ok()) {
                     return parsePublishMessageQueues(topicPublishInfo.getMessageQueueList());
                 }
             }
         } catch (Exception e) {
             throw new MQClientException("Can not find Message Queue for this topic, " + topic, e);
         }
-
         throw new MQClientException("Unknow why, Can not find Message Queue for this topic, " + topic, null);
     }
 
@@ -136,13 +138,13 @@ public class MQAdminImpl {
             String userTopic = NamespaceUtil.withoutNamespace(queue.getTopic(), this.mQClientFactory.getClientConfig().getNamespace());
             resultQueues.add(new MessageQueue(userTopic, queue.getBrokerName(), queue.getQueueId()));
         }
-
         return resultQueues;
     }
 
     public Set<MessageQueue> fetchSubscribeMessageQueues(String topic) throws MQClientException {
         try {
-            TopicRouteData topicRouteData = this.mQClientFactory.getMQClientAPIImpl().getTopicRouteInfoFromNameServer(topic, timeoutMillis);
+            MQClientAPIImpl mqClientAPIImpl = this.mQClientFactory.getMQClientAPIImpl();
+            TopicRouteData topicRouteData = mqClientAPIImpl.getTopicRouteInfoFromNameServer(topic, timeoutMillis);
             if (topicRouteData != null) {
                 Set<MessageQueue> mqList = MQClientInstance.topicRouteData2TopicSubscribeInfo(topic, topicRouteData);
                 if (!mqList.isEmpty()) {
@@ -152,9 +154,7 @@ public class MQAdminImpl {
                 }
             }
         } catch (Exception e) {
-            throw new MQClientException(
-                    "Can not find Message Queue for this topic, " + topic + FAQUrl.suggestTodo(FAQUrl.MQLIST_NOT_EXIST),
-                    e);
+            throw new MQClientException("Can not find Message Queue for this topic, " + topic + FAQUrl.suggestTodo(FAQUrl.MQLIST_NOT_EXIST), e);
         }
 
         throw new MQClientException("Unknow why, Can not find Message Queue for this topic, " + topic, null);
