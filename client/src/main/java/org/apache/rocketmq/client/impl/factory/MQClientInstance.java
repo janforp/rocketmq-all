@@ -75,7 +75,12 @@ import java.util.concurrent.locks.ReentrantLock;
 /**
  * 一个jvm进程只有一个该类的实例！！！当然它下面的成员变量也一样
  *
+ * 生产者跟消费者都用这个对象
+ *
  * https://blog.csdn.net/prestigeding/article/details/91476328
+ *
+ * @see MQClientInstance#sendHeartbeatToAllBroker() 比较重要
+ * @see MQClientInstance#persistAllConsumerOffset() 定时持久化，所以消息是可能重复消费的！！！
  */
 @SuppressWarnings("all")
 public class MQClientInstance {
@@ -110,13 +115,33 @@ public class MQClientInstance {
     /**
      * 客户端本地的路由数据，如果本地找不到某个主题的路由数据，则需要去namesrv拉。
      *
-     * 定时去 namesrv 拉取
+     * 当前实例的生产者跟消费者相关的主题的路数据都在这里！！
+     *
+     * 通过定时任务{@link MQClientInstance#startScheduledTask()}去 namesrv 拉取
      *
      * @see MQClientInstance#updateTopicRouteInfoFromNameServer()
      */
     @Getter
     private final ConcurrentMap<String/* Topic */, TopicRouteData/*主题路由信息*/> topicRouteTable = new ConcurrentHashMap<String, TopicRouteData>();
 
+    /**
+     * TODO 生产者或者消费者是如何知道有哪些 broker 的呢？答：定时到 namesrv 上去拉取路由信息{@link MQClientInstance#updateTopicRouteInfoFromNameServer(java.lang.String, boolean, org.apache.rocketmq.client.producer.DefaultMQProducer)}
+     * broker 物理节点映射表
+     * key:brokerName 逻辑层面的对象
+     * value:k是broker,0 的节点是主节点，其他是slave，v 是节点的地址 ip + port
+     *
+     * 这个数据其实就是从路由数据中解析出来的{@link MQClientInstance#topicRouteTable}
+     */
+    private final ConcurrentMap<String/* Broker Name */, HashMap<Long/* brokerId */, String/* address：ip:port */>> brokerAddrTable = new ConcurrentHashMap<String, HashMap<Long, String>>();
+
+    /**
+     * broker 物理节点版本映射表
+     * key:brokerName 逻辑层面的对象
+     * value:k是broker,0 的节点是主节点，其他是slave，v 版本号
+     *
+     * versionMap.put(brokerAddr, version);
+     */
+    private final ConcurrentMap<String/* Broker Name */, HashMap<String/* address:ip:port */, Integer/* 心跳接口返回的版本号*/>> brokerVersionTable = new ConcurrentHashMap<String, HashMap<String, Integer>>();
     /**
      * 每个组下面有多个生产者或者发送者
      * 是很正常的事情
@@ -155,23 +180,6 @@ public class MQClientInstance {
     private final Lock lockNamesrv = new ReentrantLock();
 
     private final Lock lockHeartbeat = new ReentrantLock();
-
-    /**
-     * TODO 生产者或者消费者是如何知道有哪些 broker 的呢？答：定时到 namesrv 上去拉取路由信息{@link MQClientInstance#updateTopicRouteInfoFromNameServer(java.lang.String, boolean, org.apache.rocketmq.client.producer.DefaultMQProducer)}
-     * broker 物理节点映射表
-     * key:brokerName 逻辑层面的对象
-     * value:k是broker,0 的节点是主节点，其他是slave，v 是节点的地址 ip + port
-     */
-    private final ConcurrentMap<String/* Broker Name */, HashMap<Long/* brokerId */, String/* address：ip:port */>> brokerAddrTable = new ConcurrentHashMap<String, HashMap<Long, String>>();
-
-    /**
-     * broker 物理节点版本映射表
-     * key:brokerName 逻辑层面的对象
-     * value:k是broker,0 的节点是主节点，其他是slave，v 版本号
-     *
-     * versionMap.put(brokerAddr, version);
-     */
-    private final ConcurrentMap<String/* Broker Name */, HashMap<String/* address:ip:port */, Integer/* 心跳接口返回的版本号*/>> brokerVersionTable = new ConcurrentHashMap<String, HashMap<String, Integer>>();
 
     // 单线程的调度线程池，用于执行定时任务
     @Getter

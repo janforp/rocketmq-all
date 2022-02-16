@@ -174,7 +174,7 @@ public class MQClientAPIImpl {
      * 客户端网络层对象，管理客户端于服务器之间连接的 NioSocketChannel 对象
      * 通过它提供的 invoke 系列方法，客户端可以与服务器进行远程调用
      *
-     * @see NettyRemotingClient netty 网络调用
+     * @see NettyRemotingClient netty 客户端 网络层封装
      */
     @Getter
     private final RemotingClient remotingClient;

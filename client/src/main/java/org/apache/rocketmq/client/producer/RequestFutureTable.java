@@ -21,6 +21,8 @@ import java.util.concurrent.ConcurrentHashMap;
  * 生产者这边拿到回执消息之后，读取出来关联ID，找到对应的 RequestFuture，将阻塞的线程唤醒
  *
  * 类似 生产者 和 消费者 之间进行了一次 RPC，只不过 中间由 broker 代理完成！
+ *
+ * 生产者与消费者通过一条消息完成一次RPC交互！！！！
  */
 public class RequestFutureTable {
 

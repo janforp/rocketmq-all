@@ -13,6 +13,7 @@ import java.util.List;
 import java.util.Random;
 
 /**
+ * 一个 brokerName 逻辑节点下面可以有多个 物理节点！！！！
  * broker 信息,包括主从 broker，只要 brokerName 相关的 broker 都会封装在一个对象中，其实都是有配置决定
  *
  * @see broker.properties

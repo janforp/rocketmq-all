@@ -86,7 +86,7 @@ public class NettyRemotingClient extends NettyRemotingAbstract implements Remoti
      * key:服务器地址
      * value:客户端与服务器连接的 channel 封装对象
      */
-    private final ConcurrentMap<String /* 服务器addr */, ChannelWrapper/*服务端跟客户端连接封装*/> channelTables = new ConcurrentHashMap<String, ChannelWrapper>();
+    private final ConcurrentMap<String /* 服务器addr */, ChannelWrapper/*客户端 跟 服务端连接封装*/> channelTables = new ConcurrentHashMap<String, ChannelWrapper>();
 
     private final Timer timer = new Timer("ClientHouseKeepingService", true);
 

@@ -33,6 +33,7 @@ public class TopicPublishInfo {
     @Getter
     private volatile ThreadLocalIndex sendWhichQueue = new ThreadLocalIndex();
 
+    // 主题路由数据
     @Setter
     @Getter
     private TopicRouteData topicRouteData;
