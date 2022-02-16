@@ -247,6 +247,9 @@ public class DefaultMQProducerImpl implements MQProducerInner {
                     // 正常会进来这里
                     // 修改生产者实例名称为：当前进程的PID
                     //  this.instanceName = String.valueOf(pid);
+                    /**
+                     * @see ClientConfig#instanceName
+                     */
                     this.defaultMQProducer.changeInstanceNameToPID();
                 }
                 // 获取当前进程的RocketMQ客户端实例对象，其中包括设置 clientId 的逻辑，一般为：10.201.13.28@9738
@@ -255,7 +258,10 @@ public class DefaultMQProducerImpl implements MQProducerInner {
                 // ConcurrentMap<String/*clientId：IP&instanceName（当前进程PID），如：10.201.13.28@9738*/, MQClientInstance> factoryTable
                 // 一个 JVM 进程只有一个实例！！！！
                 this.mQClientFactory = mqClientManager.getOrCreateMQClientInstance(this.defaultMQProducer, rpcHook);
-                // 将生产者自己注册到mq客户端实例内(观察者模式)
+                /**
+                 * 将生产者自己注册到mq客户端实例内(观察者模式)，
+                 * 一个客户端实例可能会有多个生产者跟消费者哦
+                 */
                 boolean registerOK = mQClientFactory.registerProducer(producerGroup, this);
                 if (!registerOK) {
                     this.serviceState = ServiceState.CREATE_JUST;
@@ -336,6 +342,7 @@ public class DefaultMQProducerImpl implements MQProducerInner {
                  * @see org.apache.rocketmq.broker.processor.ClientManageProcessor#unregisterClient(io.netty.channel.ChannelHandlerContext, org.apache.rocketmq.remoting.protocol.RemotingCommand) 这个方法处理
                  */
                 this.mQClientFactory.unregisterProducer(producerGroup);
+                // 关闭异步发送线程池
                 this.defaultAsyncSenderExecutor.shutdown();
                 if (shutdownFactory) {
                     this.mQClientFactory.shutdown();

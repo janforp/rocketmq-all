@@ -1000,9 +1000,12 @@ public class MQClientAPIImpl {
     }
 
     /**
-     * 注销组
+     * 关闭某个生产者或者消费者的时候会调用该接口
+     *
+     * @param producerGroup 生产者组
+     * @param consumerGroup 消费者组
      */
-    public void unregisterClient(final String addr, final String clientID, final String producerGroup, final String consumerGroup, final long timeoutMillis) throws RemotingException, MQBrokerException, InterruptedException {
+    public void unregisterClient(final String addr/*服务端地址*/, final String clientID, final String producerGroup, final String consumerGroup, final long timeoutMillis) throws RemotingException, MQBrokerException, InterruptedException {
         final UnregisterClientRequestHeader requestHeader = new UnregisterClientRequestHeader();
         requestHeader.setClientID(clientID);
         requestHeader.setProducerGroup(producerGroup);

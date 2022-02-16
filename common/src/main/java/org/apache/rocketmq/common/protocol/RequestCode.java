@@ -78,6 +78,10 @@ public class RequestCode {
      */
     public static final int HEART_BEAT = 34;
 
+    /**
+     * @see org.apache.rocketmq.client.impl.MQClientAPIImpl#unregisterClient(java.lang.String, java.lang.String, java.lang.String, java.lang.String, long)
+     * @see org.apache.rocketmq.broker.processor.ClientManageProcessor#unregisterClient(io.netty.channel.ChannelHandlerContext, org.apache.rocketmq.remoting.protocol.RemotingCommand)
+     */
     public static final int UNREGISTER_CLIENT = 35;
 
     /**

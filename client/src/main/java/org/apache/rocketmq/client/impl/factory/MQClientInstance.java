@@ -348,6 +348,12 @@ public class MQClientInstance {
         return mqList;
     }
 
+    /**
+     * 生产者实例在启动的时候会调用该方法，一个JVM中可能会有多个生产者实例，也就是该方法会被调用多次，所以通过{@link MQClientInstance#serviceState}状态字段来控制真实的只启动一次
+     *
+     * @throws MQClientException
+     * @see DefaultMQProducerImpl#start(boolean) 生产者实例在启动的时候会调用该方法
+     */
     public void start() throws MQClientException {
         synchronized (this) {
             switch (this.serviceState) {
@@ -1025,39 +1031,57 @@ public class MQClientInstance {
         return result;
     }
 
+    /**
+     * 如下，某个生产者实例或者消费者实例在关闭的时候就会调用全局唯一实例 MQClientInstance 的关闭方法，当然，只有注册在当前实例的所有生产者或者消费者都关闭的时候才能真正的关闭当前实例
+     *
+     * @see DefaultMQProducerImpl#shutdown(boolean)
+     * @see DefaultMQPushConsumerImpl#shutdown()
+     */
     public void shutdown() {
         // Consumer
         if (!this.consumerTable.isEmpty()) {
+            // 某个生产者实例或者消费者实例在关闭的时候就会调用全局唯一实例 MQClientInstance 的关闭方法，当然，只有注册在当前实例的所有生产者或者消费者都关闭的时候才能真正的关闭当前实例
             return;
         }
 
         // AdminExt
         if (!this.adminExtTable.isEmpty()) {
+            // 某个生产者实例或者消费者实例在关闭的时候就会调用全局唯一实例 MQClientInstance 的关闭方法，当然，只有注册在当前实例的所有生产者或者消费者都关闭的时候才能真正的关闭当前实例
             return;
         }
 
         // Producer
         if (this.producerTable.size() > 1) {
+            // 某个生产者实例或者消费者实例在关闭的时候就会调用全局唯一实例 MQClientInstance 的关闭方法，当然，只有注册在当前实例的所有生产者或者消费者都关闭的时候才能真正的关闭当前实例
             return;
         }
+
+        // 到这里，当前关闭的是最后一个实例
 
         synchronized (this) {
             switch (this.serviceState) {
                 case CREATE_JUST:
                     break;
                 case RUNNING:
-                    this.defaultMQProducer.getDefaultMQProducerImpl().shutdown(false);
+                    DefaultMQProducerImpl defaultMQProducerImpl = this.defaultMQProducer.getDefaultMQProducerImpl();
+                    defaultMQProducerImpl.shutdown(false);
 
                     this.serviceState = ServiceState.SHUTDOWN_ALREADY;
+                    // 拉消息
                     this.pullMessageService.shutdown(true);
+                    // 异常消息
                     this.scheduledExecutorService.shutdown();
+                    // 网络层
                     this.mQClientAPIImpl.shutdown();
+                    // 消费者重平衡
                     this.rebalanceService.shutdown();
 
                     if (this.datagramSocket != null) {
                         this.datagramSocket.close();
                         this.datagramSocket = null;
                     }
+
+                    // 移除当前实例
                     MQClientManager.getInstance().removeClientFactory(this.clientId);
                     log.info("the client factory [{}] shutdown OK", this.clientId);
                     break;
@@ -1106,28 +1130,34 @@ public class MQClientInstance {
         }
     }
 
+    /**
+     * 关闭某个生产者或者消费者的时候会调用该接口
+     *
+     * @param producerGroup 生产者组
+     * @param consumerGroup 消费者组
+     */
     private void unregisterClient(final String producerGroup, final String consumerGroup) {
 
         // ConcurrentMap<String/* Broker Name */, HashMap<Long/* brokerId */, String/* address：ip:port */>> brokerAddrTable
         for (Entry<String/* Broker Name */, HashMap<Long/* brokerId */, String/* address：ip:port */>> entry : this.brokerAddrTable.entrySet()) {
             String brokerName = entry.getKey();
-            HashMap<Long/* brokerId */, String/* address：ip:port */> oneTable = entry.getValue();
-
-            if (oneTable != null) {
-                for (Entry<Long/* brokerId */, String/* address：ip:port */> entry1 : oneTable.entrySet()) {
-                    String addr/* address：ip:port */ = entry1.getValue();
-                    if (addr != null) {
-                        try {
-                            this.mQClientAPIImpl.unregisterClient(addr, this.clientId, producerGroup, consumerGroup, 3000);
-                            log.info("unregister client[Producer: {} Consumer: {}] from broker[{} {} {}] success", producerGroup, consumerGroup, brokerName, entry1.getKey(), addr);
-                        } catch (RemotingException e) {
-                            log.error("unregister client exception from broker: " + addr, e);
-                        } catch (InterruptedException e) {
-                            log.error("unregister client exception from broker: " + addr, e);
-                        } catch (MQBrokerException e) {
-                            log.error("unregister client exception from broker: " + addr, e);
-                        }
-                    }
+            HashMap<Long/* brokerId */, String/* address：ip:port */> brokerAddrTable = entry.getValue();
+            if (brokerAddrTable == null) {
+                continue;
+            }
+            for (Entry<Long/* brokerId */, String/* address：ip:port */> addressEntry : brokerAddrTable.entrySet()) {
+                String addr/* address：ip:port */ = addressEntry.getValue();
+                if (addr == null) {
+                    continue;
+                }
+                try {
+                    this.mQClientAPIImpl.unregisterClient(addr, this.clientId, producerGroup, consumerGroup, 3000);
+                } catch (RemotingException e) {
+                    log.error("unregister client exception from broker: " + addr, e);
+                } catch (InterruptedException e) {
+                    log.error("unregister client exception from broker: " + addr, e);
+                } catch (MQBrokerException e) {
+                    log.error("unregister client exception from broker: " + addr, e);
                 }
             }
         }
@@ -1156,6 +1186,8 @@ public class MQClientInstance {
     }
 
     public void unregisterProducer(final String group) {
+        // ConcurrentMap<String/* group */, MQProducerInner/*DefaultMQProducerImpl*/> producerTable
+        // 从本地客户端实例中移除！
         this.producerTable.remove(group);
         this.unregisterClientWithLock(group, null);
     }
@@ -1187,6 +1219,7 @@ public class MQClientInstance {
             MQConsumerInner impl = entry.getValue();
             if (impl != null) {
                 try {
+                    // 调用每个消费者实例的重平衡方法
                     impl.doRebalance();
                 } catch (Throwable e) {
                     log.error("doRebalance exception", e);
@@ -1208,9 +1241,10 @@ public class MQClientInstance {
         boolean slave = false;
         boolean found = false;
 
+        // 当前 brokerName 部署的所有节点地址映射表
         HashMap<Long/* brokerId */, String/* address */> map = this.brokerAddrTable.get(brokerName);
         if (map != null && !map.isEmpty()) {
-            for (Map.Entry<Long, String> entry : map.entrySet()) {
+            for (Map.Entry<Long/* brokerId */, String/* address */> entry : map.entrySet()) {
                 Long id = entry.getKey();
                 brokerAddr = entry.getValue();
                 if (brokerAddr != null) {
@@ -1220,8 +1254,8 @@ public class MQClientInstance {
                     } else {
                         slave = true;
                     }
+                    // 找到第一个即可
                     break;
-
                 }
             } // end of for
         }

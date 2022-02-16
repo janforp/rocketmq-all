@@ -119,30 +119,35 @@ public class ClientManageProcessor extends AsyncNettyRequestProcessor implements
         return response;
     }
 
+    /**
+     * 关闭某个生产者或者消费者的时候会调用该接口
+     *
+     * @see MQClientInstance#unregisterClient(java.lang.String, java.lang.String)
+     */
     public RemotingCommand unregisterClient(ChannelHandlerContext ctx, RemotingCommand request) throws RemotingCommandException {
         final RemotingCommand response = RemotingCommand.createResponseCommand(UnregisterClientResponseHeader.class);
         final UnregisterClientRequestHeader requestHeader = (UnregisterClientRequestHeader) request.decodeCommandCustomHeader(UnregisterClientRequestHeader.class);
-
         ClientChannelInfo clientChannelInfo = new ClientChannelInfo(ctx.channel(), requestHeader.getClientID(), request.getLanguage(), request.getVersion());
+
         {
-            final String group = requestHeader.getProducerGroup();
-            if (group != null) {
+            final String producerGroup = requestHeader.getProducerGroup();
+            if (producerGroup != null) {
                 ProducerManager producerManager = this.brokerController.getProducerManager();
-                producerManager.unregisterProducer(group, clientChannelInfo);
+                producerManager.unregisterProducer(producerGroup, clientChannelInfo);
             }
         }
 
         {
-            final String group = requestHeader.getConsumerGroup();
-            if (group != null) {
+            final String consumerGroup = requestHeader.getConsumerGroup();
+            if (consumerGroup != null) {
                 SubscriptionGroupManager subscriptionGroupManager = this.brokerController.getSubscriptionGroupManager();
-                SubscriptionGroupConfig subscriptionGroupConfig = subscriptionGroupManager.findSubscriptionGroupConfig(group);
+                SubscriptionGroupConfig subscriptionGroupConfig = subscriptionGroupManager.findSubscriptionGroupConfig(consumerGroup);
                 boolean isNotifyConsumerIdsChangedEnable = true;
                 if (null != subscriptionGroupConfig) {
                     isNotifyConsumerIdsChangedEnable = subscriptionGroupConfig.isNotifyConsumerIdsChangedEnable();
                 }
                 ConsumerManager consumerManager = this.brokerController.getConsumerManager();
-                consumerManager.unregisterConsumer(group, clientChannelInfo, isNotifyConsumerIdsChangedEnable);
+                consumerManager.unregisterConsumer(consumerGroup, clientChannelInfo, isNotifyConsumerIdsChangedEnable);
             }
         }
 

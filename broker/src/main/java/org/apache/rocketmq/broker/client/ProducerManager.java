@@ -109,6 +109,7 @@ public class ProducerManager {
             // 该组下面有连接存在，则继续
 
             ClientChannelInfo old = channelTable.remove(clientChannelInfo.getChannel());
+            // ConcurrentHashMap<String/*clientId*/, Channel/*生产者与broker的长连接*/> clientChannelTable
             clientChannelTable.remove(clientChannelInfo.getClientId());
             if (old != null) {
                 log.info("unregister a producer[{}] from groupChannelTable {}", group, clientChannelInfo.toString());
