@@ -51,6 +51,7 @@ public class DefaultMQProducer extends ClientConfig implements MQProducer {
     /**
      * Wrapping internal implementations for virtually all methods presented in this class.
      */
+    @Getter
     protected final transient DefaultMQProducerImpl defaultMQProducerImpl;
 
     private final InternalLogger log = ClientLogger.getLog();
@@ -956,11 +957,6 @@ public class DefaultMQProducer extends ClientConfig implements MQProducer {
         }
         msgBatch.setTopic(withNamespace(msgBatch.getTopic()));
         return msgBatch;
-    }
-
-    @Deprecated
-    public DefaultMQProducerImpl getDefaultMQProducerImpl() {
-        return defaultMQProducerImpl;
     }
 
     public boolean isSendMessageWithVIPChannel() {

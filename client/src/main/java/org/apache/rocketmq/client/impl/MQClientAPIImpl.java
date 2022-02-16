@@ -183,17 +183,17 @@ public class MQClientAPIImpl {
 
     private String nameSrvAddr = null;
 
+    /**
+     * @see org.apache.rocketmq.client.producer.DefaultMQProducer 一般就是一个这个对象
+     */
     private final ClientConfig clientConfig;
 
     public MQClientAPIImpl(final NettyClientConfig nettyClientConfig, final ClientRemotingProcessor clientRemotingProcessor, RPCHook rpcHook, final ClientConfig clientConfig) {
-
         this.clientConfig = clientConfig;
         topAddressing = new TopAddressing(MixAll.getWSAddr(), clientConfig.getUnitName());
-
         // 创建网络层对象
         this.remotingClient = new NettyRemotingClient(nettyClientConfig, null);
         // 赋值
-
         this.remotingClient.registerRPCHook(rpcHook);
 
         /**
@@ -248,6 +248,7 @@ public class MQClientAPIImpl {
     }
 
     public void createSubscriptionGroup(final String addr, final SubscriptionGroupConfig config, final long timeoutMillis) throws RemotingException, MQBrokerException, InterruptedException, MQClientException {
+        // 将 mq 业务层的数据转换为网络层 RemotingCommand 对象
         RemotingCommand request = RemotingCommand.createRequestCommand(RequestCode.UPDATE_AND_CREATE_SUBSCRIPTIONGROUP, null);
 
         byte[] body = RemotingSerializable.encode(config);
@@ -263,7 +264,7 @@ public class MQClientAPIImpl {
 
     }
 
-    public void createTopic(final String addr/*broker地址*/, final String defaultTopic, final TopicConfig topicConfig, final long timeoutMillis) throws RemotingException, MQBrokerException, InterruptedException, MQClientException {
+    public void createTopic(final String addr/*broker地址*/, final String defaultTopic, final TopicConfig topicConfig/*主题信息*/, final long timeoutMillis) throws RemotingException, MQBrokerException, InterruptedException, MQClientException {
         CreateTopicRequestHeader requestHeader = new CreateTopicRequestHeader();
         requestHeader.setTopic(topicConfig.getTopicName());
         requestHeader.setDefaultTopic(defaultTopic);
@@ -275,9 +276,14 @@ public class MQClientAPIImpl {
         requestHeader.setOrder(topicConfig.isOrder());
 
         // 创建请求对象
+        // 将 mq 业务层的数据转换为网络层 RemotingCommand 对象
         RemotingCommand request = RemotingCommand.createRequestCommand(RequestCode.UPDATE_AND_CREATE_TOPIC, requestHeader);
         // 发送请求
-        RemotingCommand response = this.remotingClient.invokeSync(MixAll.brokerVIPChannel(this.clientConfig.isVipChannelEnabled(), addr), request, timeoutMillis);
+        String vipChannel = MixAll.brokerVIPChannel(this.clientConfig.isVipChannelEnabled(), addr);
+        /**
+         * @see NettyRemotingClient#invokeSync(String, RemotingCommand, long)  netty 网络调用
+         */
+        RemotingCommand response = this.remotingClient.invokeSync(vipChannel, request, timeoutMillis);
         assert response != null;
         if (response.getCode() == ResponseCode.SUCCESS) {
             return;
@@ -295,7 +301,7 @@ public class MQClientAPIImpl {
         requestHeader.setWhiteRemoteAddress(plainAccessConfig.getWhiteRemoteAddress());
         requestHeader.setTopicPerms(UtilAll.list2String(plainAccessConfig.getTopicPerms(), ","));
         requestHeader.setGroupPerms(UtilAll.list2String(plainAccessConfig.getGroupPerms(), ","));
-
+        // 将 mq 业务层的数据转换为网络层 RemotingCommand 对象
         RemotingCommand request = RemotingCommand.createRequestCommand(RequestCode.UPDATE_AND_CREATE_ACL_CONFIG, requestHeader);
 
         RemotingCommand response = this.remotingClient.invokeSync(MixAll.brokerVIPChannel(this.clientConfig.isVipChannelEnabled(), addr), request, timeoutMillis);
@@ -311,6 +317,7 @@ public class MQClientAPIImpl {
         DeleteAccessConfigRequestHeader requestHeader = new DeleteAccessConfigRequestHeader();
         requestHeader.setAccessKey(accessKey);
 
+        // 将 mq 业务层的数据转换为网络层 RemotingCommand 对象
         RemotingCommand request = RemotingCommand.createRequestCommand(RequestCode.DELETE_ACL_CONFIG, requestHeader);
 
         RemotingCommand response = this.remotingClient.invokeSync(MixAll.brokerVIPChannel(this.clientConfig.isVipChannelEnabled(), addr), request, timeoutMillis);
@@ -323,10 +330,9 @@ public class MQClientAPIImpl {
     }
 
     public void updateGlobalWhiteAddrsConfig(final String addr, final String globalWhiteAddrs, final long timeoutMillis) throws RemotingException, InterruptedException, MQClientException {
-
         UpdateGlobalWhiteAddrsConfigRequestHeader requestHeader = new UpdateGlobalWhiteAddrsConfigRequestHeader();
         requestHeader.setGlobalWhiteAddrs(globalWhiteAddrs);
-
+        // 将 mq 业务层的数据转换为网络层 RemotingCommand 对象
         RemotingCommand request = RemotingCommand.createRequestCommand(RequestCode.UPDATE_GLOBAL_WHITE_ADDRS_CONFIG, requestHeader);
 
         RemotingCommand response = this.remotingClient.invokeSync(MixAll.brokerVIPChannel(this.clientConfig.isVipChannelEnabled(), addr), request, timeoutMillis);
@@ -340,7 +346,7 @@ public class MQClientAPIImpl {
 
     public ClusterAclVersionInfo getBrokerClusterAclInfo(final String addr, final long timeoutMillis)
             throws RemotingCommandException, InterruptedException, RemotingTimeoutException, RemotingSendRequestException, RemotingConnectException, MQBrokerException {
-
+        // 将 mq 业务层的数据转换为网络层 RemotingCommand 对象
         RemotingCommand request = RemotingCommand.createRequestCommand(RequestCode.GET_BROKER_CLUSTER_ACL_INFO, null);
 
         RemotingCommand response = this.remotingClient.invokeSync(MixAll.brokerVIPChannel(this.clientConfig.isVipChannelEnabled(), addr), request, timeoutMillis);
@@ -361,6 +367,7 @@ public class MQClientAPIImpl {
     }
 
     public AclConfig getBrokerClusterConfig(final String addr, final long timeoutMillis) throws InterruptedException, RemotingTimeoutException, RemotingSendRequestException, RemotingConnectException, MQBrokerException {
+        // 将 mq 业务层的数据转换为网络层 RemotingCommand 对象
         RemotingCommand request = RemotingCommand.createRequestCommand(RequestCode.GET_BROKER_CLUSTER_ACL_CONFIG, null);
 
         RemotingCommand response = this.remotingClient.invokeSync(MixAll.brokerVIPChannel(this.clientConfig.isVipChannelEnabled(), addr), request, timeoutMillis);
@@ -413,6 +420,7 @@ public class MQClientAPIImpl {
     ) throws RemotingException, MQBrokerException, InterruptedException {
 
         long beginStartTime = System.currentTimeMillis();
+        // 将 mq 业务层的数据转换为网络层 RemotingCommand 对象
         RemotingCommand request;
         String msgType = msg.getProperty(MessageConst.PROPERTY_MESSAGE_TYPE/*MSG_TYPE*/);
         boolean isReply = msgType != null && msgType.equals(MixAll.REPLY_MESSAGE_FLAG/*reply 回执消息？*/);
@@ -786,6 +794,7 @@ public class MQClientAPIImpl {
     }
 
     private PullResult pullMessageSync(final String addr, final RemotingCommand request, final long timeoutMillis) throws RemotingException, InterruptedException, MQBrokerException {
+        // 将 mq 业务层的数据转换为网络层 RemotingCommand 对象
         RemotingCommand response = this.remotingClient.invokeSync(addr, request, timeoutMillis);
         assert response != null;
         return this.processPullResponse(response);

@@ -8,6 +8,9 @@ import lombok.ToString;
 
 import java.io.Serializable;
 
+/**
+ * 生产者：通过该对象就知道消息需要发送到哪个 broker 的哪个队列上
+ */
 @NoArgsConstructor
 @AllArgsConstructor
 @ToString

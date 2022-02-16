@@ -117,12 +117,17 @@ public class DefaultMQProducerImpl implements MQProducerInner {
     // 该对象最终传递给 NettyRemotingClient,留给用户扩展
     private final RPCHook rpcHook;
 
-    // 缺省的异步发送消息线程池,执行异步发送任务
+    /**
+     * 缺省的异步发送消息线程池,执行异步发送任务
+     *
+     * @see DefaultMQProducerImpl#DefaultMQProducerImpl(org.apache.rocketmq.client.producer.DefaultMQProducer, org.apache.rocketmq.remoting.RPCHook)
+     */
     private final ExecutorService defaultAsyncSenderExecutor;
 
     /**
      * 定时任务：执行 RequestFutureTable.scanExpireRequest()
      *
+     * @see RequestFutureTable#requestFutureTable
      * @see RequestFutureTable#scanExpiredRequest()
      */
     private final Timer timer = new Timer("RequestHouseKeepingService", true);
@@ -131,18 +136,25 @@ public class DefaultMQProducerImpl implements MQProducerInner {
     protected BlockingQueue<Runnable> checkRequestQueue;
 
     /**
-     * 事务相关
+     * 事务相关，事务回查
      *
      * @see DefaultMQProducerImpl#checkTransactionState(java.lang.String, org.apache.rocketmq.common.message.MessageExt, org.apache.rocketmq.common.protocol.header.CheckTransactionStateRequestHeader)
      */
     protected ExecutorService checkExecutor;
 
-    // 状态
+    /**
+     * 当前生产者对象的状态
+     */
     @Getter
     @Setter
     private ServiceState serviceState = ServiceState.CREATE_JUST;
 
-    // 客户端实例对象，生产者启动后需要注册到该客户端对象中（观察者模式）
+    /**
+     * 客户端实例对象，生产者启动后需要注册到该客户端对象中（观察者模式）
+     * this.mQClientFactory = mqClientManager.getOrCreateMQClientInstance(this.defaultMQProducer, rpcHook);
+     *
+     * @see MQClientManager#getOrCreateMQClientInstance(org.apache.rocketmq.client.ClientConfig, org.apache.rocketmq.remoting.RPCHook)
+     */
     @Getter
     private MQClientInstance mQClientFactory;
 
@@ -189,9 +201,11 @@ public class DefaultMQProducerImpl implements MQProducerInner {
 
     public void registerCheckForbiddenHook(CheckForbiddenHook checkForbiddenHook) {
         this.checkForbiddenHookList.add(checkForbiddenHook);
-        log.info("register a new checkForbiddenHook. hookName={}, allHookSize={}", checkForbiddenHook.hookName(), checkForbiddenHookList.size());
     }
 
+    /**
+     * @see TransactionMQProducer#start() 事务消息生产者
+     */
     public void initTransactionEnv() {
         TransactionMQProducer producer = (TransactionMQProducer) this.defaultMQProducer;
         ExecutorService executorService = producer.getExecutorService();
@@ -211,7 +225,6 @@ public class DefaultMQProducerImpl implements MQProducerInner {
 
     public void registerSendMessageHook(final SendMessageHook hook) {
         this.sendMessageHookList.add(hook);
-        log.info("register sendMessage Hook, {}", hook.hookName());
     }
 
     public void start() throws MQClientException {
@@ -222,53 +235,39 @@ public class DefaultMQProducerImpl implements MQProducerInner {
     public void start(final boolean startFactory) throws MQClientException {
         String producerGroup = this.defaultMQProducer.getProducerGroup();
         switch (this.serviceState) {
-
             // 刚刚创建的就是 CREAT_JUST 状态
             case CREATE_JUST:
-
                 // 状态修改为启动失败，后面如果成功会修改的
                 this.serviceState = ServiceState.START_FAILED;
-
                 // 校验生产者组
                 // 1.组名称不能空，也不能为  DEFAULT_PRODUCER
                 this.checkConfig();
-
                 if (!producerGroup.equals(MixAll.CLIENT_INNER_PRODUCER_GROUP/*CLIENT_INNER_PRODUCER*/)) {
                     // 条件成立：说明当前生产者不是 内部生产者（什么是内部生产者？处理消息回退这种情况使用的生产者，就是 CLIENT_INNER_PRODUCER 生产者组）
-
                     // 正常会进来这里
                     // 修改生产者实例名称为：当前进程的PID
                     //  this.instanceName = String.valueOf(pid);
                     this.defaultMQProducer.changeInstanceNameToPID();
                 }
-
                 // 获取当前进程的RocketMQ客户端实例对象，其中包括设置 clientId 的逻辑，一般为：10.201.13.28@9738
                 MQClientManager mqClientManager = MQClientManager.getInstance();
-
                 // 每个 client 都有一个不变的实例
                 // ConcurrentMap<String/*clientId：IP&instanceName（当前进程PID），如：10.201.13.28@9738*/, MQClientInstance> factoryTable
                 // 一个 JVM 进程只有一个实例！！！！
                 this.mQClientFactory = mqClientManager.getOrCreateMQClientInstance(this.defaultMQProducer, rpcHook);
-
                 // 将生产者自己注册到mq客户端实例内(观察者模式)
                 boolean registerOK = mQClientFactory.registerProducer(producerGroup, this);
                 if (!registerOK) {
                     this.serviceState = ServiceState.CREATE_JUST;
                     throw new MQClientException("The producer group[" + producerGroup + "] has been created before, specify another name please." + FAQUrl.suggestTodo(FAQUrl.GROUP_NAME_DUPLICATE_URL), null);
                 }
-
-                // TBW102
-                String createTopicKey = this.defaultMQProducer.getCreateTopicKey();
+                String createTopicKey/*TBW102*/ = this.defaultMQProducer.getCreateTopicKey();
                 // 内置的主题信息放置到主题发布信息映射表中
-                this.topicPublishInfoTable.put(createTopicKey, new TopicPublishInfo());
-
+                this.topicPublishInfoTable.put(createTopicKey/*TBW102*/, new TopicPublishInfo());
                 if (startFactory/*正常启动传的 true*/) {
                     // 启动 RocketMq 客户端实例对象 入口
                     mQClientFactory.start();
                 }
-
-                log.info("the producer [{}] start OK. sendMessageWithVIPChannel={}", producerGroup, this.defaultMQProducer.isSendMessageWithVIPChannel());
-
                 // 设置生产者实例设置为运行中
                 this.serviceState = ServiceState.RUNNING;
                 break;
@@ -281,7 +280,7 @@ public class DefaultMQProducerImpl implements MQProducerInner {
                 break;
         }
 
-        // 强制rocketMq客户端实例向已知的broker节点发送心跳
+        // 强制rocketMq客户端实例（生产者实例）向已知的broker节点发送心跳
         this.mQClientFactory.sendHeartbeatToAllBrokerWithLock();
 
         /**

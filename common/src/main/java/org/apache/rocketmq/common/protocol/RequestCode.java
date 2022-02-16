@@ -4,6 +4,7 @@ package org.apache.rocketmq.common.protocol;
  * @see org.apache.rocketmq.broker.processor.AdminBrokerProcessor#processRequest(io.netty.channel.ChannelHandlerContext, org.apache.rocketmq.remoting.protocol.RemotingCommand)
  * @see org.apache.rocketmq.broker.BrokerController#registerProcessor() 这个方法将所有的业务code都注册了处理器
  */
+@SuppressWarnings("all")
 public class RequestCode {
 
     public static final int SEND_MESSAGE = 10;
@@ -25,6 +26,10 @@ public class RequestCode {
 
     public static final int UPDATE_CONSUMER_OFFSET = 15;
 
+    /**
+     * @see org.apache.rocketmq.client.impl.MQClientAPIImpl#createTopic(java.lang.String, java.lang.String, org.apache.rocketmq.common.TopicConfig, long)
+     * @see org.apache.rocketmq.broker.processor.AdminBrokerProcessor#updateAndCreateTopic(io.netty.channel.ChannelHandlerContext, org.apache.rocketmq.remoting.protocol.RemotingCommand)
+     */
     public static final int UPDATE_AND_CREATE_TOPIC = 17;
 
     public static final int GET_ALL_TOPIC_CONFIG = 21;

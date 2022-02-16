@@ -5,6 +5,7 @@ import org.apache.rocketmq.client.QueryResult;
 import org.apache.rocketmq.client.admin.MQAdminExtInner;
 import org.apache.rocketmq.client.exception.MQBrokerException;
 import org.apache.rocketmq.client.exception.MQClientException;
+import org.apache.rocketmq.client.impl.MQAdminImpl;
 import org.apache.rocketmq.client.impl.MQClientManager;
 import org.apache.rocketmq.client.impl.factory.MQClientInstance;
 import org.apache.rocketmq.client.log.ClientLogger;
@@ -954,7 +955,8 @@ public class DefaultMQAdminExtImpl implements MQAdminExt, MQAdminExtInner {
 
     @Override
     public void createTopic(String key, String newTopic, int queueNum, int topicSysFlag) throws MQClientException {
-        this.mqClientInstance.getMQAdminImpl().createTopic(key, newTopic, queueNum, topicSysFlag);
+        MQAdminImpl mqAdminImpl = this.mqClientInstance.getMQAdminImpl();
+        mqAdminImpl.createTopic(key, newTopic, queueNum, topicSysFlag);
     }
 
     @Override

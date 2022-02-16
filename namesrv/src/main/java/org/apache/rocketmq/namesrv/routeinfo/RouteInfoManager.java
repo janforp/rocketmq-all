@@ -430,7 +430,10 @@ public class RouteInfoManager {
         TopicRouteData topicRouteData = new TopicRouteData();
         boolean foundQueueData = false;
         boolean foundBrokerData = false;
+
+        // 该主题的 brokerName 集合
         Set<String> brokerNameSet = new HashSet<>();
+        // 该主题发布的 broker 信息
         List<BrokerData> brokerDataList = new LinkedList<>();
         topicRouteData.setBrokerDatas(brokerDataList);
 
@@ -440,10 +443,11 @@ public class RouteInfoManager {
         try {
             try {
                 this.lock.readLock().lockInterruptibly();
+                // 该主题到队列发布
                 List<QueueData> queueDataList = this.topicQueueTable.get(topic);
                 if (queueDataList != null) {
-                    topicRouteData.setQueueDatas(queueDataList);
                     foundQueueData = true;
+                    topicRouteData.setQueueDatas(queueDataList);
 
                     for (QueueData qd : queueDataList) {
                         brokerNameSet.add(qd.getBrokerName());

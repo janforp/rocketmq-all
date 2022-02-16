@@ -3,12 +3,14 @@ package org.apache.rocketmq.client.producer;
 import lombok.Getter;
 import lombok.Setter;
 import org.apache.rocketmq.client.exception.MQClientException;
+import org.apache.rocketmq.client.impl.producer.DefaultMQProducerImpl;
 import org.apache.rocketmq.common.message.Message;
 import org.apache.rocketmq.common.protocol.NamespaceUtil;
 import org.apache.rocketmq.remoting.RPCHook;
 
 import java.util.concurrent.ExecutorService;
 
+@SuppressWarnings("all")
 public class TransactionMQProducer extends DefaultMQProducer {
 
     @Getter
@@ -68,6 +70,9 @@ public class TransactionMQProducer extends DefaultMQProducer {
 
     @Override
     public void start() throws MQClientException {
+        /**
+         * @see DefaultMQProducerImpl#checkExecutor 其实就是初始化回查线程池
+         */
         this.defaultMQProducerImpl.initTransactionEnv();
         super.start();
     }

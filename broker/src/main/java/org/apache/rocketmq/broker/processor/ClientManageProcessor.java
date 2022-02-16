@@ -6,6 +6,8 @@ import org.apache.rocketmq.broker.client.ClientChannelInfo;
 import org.apache.rocketmq.broker.client.ConsumerManager;
 import org.apache.rocketmq.broker.client.ProducerManager;
 import org.apache.rocketmq.broker.subscription.SubscriptionGroupManager;
+import org.apache.rocketmq.broker.topic.TopicConfigManager;
+import org.apache.rocketmq.client.impl.factory.MQClientInstance;
 import org.apache.rocketmq.common.MixAll;
 import org.apache.rocketmq.common.constant.LoggerName;
 import org.apache.rocketmq.common.constant.PermName;
@@ -69,6 +71,9 @@ public class ClientManageProcessor extends AsyncNettyRequestProcessor implements
         return false;
     }
 
+    /**
+     * @see MQClientInstance#sendHeartbeatToAllBroker() 生产者/消费者实例的心跳数据
+     */
     public RemotingCommand heartBeat(ChannelHandlerContext ctx, RemotingCommand request) {
         RemotingCommand response = RemotingCommand.createResponseCommand(null);
 
@@ -84,36 +89,30 @@ public class ClientManageProcessor extends AsyncNettyRequestProcessor implements
             SubscriptionGroupConfig subscriptionGroupConfig = subscriptionGroupManager.findSubscriptionGroupConfig(data.getGroupName());
             boolean isNotifyConsumerIdsChangedEnable = true;
             if (null != subscriptionGroupConfig) {
-                isNotifyConsumerIdsChangedEnable = subscriptionGroupConfig.isNotifyConsumerIdsChangedEnable();
+                isNotifyConsumerIdsChangedEnable = subscriptionGroupConfig.isNotifyConsumerIdsChangedEnable()/*默认 true*/;
                 int topicSysFlag = 0;
                 if (data.isUnitMode()) {
                     topicSysFlag = TopicSysFlag.buildSysFlag(false, true);
                 }
                 // %RETRY% + consumerGroup
                 String newTopic = MixAll.getRetryTopic(data.getGroupName());
-                this.brokerController.getTopicConfigManager().createTopicInSendMessageBackMethod(newTopic, subscriptionGroupConfig.getRetryQueueNums(), PermName.PERM_WRITE | PermName.PERM_READ, topicSysFlag);
+                TopicConfigManager topicConfigManager = this.brokerController.getTopicConfigManager();
+                topicConfigManager.createTopicInSendMessageBackMethod(newTopic, subscriptionGroupConfig.getRetryQueueNums(), PermName.PERM_WRITE | PermName.PERM_READ, topicSysFlag);
             }
 
-            boolean changed = this.brokerController.getConsumerManager().registerConsumer(
-                    data.getGroupName(),
-                    clientChannelInfo,
-                    data.getConsumeType(),
-                    data.getMessageModel(),
-                    data.getConsumeFromWhere(),
-                    data.getSubscriptionDataSet(),
-                    isNotifyConsumerIdsChangedEnable
-            );
-
+            ConsumerManager consumerManager = this.brokerController.getConsumerManager();
+            boolean changed = consumerManager
+                    .registerConsumer(data.getGroupName(), clientChannelInfo, data.getConsumeType(), data.getMessageModel(), data.getConsumeFromWhere(), data.getSubscriptionDataSet(), isNotifyConsumerIdsChangedEnable);
             if (changed) {
-                log.info("registerConsumer info changed {} {}", data.toString(), RemotingHelper.parseChannelRemoteAddr(ctx.channel())
-                );
+                log.info("registerConsumer info changed {} {}", data.toString(), RemotingHelper.parseChannelRemoteAddr(ctx.channel()));
             }
         }
 
         // 生产者列表
         Set<ProducerData> producerDataSet = heartbeatData.getProducerDataSet();
         for (ProducerData data : producerDataSet) {
-            this.brokerController.getProducerManager().registerProducer(data.getGroupName(), clientChannelInfo);
+            ProducerManager producerManager = this.brokerController.getProducerManager();
+            producerManager.registerProducer(data.getGroupName(), clientChannelInfo);
         }
         response.setCode(ResponseCode.SUCCESS);
         response.setRemark(null);

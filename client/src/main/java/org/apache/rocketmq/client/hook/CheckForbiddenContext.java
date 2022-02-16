@@ -2,6 +2,7 @@ package org.apache.rocketmq.client.hook;
 
 import lombok.Getter;
 import lombok.Setter;
+import lombok.ToString;
 import org.apache.rocketmq.client.impl.CommunicationMode;
 import org.apache.rocketmq.client.producer.SendResult;
 import org.apache.rocketmq.common.message.Message;
@@ -9,6 +10,7 @@ import org.apache.rocketmq.common.message.MessageQueue;
 
 @Getter
 @Setter
+@ToString
 public class CheckForbiddenContext {
 
     private String nameSrvAddr;
@@ -30,12 +32,4 @@ public class CheckForbiddenContext {
     private Object arg;
 
     private boolean unitMode = false;
-
-    @Override
-    public String toString() {
-        return "SendMessageContext [nameSrvAddr=" + nameSrvAddr + ", group=" + group + ", message=" + message
-                + ", mq=" + mq + ", brokerAddr=" + brokerAddr + ", communicationMode=" + communicationMode
-                + ", sendResult=" + sendResult + ", exception=" + exception + ", unitMode=" + unitMode
-                + ", arg=" + arg + "]";
-    }
 }

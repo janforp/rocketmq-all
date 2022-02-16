@@ -78,11 +78,10 @@ public class MQAdminImpl {
             boolean createOKAtLeastOnce = false;
             MQClientException exception = null;
 
+            // 遍历所有的 broker
             for (BrokerData brokerData : brokerDataList) {
-                // HashMap<Long/* brokerId */, String/* broker address */>
-                HashMap<Long, String> brokerAddrs = brokerData.getBrokerAddrs();
-                // master 节点地址
-                String addr = brokerAddrs.get(MixAll.MASTER_ID);
+                HashMap<Long/* brokerId */, String/* broker address */> brokerAddrs = brokerData.getBrokerAddrs();
+                String addr/*master 节点地址*/ = brokerAddrs.get(MixAll.MASTER_ID);
                 if (addr != null) {
                     TopicConfig topicConfig = new TopicConfig(newTopic);
                     topicConfig.setReadQueueNums(queueNum);

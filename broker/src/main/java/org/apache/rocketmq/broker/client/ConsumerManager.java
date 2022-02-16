@@ -1,6 +1,7 @@
 package org.apache.rocketmq.broker.client;
 
 import io.netty.channel.Channel;
+import org.apache.rocketmq.broker.processor.ClientManageProcessor;
 import org.apache.rocketmq.common.constant.LoggerName;
 import org.apache.rocketmq.common.consumer.ConsumeFromWhere;
 import org.apache.rocketmq.common.protocol.heartbeat.ConsumeType;
@@ -88,6 +89,9 @@ public class ConsumerManager {
         }
     }
 
+    /**
+     * @see ClientManageProcessor#heartBeat(io.netty.channel.ChannelHandlerContext, org.apache.rocketmq.remoting.protocol.RemotingCommand) 消费者定时发送心跳数据给每个broker
+     */
     public boolean registerConsumer(
             final String group, final ClientChannelInfo clientChannelInfo,
             ConsumeType consumeType, MessageModel messageModel, ConsumeFromWhere consumeFromWhere,
@@ -97,7 +101,7 @@ public class ConsumerManager {
         if (null == consumerGroupInfo) {
             ConsumerGroupInfo tmp = new ConsumerGroupInfo(group, consumeType, messageModel, consumeFromWhere);
             ConsumerGroupInfo prev = this.consumerTable.putIfAbsent(group, tmp);
-            consumerGroupInfo = prev != null ? prev : tmp;
+            consumerGroupInfo = prev != null ? prev/*以 prev 为优先 */ : tmp;
         }
 
         boolean r1 = consumerGroupInfo.updateChannel(clientChannelInfo, consumeType, messageModel, consumeFromWhere);

@@ -379,6 +379,10 @@ public class NettyRemotingClient extends NettyRemotingAbstract implements Remoti
         }
     }
 
+    /**
+     * @param addrs
+     * @see org.apache.rocketmq.client.impl.factory.MQClientInstance#MQClientInstance(org.apache.rocketmq.client.ClientConfig, int, java.lang.String, org.apache.rocketmq.remoting.RPCHook)
+     */
     @Override
     public void updateNameServerAddressList(List<String> addrs) {
         if (addrs.isEmpty()) {

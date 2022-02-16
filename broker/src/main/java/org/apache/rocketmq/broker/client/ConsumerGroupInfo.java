@@ -25,11 +25,17 @@ public class ConsumerGroupInfo {
 
     private final String groupName;
 
+    /**
+     * 订阅信息
+     */
     @Getter
-    private final ConcurrentMap<String/* Topic */, SubscriptionData> subscriptionTable = new ConcurrentHashMap<String, SubscriptionData>();
+    private final ConcurrentMap<String/* Topic */, SubscriptionData/*订阅信息*/> subscriptionTable = new ConcurrentHashMap<>();
 
+    /**
+     * broker 与消费者服务的连接
+     */
     @Getter
-    private final ConcurrentMap<Channel, ClientChannelInfo> channelInfoTable = new ConcurrentHashMap<Channel, ClientChannelInfo>(16);
+    private final ConcurrentMap<Channel, ClientChannelInfo> channelInfoTable = new ConcurrentHashMap<>(16);
 
     @Getter
     @Setter
@@ -99,55 +105,57 @@ public class ConsumerGroupInfo {
         return false;
     }
 
+    /**
+     * @see ConsumerManager#registerConsumer
+     */
     // 修改 或者  添加
     public boolean updateChannel(final ClientChannelInfo infoNew, ConsumeType consumeType, MessageModel messageModel, ConsumeFromWhere consumeFromWhere) {
         boolean updated = false;
         this.consumeType = consumeType;
         this.messageModel = messageModel;
         this.consumeFromWhere = consumeFromWhere;
-
-        ClientChannelInfo infoOld = this.channelInfoTable.get(infoNew.getChannel());
-        if (null == infoOld) {
-            ClientChannelInfo prev = this.channelInfoTable.put(infoNew.getChannel(), infoNew);
+        Channel newChannel = infoNew.getChannel();
+        ClientChannelInfo infoOld = this.channelInfoTable.get(newChannel);
+        if (null == infoOld/*新的*/) {
+            ClientChannelInfo prev = this.channelInfoTable.put(newChannel, infoNew);
             if (null == prev) {
                 log.info("new consumer connected, group: {} {} {} channel: {}", this.groupName, consumeType, messageModel, infoNew.toString());
                 // 真正的修改
                 updated = true;
             }
-
             infoOld = infoNew;
         } else {
-            if (!infoOld.getClientId().equals(infoNew.getClientId())) {
+            if (!infoOld.getClientId().equals(infoNew.getClientId())/*clientId 发生了变化*/) {
                 log.error("[BUG] consumer channel exist in broker, but clientId not equal. GROUP: {} OLD: {} NEW: {} ", this.groupName, infoOld.toString(), infoNew.toString());
-                this.channelInfoTable.put(infoNew.getChannel(), infoNew);
+                this.channelInfoTable.put(newChannel, infoNew);
             }
         }
-
         this.lastUpdateTimestamp = System.currentTimeMillis();
         infoOld.setLastUpdateTimestamp(this.lastUpdateTimestamp);
-
         return updated;
     }
 
+    /**
+     * @see ConsumerManager#registerConsumer
+     */
     public boolean updateSubscription(final Set<SubscriptionData> subList) {
         boolean updated = false;
-
         for (SubscriptionData sub : subList) {
             String subTopic = sub.getTopic();
+            // 从历史数据(上一次心跳发送过来的)中拿
             SubscriptionData old = this.subscriptionTable.get(subTopic);
-            if (old == null) {
+            if (old == null/*说明该主题是新的*/) {
                 SubscriptionData prev = this.subscriptionTable.putIfAbsent(subTopic, sub);
                 if (null == prev) {
-
                     // 之前没有 subTopic 对应的数据，则为修改
                     updated = true;
                     log.info("subscription changed, add new topic, group: {} {}", this.groupName, sub.toString());
                 }
-            } else if (sub.getSubVersion() > old.getSubVersion()) {
+            } else if (sub.getSubVersion() > old.getSubVersion()/*比较版本*/) {
                 if (this.consumeType == ConsumeType.CONSUME_PASSIVELY) {
                     log.info("subscription changed, group: {} OLD: {} NEW: {}", this.groupName, old.toString(), sub.toString());
                 }
-
+                // 如果版本更新了，则替换上一次心跳的数据
                 this.subscriptionTable.put(subTopic, sub);
             }
         }
@@ -157,7 +165,6 @@ public class ConsumerGroupInfo {
         while (it.hasNext()) {
             Entry<String, SubscriptionData> next = it.next();
             String oldTopic = next.getKey();
-
             boolean exist = false;
             for (SubscriptionData sub : subList) {
                 if (sub.getTopic().equals(oldTopic)) {
@@ -167,9 +174,8 @@ public class ConsumerGroupInfo {
             }
 
             if (!exist) {
-                log.warn("subscription changed, group: {} remove topic {} {}", this.groupName, oldTopic, next.getValue().toString()
-                );
-
+                // 移除已经不订阅的主题
+                log.warn("subscription changed, group: {} remove topic {} {}", this.groupName, oldTopic, next.getValue().toString());
                 it.remove();
                 updated = true;
             }

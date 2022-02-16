@@ -54,6 +54,7 @@ public class MQClientManager {
             // 放进去缓存
             MQClientInstance prev = this.factoryTable.putIfAbsent(clientId, instance);
             if (prev != null) {
+                // 防止并发创建，最终还是以第一个创建成功的实例为准
                 instance = prev;
                 log.warn("Returned Previous MQClientInstance for clientId:[{}]", clientId);
             } else {

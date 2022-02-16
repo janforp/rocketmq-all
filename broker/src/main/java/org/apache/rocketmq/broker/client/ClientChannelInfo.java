@@ -19,6 +19,9 @@ public class ClientChannelInfo {
 
     private final int version;
 
+    /**
+     * 上一次心跳的时间
+     */
     @Setter
     private volatile long lastUpdateTimestamp = System.currentTimeMillis();
 

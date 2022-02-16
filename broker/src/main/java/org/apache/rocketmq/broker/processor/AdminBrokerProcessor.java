@@ -11,6 +11,7 @@ import org.apache.rocketmq.broker.client.ConsumerGroupInfo;
 import org.apache.rocketmq.broker.client.rebalance.RebalanceLockManager;
 import org.apache.rocketmq.broker.filter.ConsumerFilterData;
 import org.apache.rocketmq.broker.filter.ExpressionMessageFilter;
+import org.apache.rocketmq.broker.topic.TopicConfigManager;
 import org.apache.rocketmq.broker.topic.TopicValidator;
 import org.apache.rocketmq.broker.transaction.queue.TransactionalMessageUtil;
 import org.apache.rocketmq.common.AclConfig;
@@ -240,14 +241,11 @@ public class AdminBrokerProcessor extends AsyncNettyRequestProcessor implements 
         return false;
     }
 
-    private synchronized RemotingCommand updateAndCreateTopic(ChannelHandlerContext ctx,
-            RemotingCommand request) throws RemotingCommandException {
+    private synchronized RemotingCommand updateAndCreateTopic(ChannelHandlerContext ctx, RemotingCommand request) throws RemotingCommandException {
         final RemotingCommand response = RemotingCommand.createResponseCommand(null);
-        final CreateTopicRequestHeader requestHeader =
-                (CreateTopicRequestHeader) request.decodeCommandCustomHeader(CreateTopicRequestHeader.class);
-        log.info("updateAndCreateTopic called by {}", RemotingHelper.parseChannelRemoteAddr(ctx.channel()));
+        final CreateTopicRequestHeader requestHeader = (CreateTopicRequestHeader) request.decodeCommandCustomHeader(CreateTopicRequestHeader.class);
 
-        if (requestHeader.getTopic().equals(this.brokerController.getBrokerConfig().getBrokerClusterName())) {
+        if (requestHeader.getTopic().equals(this.brokerController.getBrokerConfig().getBrokerClusterName() /* DefaultCluster */)) {
             String errorMsg = "the topic[" + requestHeader.getTopic() + "] is conflict with system reserved words.";
             log.warn(errorMsg);
             response.setCode(ResponseCode.SYSTEM_ERROR);
@@ -276,9 +274,10 @@ public class AdminBrokerProcessor extends AsyncNettyRequestProcessor implements 
         topicConfig.setPerm(requestHeader.getPerm());
         topicConfig.setTopicSysFlag(requestHeader.getTopicSysFlag() == null ? 0 : requestHeader.getTopicSysFlag());
 
-        this.brokerController.getTopicConfigManager().updateTopicConfig(topicConfig);
+        TopicConfigManager topicConfigManager = this.brokerController.getTopicConfigManager();
+        topicConfigManager.updateTopicConfig(topicConfig);
 
-        this.brokerController.registerIncrementBrokerData(topicConfig, this.brokerController.getTopicConfigManager().getDataVersion());
+        this.brokerController.registerIncrementBrokerData(topicConfig, topicConfigManager.getDataVersion());
 
         return null;
     }

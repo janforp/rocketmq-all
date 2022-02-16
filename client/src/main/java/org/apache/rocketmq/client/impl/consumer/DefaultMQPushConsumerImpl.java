@@ -1110,7 +1110,8 @@ public class DefaultMQPushConsumerImpl implements MQConsumerInner {
 
     @Override
     public Set<SubscriptionData> subscriptions() {
-        return new HashSet<SubscriptionData>(this.rebalanceImpl.getSubscriptionInner().values());
+        ConcurrentMap<String, SubscriptionData> subscriptionInner = this.rebalanceImpl.getSubscriptionInner();
+        return new HashSet<SubscriptionData>(subscriptionInner.values());
     }
 
     /**
