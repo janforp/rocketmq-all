@@ -50,6 +50,7 @@ public class DefaultMQProducer extends ClientConfig implements MQProducer {
 
     /**
      * Wrapping internal implementations for virtually all methods presented in this class.
+     * 生产者内部实现类对象
      */
     @Getter
     protected final transient DefaultMQProducerImpl defaultMQProducerImpl;
@@ -62,7 +63,7 @@ public class DefaultMQProducer extends ClientConfig implements MQProducer {
      * <p>
      * For non-transactional messages, it does not matter as long as it's unique per process. </p>
      * <p>
-     * See {@linktourl http://rocketmq.apache.org/docs/core-concept/} for more discussion.
+     * See {@link to url http://rocketmq.apache.org/docs/core-concept/} for more discussion.
      * 生产者组（如果发送事物消息，broker端进行事务回查时，可以选择当前生产者组下的任意一个生产者进行事务回查）
      */
     @Getter
@@ -136,7 +137,7 @@ public class DefaultMQProducer extends ClientConfig implements MQProducer {
      */
     @Getter
     @Setter
-    private int maxMessageSize = 1024 * 1024 * 4; // 4M
+    private int maxMessageSize = 1024/*M*/ * 1024/*K*/ * 4; // 4M
 
     /**
      * Interface of asynchronous transfer data
@@ -225,7 +226,6 @@ public class DefaultMQProducer extends ClientConfig implements MQProducer {
     public DefaultMQProducer(final String namespace/*一般用于区分 环境，如：dev,pre,prod 等*/, final String producerGroup, RPCHook rpcHook) {
         this.namespace = namespace;
         this.producerGroup = producerGroup;// 用户传
-
         // ！！！！！！ 最重要
         // 创建生产者对象
         defaultMQProducerImpl = new DefaultMQProducerImpl(this, rpcHook);

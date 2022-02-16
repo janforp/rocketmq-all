@@ -94,7 +94,7 @@ public class DefaultMQProducerImpl implements MQProducerInner {
     private final Random random = new Random();
 
     /**
-     * 就是前面的生产者门面对象,在这里主要当作config使用,没错他与当前类就是循环依赖！！！！！！
+     * 就是前面的生产者门面对象,在这里主要当作{@link ClientConfig} config使用,没错他与当前类就是循环依赖！！！！！！
      */
     @Getter
     private final DefaultMQProducer defaultMQProducer;
@@ -102,11 +102,7 @@ public class DefaultMQProducerImpl implements MQProducerInner {
     /**
      * 映射表
      * 主题发布信息映射表
-     * key:topic主题
-     * value:主题的发布信息
-     * <p>
-     * 作为一个生产者，你肯定要直到各个主题的路由信息
-     * </p>
+     * 作为一个生产者，你肯定要知道你发送消息各个主题的路由信息
      */
     @Getter
     private final ConcurrentMap<String/*topic*/, TopicPublishInfo/*该主题的发布信息*/> topicPublishInfoTable = new ConcurrentHashMap<String, TopicPublishInfo>();
@@ -169,7 +165,9 @@ public class DefaultMQProducerImpl implements MQProducerInner {
     // 选择队列容错策略
     private final MQFaultStrategy mqFaultStrategy = new MQFaultStrategy();
 
-    // 异步发送线程池，如果指定的话，就不再使用默认(defaultAsyncSenderExecutor)的线程池，而是使用该线程池
+    /**
+     * 异步发送线程池，如果指定的话，就不再使用默认{@link defaultAsyncSenderExecutor}的线程池，而是使用该线程池
+     */
     private ExecutorService asyncSenderExecutor;
 
     public DefaultMQProducerImpl(final DefaultMQProducer defaultMQProducer) {
@@ -179,22 +177,20 @@ public class DefaultMQProducerImpl implements MQProducerInner {
     public DefaultMQProducerImpl(final DefaultMQProducer defaultMQProducer, RPCHook rpcHook) {
         this.defaultMQProducer = defaultMQProducer;
         this.rpcHook = rpcHook;
-
-        // 创建异步消息线程池任务队列
         /**
          * 异步发送消息的时候使用到的队列
          */
         BlockingQueue<Runnable> asyncSenderThreadPoolQueue = new LinkedBlockingQueue<Runnable>(50000);
-
         // 创建缺省的异步任务线程池
         int availableProcessors = Runtime.getRuntime().availableProcessors();
+        // 默认异步消息发送线程池
         this.defaultAsyncSenderExecutor = new ThreadPoolExecutor(availableProcessors/*核心线程数量*/, availableProcessors/*最大数量*/, 1000 * 60/*空闲线程的存活时间*/, TimeUnit.MILLISECONDS, asyncSenderThreadPoolQueue/*异步消息线程池任务队列*/,
                 new ThreadFactory() { // 线程工厂
                     private AtomicInteger threadIndex = new AtomicInteger(0);
 
                     @Override
                     public Thread newThread(Runnable r) {
-                        return new Thread(r, "AsyncSenderExecutor_" + this.threadIndex.incrementAndGet());
+                        return new Thread(r, "AsyncSenderExecutor_"/*线程前缀*/ + this.threadIndex.incrementAndGet());
                     }
                 });
     }
@@ -235,13 +231,9 @@ public class DefaultMQProducerImpl implements MQProducerInner {
     public void start(final boolean startFactory) throws MQClientException {
         String producerGroup = this.defaultMQProducer.getProducerGroup();
         switch (this.serviceState) {
-            // 刚刚创建的就是 CREAT_JUST 状态
-            case CREATE_JUST:
-                // 状态修改为启动失败，后面如果成功会修改的
-                this.serviceState = ServiceState.START_FAILED;
-                // 校验生产者组
-                // 1.组名称不能空，也不能为  DEFAULT_PRODUCER
-                this.checkConfig();
+            case CREATE_JUST:// 刚刚创建的就是 CREAT_JUST 状态
+                this.serviceState = ServiceState.START_FAILED;// 状态修改为启动失败，后面如果成功会修改的
+                this.checkConfig();// 1.组名称不能空，也不能为  DEFAULT_PRODUCER
                 if (!producerGroup.equals(MixAll.CLIENT_INNER_PRODUCER_GROUP/*CLIENT_INNER_PRODUCER*/)) {
                     // 条件成立：说明当前生产者不是 内部生产者（什么是内部生产者？处理消息回退这种情况使用的生产者，就是 CLIENT_INNER_PRODUCER 生产者组）
                     // 正常会进来这里
@@ -285,10 +277,8 @@ public class DefaultMQProducerImpl implements MQProducerInner {
             default:
                 break;
         }
-
         // 强制rocketMq客户端实例（生产者实例）向已知的broker节点发送心跳
         this.mQClientFactory.sendHeartbeatToAllBrokerWithLock();
-
         /**
          * request方法发送的消息需要 消费者回执一条消息
          * 怎么实现的呢？
@@ -303,7 +293,6 @@ public class DefaultMQProducerImpl implements MQProducerInner {
             @Override
             public void run() {
                 try {
-
                     // 这个定时任务主要是处理，上面的回执过期的情况
                     RequestFutureTable.scanExpiredRequest();
                 } catch (Throwable e) {
@@ -407,8 +396,11 @@ public class DefaultMQProducerImpl implements MQProducerInner {
         // 创建一个任务
         Runnable request = new Runnable() {
             private final String brokerAddr = addr;
+
             private final MessageExt message = msg;
+
             private final CheckTransactionStateRequestHeader checkRequestHeader = header;
+
             private final String group = DefaultMQProducerImpl.this.defaultMQProducer.getProducerGroup();
 
             @Override

@@ -12,6 +12,8 @@ public interface MQProducerInner {
     /**
      * 获取生产者关心的topic
      * 也就是获取该生产者都有哪些topic的主题发布信息
+     *
+     * @return 当前生产者关心的topic列表
      */
     Set<String> getPublishTopicList();
 

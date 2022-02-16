@@ -4,6 +4,7 @@ import lombok.Getter;
 import lombok.Setter;
 import lombok.ToString;
 import org.apache.commons.lang3.StringUtils;
+import org.apache.rocketmq.client.impl.factory.MQClientInstance;
 import org.apache.rocketmq.common.UtilAll;
 import org.apache.rocketmq.common.message.MessageQueue;
 import org.apache.rocketmq.common.protocol.NamespaceUtil;
@@ -31,12 +32,12 @@ public class ClientConfig {
     @Setter
     private String namesrvAddr = NameServerAddressUtils.getNameServerAddresses();
 
-    // 客户端ip
+    // 当前客户端ip
     @Getter
     @Setter
     private String clientIP = RemotingUtil.getLocalAddress();
 
-    // 客户端实例名称
+    // 当前客户端实例名称
     @Getter
     @Setter
     private String instanceName = System.getProperty("rocketmq.client.name", "DEFAULT");
@@ -44,7 +45,7 @@ public class ClientConfig {
     /**
      * 返回到Java虚拟机的可用的处理器数量
      *
-     * 客户端回调线程池线程数量
+     * 当前客户端回调线程池线程数量
      */
     @Getter
     @Setter
@@ -61,6 +62,8 @@ public class ClientConfig {
     /**
      * Pulling topic information interval from the named server
      * 获取路由信息的间隔时间
+     *
+     * @see MQClientInstance#updateTopicRouteInfoFromNameServer()
      */
     @Getter
     @Setter
@@ -69,6 +72,8 @@ public class ClientConfig {
     /**
      * Heartbeat interval in microseconds with message broker
      * 客户端与broker心跳的间隔时间
+     *
+     * @see MQClientInstance#sendHeartbeatToAllBrokerWithLock()
      */
     @Getter
     @Setter
@@ -77,6 +82,8 @@ public class ClientConfig {
     /**
      * Offset persistent interval for consumer
      * 消费者持久化消费进度的周期，5s一次
+     *
+     * @see MQClientInstance#persistAllConsumerOffset()
      */
     @Getter
     @Setter
@@ -101,6 +108,8 @@ public class ClientConfig {
     /**
      * 是否启用vip netty通道以发送消息
      * broker启动的时候会绑定2个端口，其中一个是vip通道端口
+     *
+     * 如果某个生产者开启了vip通过，则与broker连接的时候使用的是 broker 的另外一个端口进行网络连接！！！！
      */
     @Getter
     @Setter
