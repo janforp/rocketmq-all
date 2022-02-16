@@ -172,7 +172,7 @@ public class MQClientAPIImpl {
 
     /**
      * 客户端网络层对象，管理客户端于服务器之间连接的 NioSocketChannel 对象
-     * 通过它提供的 invoke 系列方法，客户端可以与服务器进行远程调用
+     * 通过它提供的 invokeXXX 系列方法，客户端可以与服务器进行远程调用
      *
      * @see NettyRemotingClient netty 客户端 网络层封装
      */
@@ -192,7 +192,7 @@ public class MQClientAPIImpl {
         this.clientConfig = clientConfig;
         topAddressing = new TopAddressing(MixAll.getWSAddr(), clientConfig.getUnitName());
         // 创建网络层对象
-        this.remotingClient = new NettyRemotingClient(nettyClientConfig, null);
+        this.remotingClient = new NettyRemotingClient(nettyClientConfig, null/*客户端并不关心*/);
         // 赋值
         this.remotingClient.registerRPCHook(rpcHook);
 
@@ -202,7 +202,7 @@ public class MQClientAPIImpl {
          *  org.apache.rocketmq.client.impl.ClientRemotingProcessor.processRequest
          *  @see ClientRemotingProcessor#processRequest(io.netty.channel.ChannelHandlerContext, org.apache.rocketmq.remoting.protocol.RemotingCommand)
          */
-        this.remotingClient.registerProcessor(RequestCode.CHECK_TRANSACTION_STATE, clientRemotingProcessor, null);
+        this.remotingClient.registerProcessor(RequestCode.CHECK_TRANSACTION_STATE, clientRemotingProcessor, null/*使用 publicExecutor*/);
         this.remotingClient.registerProcessor(RequestCode.NOTIFY_CONSUMER_IDS_CHANGED, clientRemotingProcessor, null);
         this.remotingClient.registerProcessor(RequestCode.RESET_CONSUMER_CLIENT_OFFSET, clientRemotingProcessor, null);
         this.remotingClient.registerProcessor(RequestCode.GET_CONSUMER_STATUS_FROM_CLIENT, clientRemotingProcessor, null);
@@ -239,7 +239,7 @@ public class MQClientAPIImpl {
     }
 
     public void start() {
-        // 启动网络层
+        // 启动客户端网络层
         this.remotingClient.start();
     }
 

@@ -76,7 +76,7 @@ public class NettyRemotingClient extends NettyRemotingAbstract implements Remoti
     /**
      * 控制下面的映射表的读写
      *
-     * @see NettyRemotingClient#channelTables
+     * @see NettyRemotingClient#channelTables 控制该对象
      */
     private final Lock lockChannelTables = new ReentrantLock();
 
@@ -118,7 +118,7 @@ public class NettyRemotingClient extends NettyRemotingAbstract implements Remoti
     /**
      * pipeline.addLast(defaultEventExecutorGroup,handler...)
      *
-     * netty 处理器使用的线程池
+     * netty 处理器使用的线程池，避免占用netty的IO线程执行业务逻辑
      */
     private DefaultEventExecutorGroup defaultEventExecutorGroup;
 
@@ -224,8 +224,8 @@ public class NettyRemotingClient extends NettyRemotingAbstract implements Remoti
                         pipeline.addLast(defaultEventExecutorGroup,
                                 new NettyEncoder(),/*RemotingCommand 编码为字节*/
                                 new NettyDecoder(),/* 字节 解码为 RemotingCommand 对象 */
-                                new IdleStateHandler(0, 0, nettyClientConfig.getClientChannelMaxIdleTimeSeconds()),
-                                new NettyConnectManageHandler(),
+                                new IdleStateHandler(0, 0, nettyClientConfig.getClientChannelMaxIdleTimeSeconds()),// 监听当前通道的空闲状态
+                                new NettyConnectManageHandler(), // 监听通道是否关闭，如果关闭需要发送通道事件
                                 /**
                                  * 核心业务逻辑
                                  *
@@ -235,7 +235,11 @@ public class NettyRemotingClient extends NettyRemotingAbstract implements Remoti
                     }
                 });
 
-        // 注意：bootstrap 仅仅是配置好了 客户端的数据，在这里并没有创建任何的 ch 对象
+        /**
+         * TODO 注意：bootstrap 仅仅是配置好了 客户端的数据，在这里并没有创建任何的 ch 对象，只有在发起请求的时候才建立连接
+         *
+         * @see NettyRemotingClient#getAndCreateChannel(java.lang.String)
+         */
 
         // 定时扫描 ResponseFutureTable 中超时的 ResponseFuture，避免客户端线程 长时间 阻塞
         this.timer.scheduleAtFixedRate(new TimerTask() {
@@ -251,6 +255,7 @@ public class NettyRemotingClient extends NettyRemotingAbstract implements Remoti
 
         // 客户端这里是null
         if (this.channelEventListener != null) {
+            // 客户端不会启动
             this.nettyEventExecutor.start();
         }
     }
@@ -439,11 +444,8 @@ public class NettyRemotingClient extends NettyRemotingAbstract implements Remoti
                     throw new RemotingTimeoutException("invokeSync call timeout");
                 }
                 // 执行远程调用
-                // 返回值：服务端的响应数据
-                RemotingCommand response = this.invokeSyncImpl/*调用父类的实现*/(channel, request, timeoutMillis - costTime);
-                //钩子
+                RemotingCommand response/*服务端的响应数据*/ = this.invokeSyncImpl/*调用父类的实现*/(channel, request, timeoutMillis - costTime);
                 String remoteAddr = RemotingHelper.parseChannelRemoteAddr(channel);
-
                 // 执行钩子，扩展点
                 doAfterRpcHooks(remoteAddr, request, response);
                 return response;
@@ -608,7 +610,6 @@ public class NettyRemotingClient extends NettyRemotingAbstract implements Remoti
     @SneakyThrows
     public void invokeAsync(String addr/*服务端地址*/, RemotingCommand request/*请求数据*/, long timeoutMillis, InvokeCallback invokeCallback) {
         long beginStartTime = System.currentTimeMillis();
-
         // 拿到跟服务端的连接
         final Channel channel = this.getAndCreateChannel(addr);
         if (channel != null && channel.isActive()) {

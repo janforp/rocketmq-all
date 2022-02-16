@@ -181,7 +181,14 @@ public class MQClientInstance {
 
     private final Lock lockHeartbeat = new ReentrantLock();
 
-    // 单线程的调度线程池，用于执行定时任务
+    /**
+     * 单线程的调度线程池，用于执行定时任务
+     * 1.定时获取 namesrv 地址
+     * 2.定时从 namesrv 上更新客户端本地的路由数据
+     * 3.定时清理下线的 broker 节点，定时发送心跳数据到每个 broker
+     * 4.定时消费者持久化消费进度
+     * 5.定时调整消费者线程池
+     */
     @Getter
     private final ScheduledExecutorService scheduledExecutorService = Executors.newSingleThreadScheduledExecutor(new ThreadFactory() {
         @Override
@@ -202,13 +209,14 @@ public class MQClientInstance {
     private final RebalanceService rebalanceService;
 
     /**
-     * TODO 内部生产者，用于处理消费端消息回退 ? 是这样吗？
+     * 内部生产者，用于处理消费端(消费失败的时候)消息回退
      *
      * CLIENT_INNER_PRODUCER
      *
      * this.defaultMQProducer = new DefaultMQProducer(CLIENT_INNER_PRODUCER);
      *
      * @see ConsumeMessageOrderlyService#sendMessageBack(org.apache.rocketmq.common.message.MessageExt)
+     * @see ClientRemotingProcessor#receiveReplyMessage(io.netty.channel.ChannelHandlerContext, org.apache.rocketmq.remoting.protocol.RemotingCommand)
      */
     @Getter
     private final DefaultMQProducer defaultMQProducer;
@@ -336,6 +344,7 @@ public class MQClientInstance {
 
                         // 创建队列
                         MessageQueue mq = new MessageQueue(topic, qd.getBrokerName(), i);
+                        // 保存到发布数据中去
                         info.getMessageQueueList().add(mq);
                     }
                 }
@@ -450,9 +459,9 @@ public class MQClientInstance {
             @Override
             public void run() {
                 try {
-                    // 清理下线的 broker 节点
+                    // (生产者或者消费者客户端)清理下线的 broker 节点
                     MQClientInstance.this.cleanOfflineBroker();
-                    // 给在线的 broker 节点发送心跳数据
+                    // (生产者或者消费者客户端)给在线的 broker 节点发送心跳数据
                     MQClientInstance.this.sendHeartbeatToAllBrokerWithLock();
                 } catch (Exception e) {
                     log.error("ScheduledTask sendHeartbeatToAllBroker exception", e);
@@ -466,7 +475,7 @@ public class MQClientInstance {
             @Override
             public void run() {
                 try {
-                    // 所以：可能重复消费
+                    // 所以：可能重复消费，可能丢失5秒的进度
                     MQClientInstance.this.persistAllConsumerOffset();
                 } catch (Exception e) {
                     log.error("ScheduledTask persistAllConsumerOffset exception", e);
@@ -851,7 +860,6 @@ public class MQClientInstance {
                         }
                         if (changed) {
                             // 克隆
-                            // 到 namesrv 上拉去最新的主题路由数据
                             TopicRouteData cloneTopicRouteData = topicRouteData.cloneTopicRouteData();
 
                             // 订阅该主题的 broker 节点集合
