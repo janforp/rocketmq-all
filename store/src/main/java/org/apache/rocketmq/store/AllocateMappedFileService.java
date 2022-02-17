@@ -23,6 +23,8 @@ import java.util.concurrent.PriorityBlockingQueue;
 import java.util.concurrent.TimeUnit;
 
 /**
+ * 异步创建 mappedFile 的服务
+ *
  * Create MappedFile in advance
  */
 public class AllocateMappedFileService extends ServiceThread {
