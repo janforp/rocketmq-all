@@ -4,7 +4,6 @@ import com.sun.jna.NativeLong;
 import com.sun.jna.Pointer;
 import lombok.Getter;
 import lombok.Setter;
-import org.apache.rocketmq.common.UtilAll;
 import org.apache.rocketmq.common.constant.LoggerName;
 import org.apache.rocketmq.common.message.MessageExt;
 import org.apache.rocketmq.common.message.MessageExtBatch;
@@ -53,6 +52,11 @@ public class MappedFile extends ReferenceResource {
     private static final AtomicInteger TOTAL_MAPPED_FILES = new AtomicInteger(0);
 
     /**
+     * 跟 wrotePosition 一样的作用，先不考虑这个
+     */
+    protected final AtomicInteger committedPosition = new AtomicInteger(0);
+
+    /**
      * @see MappedFile#wrotePosition
      * @see MappedFile#committedPosition 跟 {@link MappedFile#wrotePosition} 相同的功能，什么时候用这个字段呢？只有当前文件不使用{@link MappedFile#mappedByteBuffer} 的时候才用 committedPosition，而是用 {@link MappedFile#writeBuffer}的时候
      *
@@ -69,10 +73,6 @@ public class MappedFile extends ReferenceResource {
      */
     protected final AtomicInteger wrotePosition = new AtomicInteger(0);
 
-    /**
-     * 跟 wrotePosition 一样的作用
-     */
-    protected final AtomicInteger committedPosition = new AtomicInteger(0);
     // 0 ------- 落盘数据(安全数据) --------- flushedPos ------- 脏页(不安全的数据) ------- wrotePos -------- 空闲 -------.....
 
     /**
@@ -431,7 +431,7 @@ public class MappedFile extends ReferenceResource {
      * @param flushLeastPages 刷盘的最小页数，当为0的时候则属于强制刷盘，大于0的时候需要脏页数据达到 传入的值的时候才进行物理刷盘
      * @return The current flushed position 当前刷盘点
      */
-    public int flush(final int flushLeastPages) {
+    public int flush(final int flushLeastPages/*刷盘的最小页数，当为0的时候则属于强制刷盘，大于0的时候需要脏页数据达到 传入的值的时候才进行物理刷盘*/) {
         boolean ableToFlush = this.isAbleToFlush(flushLeastPages);
         if (ableToFlush) {
 
@@ -592,7 +592,7 @@ public class MappedFile extends ReferenceResource {
     }
 
     /**
-     * 该方法以 pos 为开始位点，到 有效数据为止，创建一个切片 byteBuffer 供业务访问数据
+     * 该方法返回从 pos 为开始位点，到 当前文件的 有效数据为止，创建一个切片 byteBuffer 供业务程序访问数据
      *
      * 其实就是得到了 pos 到 wrotePos 这段字节数组到内容
      *
@@ -687,12 +687,9 @@ public class MappedFile extends ReferenceResource {
 
                 // 删除
                 boolean result = this.file.delete();
-                log.info("delete file[REF:" + this.getRefCount() + "] " + this.fileName + (result ? " OK, " : " Failed, ")
-                        + "W:" + this.getWrotePosition() + " M:" + this.getFlushedPosition() + ", " + UtilAll.computeElapsedTimeMilliseconds(beginTime));
             } catch (Exception e) {
                 log.warn("close file channel " + this.fileName + " Failed. ", e);
             }
-
             return true;
         } else {
             log.warn("destroy mapped file[REF:" + this.getRefCount() + "] " + this.fileName + " Failed. cleanupOver: " + this.cleanupOver);

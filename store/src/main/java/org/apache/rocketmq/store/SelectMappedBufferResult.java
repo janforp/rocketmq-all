@@ -8,6 +8,9 @@ import java.nio.ByteBuffer;
 @AllArgsConstructor
 public class SelectMappedBufferResult {
 
+    /**
+     * 开始物理偏移量
+     */
     @Getter
     private final long startOffset;
 

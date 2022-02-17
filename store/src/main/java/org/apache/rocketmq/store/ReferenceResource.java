@@ -11,7 +11,7 @@ public abstract class ReferenceResource {
      * 提供查询服务{@link org.apache.rocketmq.store.MappedFile#selectMappedBuffer(int, int)}的时候 +1
      * 当=0的时候，说明该资源可以释放了，没有任何其他程序依赖他了
      */
-    protected final AtomicLong refCount = new AtomicLong(1);
+    protected final AtomicLong refCount = new AtomicLong(1/*新建的时候就是1*/);
 
     // 是否存活，默认是true，调用 shutdown 之后变为 false
     @Getter
@@ -29,7 +29,7 @@ public abstract class ReferenceResource {
     private volatile long firstShutdownTimestamp = 0;
 
     /**
-     * 增长引用计数
+     * 查询服务，增长引用计数
      *
      * @return true增加成功
      */
@@ -57,6 +57,7 @@ public abstract class ReferenceResource {
      */
     public void shutdown(final long intervalForcibly) {
         if (this.available) {
+            // 第一次关闭的时候设置为 false
             this.available = false;
 
             // 第一次关闭资源的时间
@@ -64,7 +65,7 @@ public abstract class ReferenceResource {
             //引用计数 - 1，可能释放资源，也可能没有释放资源，具体要看引用计数是否为零
             this.release();
         } else if (this.getRefCount() > 0) {
-            if ((System.currentTimeMillis() - this.firstShutdownTimestamp) >= intervalForcibly) {
+            if ((System.currentTimeMillis() - this.firstShutdownTimestamp/*第一次关闭的时间*/) >= intervalForcibly) {
                 // 强制关闭
                 this.refCount.set(-1000 - this.getRefCount());
                 this.release();
@@ -93,9 +94,9 @@ public abstract class ReferenceResource {
         return this.refCount.get();
     }
 
-    public abstract boolean cleanup(final long currentRef);
-
     public boolean isCleanupOver() {
         return this.refCount.get() <= 0 && this.cleanupOver;
     }
+
+    public abstract boolean cleanup(final long currentRef);
 }
