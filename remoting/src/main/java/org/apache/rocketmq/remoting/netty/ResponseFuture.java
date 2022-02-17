@@ -50,7 +50,10 @@ public class ResponseFuture {
      */
     private final CountDownLatch countDownLatch = new CountDownLatch(1);
 
-    // 并发度控制
+    /**
+     * 并发度控制
+     * 不管是服务端还是客户端在发起网络请求的时候都有一个并发度的控制，而在请求结束的时候都需要释放这个信号量，使并发度-1
+     */
     private final SemaphoreReleaseOnlyOnce once;
 
     /**

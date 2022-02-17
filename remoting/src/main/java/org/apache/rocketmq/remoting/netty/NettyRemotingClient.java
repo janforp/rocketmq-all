@@ -620,6 +620,7 @@ public class NettyRemotingClient extends NettyRemotingAbstract implements Remoti
             }
             this.invokeAsyncImpl/*调用父类的实现*/(channel, request, timeoutMillis - costTime, invokeCallback);
         } else {
+            // 网络连接异常
             this.closeChannel(addr, channel);
             throw new RemotingConnectException(addr);
         }

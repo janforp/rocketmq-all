@@ -7,12 +7,16 @@ import org.apache.rocketmq.remoting.exception.RemotingCommandException;
 
 @Data
 public class SendMessageResponseHeader implements CommandCustomHeader {
+
     @CFNotNull
     private String msgId;
+
     @CFNotNull
     private Integer queueId;
+
     @CFNotNull
     private Long queueOffset;
+
     private String transactionId;
 
     @Override

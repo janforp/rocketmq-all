@@ -648,7 +648,7 @@ public class DefaultMQProducerImpl implements MQProducerInner {
             SendResult sendResult = null; // 发送结果
 
             // 总的发送次数
-            int retryTimesWhenSendFailed = this.defaultMQProducer.getRetryTimesWhenSendFailed();
+            int retryTimesWhenSendFailed/*2*/ = this.defaultMQProducer.getRetryTimesWhenSendFailed();
             int timesTotal = communicationMode == CommunicationMode.SYNC ?
                     1 + retryTimesWhenSendFailed/*2*/ : // 同步发送
                     1; // 非同步发送
@@ -658,15 +658,14 @@ public class DefaultMQProducerImpl implements MQProducerInner {
             // 存储每次发送的时候选择的 brokerName
             String[/*存储每次发送的时候选择的 brokerName*/] brokersSent = new String[timesTotal];
             // 循环发送，什么时候跳出循环？1.发送成功 2.次数超过上限
-            for (; times < timesTotal; times++) {
+            for (; times < timesTotal; times++/* 上次发送失败，则重试 */) {
                 // 上次发送时候的 brokerName
                 String lastBrokerName/*第一次发的时候为 null*/ = (null == mq/*第一次发送的时候mq肯定是null*/) ? null : mq.getBrokerName();
                 // 从发布信息中选择队列
                 MessageQueue mqSelected = this.selectOneMessageQueue(topicPublishInfo, lastBrokerName);
                 if (mqSelected != null) {// 选择到了一个合适的发送队列
                     mq = mqSelected;
-                    // 存储本轮发送的 brokerName
-                    brokersSent[times] = mq.getBrokerName();
+                    brokersSent[times/*存储本次发送的 brokerName*/] = mq.getBrokerName();
                     try {
                         // 记录本轮发送的开始时间
                         beginTimestampPrev = System.currentTimeMillis();
@@ -838,17 +837,19 @@ public class DefaultMQProducerImpl implements MQProducerInner {
     // 发送 核心 实现
     private SendResult sendKernelImpl(final Message msg, final MessageQueue mq, final CommunicationMode communicationMode, final SendCallback sendCallback, final TopicPublishInfo topicPublishInfo, final long timeout)
             throws MQClientException, RemotingException, MQBrokerException, InterruptedException {
+
         long beginStartTime = System.currentTimeMillis();
+        String brokerName = mq.getBrokerName();
         // 获取指定 brokerName 主机的地址,master节点
-        String brokerAddr = this.mQClientFactory.findBrokerAddressInPublish(mq.getBrokerName());
+        String brokerAddr = this.mQClientFactory.findBrokerAddressInPublish(brokerName);
         if (null == brokerAddr) {
             tryToFindTopicPublishInfo(mq.getTopic());
-            brokerAddr = this.mQClientFactory.findBrokerAddressInPublish(mq.getBrokerName());
+            brokerAddr = this.mQClientFactory.findBrokerAddressInPublish(brokerName);
         }
         // 执行 endMsgHook 的时候使用
         SendMessageContext context = null;
         if (brokerAddr != null) {
-            // 是否走 vip 通道？如果走，则地址换换就好了，具体的发送逻辑还是一样的
+            // 当前生产者是否走 vip 通道？如果走，则地址换换就好了，具体的发送逻辑还是一样的
             boolean sendMessageWithVIPChannel = this.defaultMQProducer.isSendMessageWithVIPChannel();
             brokerAddr = MixAll.brokerVIPChannel(sendMessageWithVIPChannel, brokerAddr);
 
@@ -932,7 +933,7 @@ public class DefaultMQProducerImpl implements MQProducerInner {
                 // 主题
                 requestHeader.setTopic(msg.getTopic());
                 // 缺省主题
-                requestHeader.setDefaultTopic(this.defaultMQProducer.getCreateTopicKey());
+                requestHeader.setDefaultTopic(this.defaultMQProducer.getCreateTopicKey() /* TBW102 */);
                 // 默认的主题队列数：4
                 requestHeader.setDefaultTopicQueueNums(this.defaultMQProducer.getDefaultTopicQueueNums());
                 // 当前选择的队列id
@@ -947,7 +948,7 @@ public class DefaultMQProducerImpl implements MQProducerInner {
                 String properties2String = MessageDecoder.messageProperties2String(msg.getProperties());
                 requestHeader.setProperties(properties2String);
                 // 消费次数
-                requestHeader.setReconsumeTimes(0);
+                requestHeader.setReconsumeTimes(0 /*刚发送，消费次数肯定0 */);
                 // 模型
                 requestHeader.setUnitMode(this.isUnitMode());
                 // 是否批量
@@ -956,7 +957,7 @@ public class DefaultMQProducerImpl implements MQProducerInner {
                 // 消息重试的逻辑
                 if (requestHeader.getTopic().startsWith(MixAll.RETRY_GROUP_TOPIC_PREFIX/*%RETRY%*/)) {
                     // return msg.getProperty(MessageConst.PROPERTY_RECONSUME_TIME/*RECONSUME_TIME*/);
-                    String reconsumeTimes = MessageAccessor.getReconsumeTime(msg);
+                    String reconsumeTimes/*RECONSUME_TIME*/ = MessageAccessor.getReconsumeTime(msg);
                     if (reconsumeTimes != null) {
                         // 重试次数
                         Integer reTime = Integer.valueOf(reconsumeTimes);
@@ -971,6 +972,8 @@ public class DefaultMQProducerImpl implements MQProducerInner {
                         MessageAccessor.clearProperty(msg, MessageConst.PROPERTY_MAX_RECONSUME_TIMES);
                     }
                 }
+
+                // 👆都是准备发送阶段，👇开始发送消息
 
                 // 发送结果
                 SendResult sendResult = null;
@@ -1001,11 +1004,10 @@ public class DefaultMQProducerImpl implements MQProducerInner {
                             throw new RemotingTooMuchRequestException("sendKernelImpl call timeout");
                         }
 
-                        String brokerName = mq.getBrokerName();
                         int retryTimesWhenSendAsyncFailed = this.defaultMQProducer.getRetryTimesWhenSendAsyncFailed();
                         sendResult = mqClientAPIImpl.sendMessage(
                                 brokerAddr, brokerName, tmpMessage, requestHeader, timeout - costTimeAsync,
-                                communicationMode, sendCallback, topicPublishInfo, this.mQClientFactory, retryTimesWhenSendAsyncFailed, context, this);
+                                communicationMode, sendCallback/*异步回调*/, topicPublishInfo, this.mQClientFactory, retryTimesWhenSendAsyncFailed, context, this);
                         break;
                     case ONEWAY:
                     case SYNC:
@@ -1016,7 +1018,7 @@ public class DefaultMQProducerImpl implements MQProducerInner {
                             throw new RemotingTooMuchRequestException("sendKernelImpl call timeout");
                         }
                         // ！！！！  发送了，拿到服务端broker返回的结果
-                        sendResult = mqClientAPIImpl.sendMessage(brokerAddr, mq.getBrokerName(), msg, requestHeader, timeout - costTimeSync, communicationMode, context, this);
+                        sendResult = mqClientAPIImpl.sendMessage(brokerAddr, brokerName, msg, requestHeader, timeout - costTimeSync, communicationMode, context, this);
                         break;
                     default:
                         assert false;

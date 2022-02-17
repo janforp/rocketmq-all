@@ -545,7 +545,6 @@ public class MQClientAPIImpl {
                                 }
 
                                 try {
-
                                     // 执行用户传入的成功回调
                                     sendCallback.onSuccess(sendResult);
                                 } catch (Throwable e) {
