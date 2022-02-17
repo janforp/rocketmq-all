@@ -681,8 +681,8 @@ public abstract class NettyRemotingAbstract {
         @Override
         public void run() {
             /**
-             * @see org.apache.rocketmq.broker.client.ClientHousekeepingService
-             * @see org.apache.rocketmq.namesrv.routeinfo.BrokerHousekeepingService
+             * @see org.apache.rocketmq.broker.client.ClientHousekeepingService broker
+             * @see org.apache.rocketmq.namesrv.routeinfo.BrokerHousekeepingService namesrv
              */
             final ChannelEventListener listener = NettyRemotingAbstract.this.getChannelEventListener();
             while (!this.isStopped()) {

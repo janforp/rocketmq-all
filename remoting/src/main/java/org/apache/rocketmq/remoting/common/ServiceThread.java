@@ -35,8 +35,6 @@ public abstract class ServiceThread implements Runnable {
         return this.getClass().getSimpleName();
     }
 
-    ;
-
     @Override
     public abstract void run();
 
@@ -54,12 +52,10 @@ public abstract class ServiceThread implements Runnable {
         synchronized (this) {
             if (!this.hasNotified) {
                 this.hasNotified = true;
-
                 // TODO ？？？
                 this.notify();
             }
         }
-
         try {
             if (interrupt) {
                 // 中断一下执行任务的线程，至于是否响应，需要看线程自己了
@@ -79,5 +75,4 @@ public abstract class ServiceThread implements Runnable {
     public long getJointime() {
         return JOIN_TIME;
     }
-
 }

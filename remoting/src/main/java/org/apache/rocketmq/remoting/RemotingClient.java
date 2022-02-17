@@ -10,11 +10,22 @@ import org.apache.rocketmq.remoting.protocol.RemotingCommand;
 import java.util.List;
 import java.util.concurrent.ExecutorService;
 
+/**
+ * 一般客户端是指 生产者以及消费者
+ */
 public interface RemotingClient extends RemotingService {
 
     void updateNameServerAddressList(final List<String> addrs);
 
     List<String> getNameServerAddressList();
+
+    void registerProcessor(final int requestCode, final NettyRequestProcessor processor, final ExecutorService executor);
+
+    void setCallbackExecutor(final ExecutorService callbackExecutor);
+
+    ExecutorService getCallbackExecutor();
+
+    boolean isChannelWritable(final String addr);
 
     RemotingCommand invokeSync(final String addr, final RemotingCommand request, final long timeoutMillis) throws InterruptedException, RemotingConnectException, RemotingSendRequestException, RemotingTimeoutException;
 
@@ -28,12 +39,4 @@ public interface RemotingClient extends RemotingService {
 
     void invokeOneway(final String addr, final RemotingCommand request, final long timeoutMillis)
             throws InterruptedException, RemotingConnectException, RemotingTooMuchRequestException, RemotingTimeoutException, RemotingSendRequestException;
-
-    void registerProcessor(final int requestCode, final NettyRequestProcessor processor, final ExecutorService executor);
-
-    void setCallbackExecutor(final ExecutorService callbackExecutor);
-
-    ExecutorService getCallbackExecutor();
-
-    boolean isChannelWritable(final String addr);
 }

@@ -427,7 +427,6 @@ public class MQClientAPIImpl {
         RemotingCommand request;
         String msgType = msg.getProperty(MessageConst.PROPERTY_MESSAGE_TYPE/*MSG_TYPE*/);
         boolean isReply = msgType != null && msgType.equals(MixAll.REPLY_MESSAGE_FLAG/*reply 回执消息？*/);
-
         if (isReply) {
             if (sendSmartMsg) {
                 // 节省宽带
@@ -437,9 +436,7 @@ public class MQClientAPIImpl {
                 request = RemotingCommand.createRequestCommand(RequestCode.SEND_REPLY_MESSAGE, requestHeader);
             }
         } else {
-
             if (sendSmartMsg || msg instanceof MessageBatch) {
-
                 // 节省网络传输
                 SendMessageRequestHeaderV2 requestHeaderV2 = SendMessageRequestHeaderV2.createSendMessageRequestHeaderV2(requestHeader);
                 int requestCode = msg instanceof MessageBatch ? RequestCode.SEND_BATCH_MESSAGE : RequestCode.SEND_MESSAGE_V2;
@@ -448,10 +445,8 @@ public class MQClientAPIImpl {
                 request = RemotingCommand.createRequestCommand(RequestCode.SEND_MESSAGE, requestHeader);
             }
         }
-
         // 塞入消息体！！！
         request.setBody(msg.getBody());
-
         switch (communicationMode) {
             case ONEWAY:
                 this.remotingClient.invokeOneway(addr, request, timeoutMillis);
@@ -477,7 +472,6 @@ public class MQClientAPIImpl {
                 assert false;
                 break;
         }
-
         return null;
     }
 
@@ -518,7 +512,6 @@ public class MQClientAPIImpl {
                         long cost = System.currentTimeMillis() - beginStartTime;
                         RemotingCommand response = responseFuture.getResponseCommand();
                         if (null == sendCallback && response != null) {
-
                             try {
                                 SendResult sendResult = MQClientAPIImpl.this.processSendResponse(brokerName, msg, response);
                                 if (context != null && sendResult != null) {
@@ -528,31 +521,26 @@ public class MQClientAPIImpl {
                                 }
                             } catch (Throwable ignore) {
                             }
-
                             producer.updateFaultItem(brokerName, System.currentTimeMillis() - responseFuture.getBeginTimestamp(), false);
                             return;
                         }
 
                         if (response != null) {
                             try {
-
                                 // 处理服务端返回的结果
                                 SendResult sendResult = MQClientAPIImpl.this.processSendResponse(brokerName, msg, response);
                                 assert sendResult != null;
                                 if (context != null) {
                                     context.setSendResult(sendResult);
                                     DefaultMQProducerImpl defaultMQProducer = context.getProducer();
-
                                     // 执行发送消息后处理器
                                     defaultMQProducer.executeSendMessageHookAfter(context);
                                 }
-
                                 try {
                                     // 执行用户传入的成功回调
                                     sendCallback.onSuccess(sendResult);
                                 } catch (Throwable e) {
                                 }
-
                                 // 该broker发送成功
                                 producer.updateFaultItem(brokerName, System.currentTimeMillis() - responseFuture.getBeginTimestamp(), false);
                             } catch (Exception e) {
