@@ -814,6 +814,9 @@ public class MQClientInstance {
      *
      * 遍历客户端主题集合，从namesrv拉去最新的主题路由数据，与本地客户端的路由数据对比，判断该主题是否需要更新
      *
+     *
+     * TODO 如果在发送消息的时候，没有提前在 broker 上创建 topic 以及路由信息，那么会使用默认的主题配置(TBW102)创建一个路由信息，存储在生产者本地的内存中
+     *
      * @param topic 主题
      * @param isDefault 是否默认
      * @param defaultMQProducer 发送方
@@ -824,6 +827,11 @@ public class MQClientInstance {
             if (this.lockNamesrv.tryLock(LOCK_TIMEOUT_MILLIS, TimeUnit.MILLISECONDS)) {
                 try {
                     TopicRouteData topicRouteData;
+                    /**
+                     * 发送消息的时候，本地没有，namesrv也没有的情况，因为在发送消息之前，没有提前在broker上创建 topic 的路由数据
+                     *
+                     * @see DefaultMQProducerImpl#tryToFindTopicPublishInfo(java.lang.String) 最后的一个 else 分支！！！
+                     */
                     if (isDefault && defaultMQProducer != null) {
                         // TBW102
                         String createTopicKey = defaultMQProducer.getCreateTopicKey();
@@ -851,7 +859,6 @@ public class MQClientInstance {
                         // 判断路由数据是否发送变化（本地跟远程的差异）
                         boolean changed = topicRouteDataIsChange(old, topicRouteData);
                         if (!changed) {
-
                             // 如果上面没发生变化，则继续判断是否需要更新
                             // 从每个生产者跟消费者中逐一判断
                             changed = this.isNeedUpdateTopicRouteInfo(topic);

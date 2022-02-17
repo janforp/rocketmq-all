@@ -164,6 +164,9 @@ public class MQClientAPIImpl {
 
     private final static InternalLogger log = ClientLogger.getLog();
 
+    /**
+     * @see SendMessageRequestHeaderV2
+     */
     private static final boolean sendSmartMsg = Boolean.parseBoolean(System.getProperty("org.apache.rocketmq.client.sendSmartMsg", "true"));
 
     static {
@@ -411,12 +414,12 @@ public class MQClientAPIImpl {
             final SendMessageRequestHeader requestHeader, // 消息头
             final long timeoutMillis, // 超时时间
             final CommunicationMode communicationMode, // 模式
-            final SendCallback sendCallback, // 回调
+            final SendCallback sendCallback, // 发送消息回调
             final TopicPublishInfo topicPublishInfo, // 发布
             final MQClientInstance instance, // 实例
             final int retryTimesWhenSendFailed, // 重试次数
             final SendMessageContext context, // 上下文
-            final DefaultMQProducerImpl producer // 发送实例
+            final DefaultMQProducerImpl producer // 发送生产者实例
     ) throws RemotingException, MQBrokerException, InterruptedException {
 
         long beginStartTime = System.currentTimeMillis();
@@ -461,6 +464,7 @@ public class MQClientAPIImpl {
                     throw new RemotingTooMuchRequestException("sendMessage call timeout");
                 }
                 this.sendMessageAsync(addr, brokerName, msg, timeoutMillis - costTimeAsync, request, sendCallback, topicPublishInfo, instance, retryTimesWhenSendFailed, times, context, producer);
+                // 发送方法立即返回，结果处理交给回调对象
                 return null;
             case SYNC:
                 long costTimeSync = System.currentTimeMillis() - beginStartTime;
