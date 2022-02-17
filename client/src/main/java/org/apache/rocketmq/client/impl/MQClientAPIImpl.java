@@ -437,7 +437,6 @@ public class MQClientAPIImpl {
                 request = RemotingCommand.createRequestCommand(RequestCode.SEND_REPLY_MESSAGE, requestHeader);
             }
         } else {
-            // 正常消息走这里
 
             if (sendSmartMsg || msg instanceof MessageBatch) {
 

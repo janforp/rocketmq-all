@@ -661,6 +661,8 @@ public class DefaultMQProducerImpl implements MQProducerInner {
             for (; times < timesTotal; times++/* 上次发送失败，则重试 */) {// 循环发送，什么时候跳出循环？1.发送成功 2.次数超过上限
                 // 上次发送时候的 brokerName
                 String lastBrokerName/*上次发送的brokerName,第一次发的时候为 null*/ = (null == mq/*第一次发送的时候mq肯定是null*/) ? null : mq.getBrokerName();
+
+                // {"topic":"主题","brokerName":"broker-a","queueId":"1"}
                 MessageQueue mqSelected = this.selectOneMessageQueue/*从发布信息中选择队列*/(topicPublishInfo, lastBrokerName);
                 if (mqSelected != null) {// 选择到了一个合适的发送队列
                     mq = mqSelected;
@@ -890,11 +892,13 @@ public class DefaultMQProducerImpl implements MQProducerInner {
                     // 已经压缩了，然后打一个标记
                     sysFlag |= MessageSysFlag.COMPRESSED_FLAG;
                     msgBodyCompressed = true;
+                    // 此时 msg 中的 body 以及是压缩过的
                 }
 
                 // 事务消息特有的属性
                 final String tranMsg = msg.getProperty(MessageConst.PROPERTY_TRANSACTION_PREPARED/*TRAN_MSG*/);
                 if (tranMsg != null && Boolean.parseBoolean(tranMsg)) {
+                    // 半消息
                     sysFlag |= MessageSysFlag.TRANSACTION_PREPARED_TYPE;
                 }
 
@@ -923,7 +927,7 @@ public class DefaultMQProducerImpl implements MQProducerInner {
                     context.setMessage(msg);
                     context.setMq(mq);
                     context.setNamespace(this.defaultMQProducer.getNamespace());
-                    String isTrans = msg.getProperty(MessageConst.PROPERTY_TRANSACTION_PREPARED);
+                    String isTrans = msg.getProperty(MessageConst.PROPERTY_TRANSACTION_PREPARED/*TRAN_MSG*/);
                     if (isTrans != null && isTrans.equals("true")) {
                         context.setMsgType(MessageType.Trans_Msg_Half);
                     }
@@ -943,7 +947,7 @@ public class DefaultMQProducerImpl implements MQProducerInner {
                 // 缺省主题
                 requestHeader.setDefaultTopic(this.defaultMQProducer.getCreateTopicKey() /* TBW102 */);
                 // 默认的主题队列数：4
-                requestHeader.setDefaultTopicQueueNums(this.defaultMQProducer.getDefaultTopicQueueNums());
+                requestHeader.setDefaultTopicQueueNums(this.defaultMQProducer.getDefaultTopicQueueNums() /*4*/);
                 // 当前选择的队列id
                 requestHeader.setQueueId(mq.getQueueId());
                 // 系统标记变量
@@ -1058,7 +1062,9 @@ public class DefaultMQProducerImpl implements MQProducerInner {
                 }
                 throw e;
             } finally {
+                // 最终恢复压缩之前的消息体
                 msg.setBody(prevBody);
+                // 最终恢复之前的主题
                 msg.setTopic(NamespaceUtil.withoutNamespace(msg.getTopic(), this.defaultMQProducer.getNamespace()));
             }
         }
@@ -1070,6 +1076,13 @@ public class DefaultMQProducerImpl implements MQProducerInner {
         return mQClientFactory;
     }
 
+    /**
+     * ocketmq-cpp/src/producer/DefaultMQProducer.cpp: tryToCompressMessage函数没有判断msg是否被压缩过，只判断了是否过大，如果压缩后发送失败进行重发并且body大小仍然>=getCompressMsgBodyOverHowmuch()， body会被压缩两次
+     *
+     * @param msg
+     * @return
+     * @see {@link https://github.com/apache/rocketmq-externals/issues/66}
+     */
     private boolean tryToCompressMessage(final Message msg) {
         if (msg instanceof MessageBatch) {
             //batch dose not support compressing right now
