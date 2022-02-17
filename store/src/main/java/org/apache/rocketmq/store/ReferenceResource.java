@@ -55,7 +55,7 @@ public abstract class ReferenceResource {
      *
      * @param intervalForcibly 强制关闭的时间间隔
      */
-    public void shutdown(final long intervalForcibly) {
+    public void shutdown(final long intervalForcibly/*多次调用关闭函数，强制关闭的时间间隔*/) {
         if (this.available) {
             // 第一次关闭的时候设置为 false
             this.available = false;
