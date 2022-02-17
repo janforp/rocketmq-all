@@ -44,18 +44,28 @@ public class CommitLog {
     /**
      * 正常消息的魔法值
      * 存储到 CommitLog 文件时，消息的第一个字段是 msgSize 第二个字段就是 该魔法值
+     *
+     * 二进制：11011010101000110010000010100111
+     * 十六进制：daa320a7
      */
     // Message's MAGIC CODE daa320a7
     public final static int MESSAGE_MAGIC_CODE = -626843481;
 
+    public static void main(String[] args) {
+        System.out.println(Integer.toBinaryString(MESSAGE_MAGIC_CODE).length());
+        System.out.println(Integer.toHexString(MESSAGE_MAGIC_CODE));
+        System.out.println(Integer.toBinaryString(BLANK_MAGIC_CODE));
+    }
+
     protected static final InternalLogger log = InternalLoggerFactory.getLogger(LoggerName.STORE_LOGGER_NAME);
 
     /**
-     * zh
+     * End of file empty MAGIC CODE cbd43194
+     * 标记一个文件结尾的魔法值！
+     *
      * 文件尾消息魔法值
+     * 11001011110101000011000110010100
      */
-    // End of file empty MAGIC CODE cbd43194
-    // 标记一个文件结尾的魔法值！
     protected final static int BLANK_MAGIC_CODE = -875286124;
 
     // 目录，管理目录下的文件列表
@@ -88,6 +98,8 @@ public class CommitLog {
      * 控制消息中哪些字段追加到 mappedFile
      *
      * 追加消息到文件的具体逻辑由该对象控制！！！
+     *
+     * @see DefaultAppendMessageCallback
      */
     private final AppendMessageCallback appendMessageCallback;
 
@@ -1310,7 +1322,6 @@ public class CommitLog {
                 }
             }
         }
-
     }
 
     public PutMessageResult putMessages(final MessageExtBatch messageExtBatch) {
