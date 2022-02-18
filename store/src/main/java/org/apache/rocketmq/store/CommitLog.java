@@ -276,23 +276,20 @@ public class CommitLog {
             this.defaultMessageStore.destroyLogics();
             return;
         }
-        // 目录下有 commitLog 文件
-        // 进入恢复逻辑
+        // 目录下有 commitLog 文件，则进入恢复逻辑
         int index /*从倒数第三个*/ = mappedFiles.size() - 3;
         if (index < 0) {
-            // 没有3个文件的时候从第一个文件开始
-            index = 0;
+            index = 0;//没有3个文件的时候从第一个文件开始
         }
         MappedFile mappedFile/*拿到待恢复的commitLog文件*/ = mappedFiles.get(index);
-        // MappedByteBuffer mappedByteBuffer; 该 commitLog 文件对应的内容缓存
-        ByteBuffer byteBuffer/*复制，包含文件的所有数据*/ = mappedFile.sliceByteBuffer();
+        ByteBuffer byteBuffer/*待恢复 commitLog 文件的包含全部数据Buffer切片*/ = mappedFile.sliceByteBuffer();
         long processOffset/*获取待恢复 mf 文件名作为 处理起始偏移量（目录恢复位点）*/ = mappedFile.getFileFromOffset();
-        long mappedFileOffset/*待处理 mf 的处理位点（文件内的位点，从 0 开始,每处理完一个 commitLog 文件，在处理下一个文件的时候归零，如果没有下一个commitLog 文件，则停留在最后一个文件的写入位点）*/ = 0;
+        long mappedFileOffset/*当前正在处理文件的处理位点（文件内的位点，从 0 开始,每处理完一个 commitLog 文件，在处理下一个文件的时候归零，如果没有下一个commitLog 文件，则停留在最后一个文件的写入位点）*/ = 0;
         // 循环所有的 commitLog 文件，恢复每条消息
         while (true) {
             DispatchRequest dispatchRequest /*特殊情况1.magic_code 表示文件尾，2.dispatchRequest.size == 0 表示文件内的消息都处理完；并且未达到文件尾*/ = this.checkMessageAndReturnSize/*从切片内解析一条 msg 封装成 一个 dispatchRequest 对象*/(byteBuffer, checkCRCOnRecover);
             int size = dispatchRequest.getMsgSize();
-            // Normal data
+            // Normal data 正常数据
             if (dispatchRequest.isSuccess() && size > 0) { // 正常情况走这里
                 mappedFileOffset/*推进当前文件的偏移量*/ = mappedFileOffset + size;
             }
@@ -300,8 +297,8 @@ public class CommitLog {
             // 到文件结尾，切换到下一个文件 由于返回0代表遇到了最后一个洞，这个不能包含在truncate offset中
             else if (dispatchRequest.isSuccess() && size == 0) { // 文件尾的情况走这里
                 // 该文件末尾了，当前文件没有数据可以刷盘了
-                index++/*继续到下一个文件*/;
-                if (index >= mappedFiles.size()/*没有下一个文件了，说明该目录下的文件都刷盘了，跳出循环*/) {
+                index++/*继续到下一个 commitLog 文件*/;
+                if (index >= mappedFiles.size()/*没有下一个文件了，说明该目录下的文件都恢复了，跳出循环*/) {
                     // Current branch can not happen
                     log.info("recover last 3 physics file over, last mapped file " + mappedFile.getFileName());
                     break;/* while 循环中断 */
@@ -312,7 +309,7 @@ public class CommitLog {
                     processOffset/*获取待恢复 mf 文件名作为 处理起始偏移量（目录恢复位点）*/ = mappedFile.getFileFromOffset();
                     mappedFileOffset/*待处理 mf 的处理位点（文件内的位点，从 0 开始,每处理完一个 commitLog 文件，在处理下一个文件的时候归零，如果没有下一个commitLog 文件，则停留在最后一个文件的写入位点）*/ = 0;
                     log.info("recover next physics file, " + mappedFile.getFileName());
-                    /* while 循环 继续 */
+                    /* while 循环 继续 处理下一个 commitLog 文件 */
                 }
             }
             // Intermediate file read error -- 中间文件读取错误
@@ -327,13 +324,13 @@ public class CommitLog {
         // 执行到这里。正常情况下，所有待恢复的数据 已经被检查一遍了
         // 再加 mappedFileOffset 之前，processOffset 是最后一个文件的文件名，再加上 mappedFileOffset，则表示 commitLog 的全局位点
         // long processOffset = mappedFile.getFileFromOffset();
-        processOffset/*计算得到，commitLog全局的最大物理偏移量*/ = processOffset/*最后一个恢复文件的文件名，也就是起始偏移量*/ + mappedFileOffset/*待处理 mf 的处理位点（文件内的位点，从 0 开始,每处理完一个 commitLog 文件，在处理下一个文件的时候归零，如果没有下一个commitLog 文件，则停留在最后一个文件的写入位点）*/;
-        this.mappedFileQueue.setFlushedWhere(processOffset/*commitLog全局的最大物理偏移量*/);
-        this.mappedFileQueue.setCommittedWhere(processOffset/*commitLog全局的最大物理偏移量*/);
+        processOffset/* 计算得到，commitLog全局位点 */ = processOffset/*最后一个恢复文件的文件名，也就是起始偏移量*/ + mappedFileOffset/*待处理 mf 的处理位点（文件内的位点，从 0 开始,每处理完一个 commitLog 文件，在处理下一个文件的时候归零，如果没有下一个commitLog 文件，则停留在最后一个文件的写入位点）*/;
+        this.mappedFileQueue.setFlushedWhere(processOffset/*commitLog全局位点*/);
+        this.mappedFileQueue.setCommittedWhere(processOffset/*commitLog全局位点*/);
         // 调整 mfq 内当前正在顺序写的mf 的刷盘点和写入点
-        this.mappedFileQueue.truncateDirtyFiles(processOffset);
+        this.mappedFileQueue.truncateDirtyFiles(processOffset/*commitLog全局位点*/);
         // Clear ConsumeQueue redundant data
-        if (maxPhyOffsetOfConsumeQueue/*ConsumeQueue 中已知的最大消息 物理偏移量offset*/ >= processOffset/*commitLog全局的最大物理偏移量*/) /*commitLog全局的最大物理偏移量 都没有 ConsumeQueue 中已知的最大消息 物理偏移量offset 大，则说明 consumeQueue 中有垃圾数据*/ {
+        if (maxPhyOffsetOfConsumeQueue/*ConsumeQueue 中已知的最大消息 物理偏移量offset*/ >= processOffset/*commitLog全局位点*/) /*commitLog全局的最大物理偏移量 都没有 ConsumeQueue 中已知的最大消息 物理偏移量offset 大，则说明 consumeQueue 中有垃圾数据*/ {
             log.warn("maxPhyOffsetOfConsumeQueue({}) >= processOffset({}), truncate dirty logic files", maxPhyOffsetOfConsumeQueue, processOffset);
             this.defaultMessageStore.truncateDirtyLogicFiles/*删除 ConsumeQueue 中的脏文件*/(processOffset);
         }
@@ -384,12 +381,10 @@ public class CommitLog {
              */
 
             // 1 TOTAL SIZE
-            // 前四个字节
-            int totalSize = byteBuffer.getInt();
+            int totalSize = byteBuffer.getInt()/* 前四个字节 表示当前消息的大小*/;
 
             // 2 MAGIC CODE
-            // 后四个字节，魔法值
-            int magicCode = byteBuffer.getInt();
+            int magicCode = byteBuffer.getInt() /*后四个字节，魔法值*/;
             switch (magicCode) {
                 case MESSAGE_MAGIC_CODE:
                     // 魔法值是消息的，正常情况,当前可以拿到一条正常的消息
@@ -565,6 +560,7 @@ public class CommitLog {
                                 this.defaultMessageStore.doDispatch(dispatchRequest);
                             }
                         } else {
+                            // 与正常关机的不同点
                             this.defaultMessageStore.doDispatch(dispatchRequest);
                         }
                     }

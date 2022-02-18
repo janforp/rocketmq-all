@@ -264,8 +264,7 @@ public class ConsumeQueue {
      *
      * @param phyOffset 准确无误的最大消息物理偏移量
      */
-    public void truncateDirtyLogicFiles(long phyOffset) {
-
+    public void truncateDirtyLogicFiles(long phyOffset/*commitLog全局的最大物理偏移量*/) {
         int logicFileSize = this.mappedFileSize;
         this.maxPhysicOffset = phyOffset;
         long maxExtAddr = 1;
@@ -273,24 +272,18 @@ public class ConsumeQueue {
             MappedFile mappedFile = this.mappedFileQueue.getLastMappedFile();
             if (mappedFile != null) {
                 ByteBuffer byteBuffer = mappedFile.sliceByteBuffer();
-
                 mappedFile.setWrotePosition(0);
                 mappedFile.setCommittedPosition(0);
                 mappedFile.setFlushedPosition(0);
-
-                for (int i = 0; i < logicFileSize; i += CQ_STORE_UNIT_SIZE) {
-                    // 循环处理每个 CQData
-
+                for (int i = 0; i < logicFileSize; i += CQ_STORE_UNIT_SIZE/*20*/) /*循环处理每个*/ {
                     long offset = byteBuffer.getLong();
                     int size = byteBuffer.getInt();
                     long tagsCode = byteBuffer.getLong();
-
-                    if (0 == i) {
-                        if (offset >= phyOffset) {
-                            // 说明 commitLog 部分文件被删除？
-
+                    if (0 == i /* consumeQueue 的第一个消息*/) {
+                        if (offset/*第一个消息的物理偏移量*/ >= phyOffset/*commitLog全局的最大物理偏移量*/) {
+                            // 说明 commitLog 部分文件被删除，或者 该 consumeQUEUe 中的数据是脏数据
                             this.mappedFileQueue.deleteLastMappedFile();
-                            break;
+                            break /* 跳出 内层 for 循环 */;
                         } else {
                             int pos = i + CQ_STORE_UNIT_SIZE;
                             mappedFile.setWrotePosition(pos);
@@ -303,13 +296,10 @@ public class ConsumeQueue {
                             }
                         }
                     } else {
-
                         if (offset >= 0 && size > 0) {
-
                             if (offset >= phyOffset) {
                                 return;
                             }
-
                             int pos = i + CQ_STORE_UNIT_SIZE;
                             mappedFile.setWrotePosition(pos);
                             mappedFile.setCommittedPosition(pos);
@@ -318,7 +308,6 @@ public class ConsumeQueue {
                             if (isExtAddr(tagsCode)) {
                                 maxExtAddr = tagsCode;
                             }
-
                             if (pos == logicFileSize) {
                                 return;
                             }
