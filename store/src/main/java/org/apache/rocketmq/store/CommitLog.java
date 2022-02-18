@@ -1542,14 +1542,13 @@ public class CommitLog {
                     flushPhysicQueueLeastPages = 0;
                 }
                 try {
-                    // 线程休眠方式
+                    // 线程休眠，让出CPU
                     if (flushCommitLogTimed /* false */) {
                         Thread.sleep(interval/*刷盘间隔时间*/);
                     } else {
                         this.waitForRunning(interval/*刷盘间隔时间*/);
                     }
-                    // 刷盘，传入0表示强制刷盘
-                    CommitLog.this.mappedFileQueue.flush(flushPhysicQueueLeastPages/*刷盘脏页最小值：4*/);
+                    CommitLog.this.mappedFileQueue.flush/*落盘*/(flushPhysicQueueLeastPages/*刷盘脏页最小值：4，传入0表示强制刷盘*/);
                     // 当前 mfq 中最后一次追加msg的时间
                     long storeTimestamp = CommitLog.this.mappedFileQueue.getStoreTimestamp();
                     if (storeTimestamp > 0) {
@@ -1566,7 +1565,7 @@ public class CommitLog {
             // Normal shutdown, to ensure that all the flush before exit
             // 正常关机，确保退出前 flush 所有数据
             boolean result = false;
-            for (int i = 0; i < RETRY_TIMES_OVER /*10*/ && !result; i++) {
+            for (int i = 0; i < RETRY_TIMES_OVER /*10*/ && !result/*没有数据落盘的时候循环结束*/; i++) {
                 // 强制刷盘，保证在停机之前数据都持久化了
                 result = CommitLog.this.mappedFileQueue.flush(0/* 强制刷盘 */);
                 // TODO 强制刷盘10次也不一定把所有数据都落盘了！！
