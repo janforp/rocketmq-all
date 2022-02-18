@@ -76,7 +76,7 @@ public class StoreCheckpoint {
         this.flush();
 
         // unmap mappedByteBuffer
-        MappedFile.clean(this.mappedByteBuffer);
+        MappedFileAssist.clean(this.mappedByteBuffer);
 
         try {
             this.fileChannel.close();

@@ -1901,10 +1901,18 @@ public class CommitLog {
         }
     }
 
+    /**
+     * @see MappedFile#appendMessagesInner(org.apache.rocketmq.common.message.MessageExt, org.apache.rocketmq.store.AppendMessageCallback)
+     */
     class DefaultAppendMessageCallback implements AppendMessageCallback {
 
-        // File at the end of the minimum fixed length empty
-        // 文件结尾最少有8个字节
+        /**
+         * File at the end of the minimum fixed length empty
+         *
+         * 文件结尾最少有8个字节, 剩余空间 + 魔法值
+         *
+         * @see CommitLog#BLANK_MAGIC_CODE
+         */
         private static final int END_FILE_MIN_BLANK_LENGTH = 4 + 4;
 
         private final ByteBuffer msgIdMemory;//16位
@@ -1916,6 +1924,10 @@ public class CommitLog {
         private final ByteBuffer msgStoreItemMemory;
 
         // The maximum length of the message
+
+        /**
+         * 4M
+         */
         private final int maxMessageSize;
 
         // Build Message Key
@@ -1923,21 +1935,27 @@ public class CommitLog {
 
         private final StringBuilder msgIdBuilder = new StringBuilder();
 
-        DefaultAppendMessageCallback(final int size) {
+        DefaultAppendMessageCallback(final int size /* 4M */) {
             this.msgIdMemory = ByteBuffer.allocate(4 + 4 + 8);
             this.msgIdV6Memory = ByteBuffer.allocate(16 + 4 + 8);
-            this.msgStoreItemMemory = ByteBuffer.allocate(size + END_FILE_MIN_BLANK_LENGTH);
+            this.msgStoreItemMemory = ByteBuffer.allocate(size/*4M*/ + END_FILE_MIN_BLANK_LENGTH);
             this.maxMessageSize = size;
         }
 
         /**
          * 向 commitLog 中追加消息
-         *
          * result = cb.doAppend(this.getFileFromOffset(), byteBuffer, this.fileSize - currentPos, (MessageExtBrokerInner) messageExt);
          *
+         * @param byteBuffer 一般是 {@link MappedFile#mappedByteBuffer}
+         * @param fileFromOffset commitLog文件名,其实就是当前写入文件的起始偏移量
+         * @param maxBlank 该文件剩余的可写入的字节数，fileSize - currentPos
+         * @param msgInner 消息
+         * @return 追加 commitLog 结果
          * @see MappedFile#appendMessagesInner(org.apache.rocketmq.common.message.MessageExt, org.apache.rocketmq.store.AppendMessageCallback)
          */
-        public AppendMessageResult doAppend(final long fileFromOffset/*commitLog文件名*/, final ByteBuffer byteBuffer, final int maxBlank/*该文件剩余的可写入的字节数*/, final MessageExtBrokerInner msgInner) {
+        public AppendMessageResult doAppend(
+                final long fileFromOffset/*commitLog文件名,其实就是当前写入文件的起始偏移量*/, final ByteBuffer byteBuffer/*当前写入mappedFile的mappedByteBuffer*/, final int maxBlank/*该文件剩余的可写入的字节数，fileSize - currentPos*/, final MessageExtBrokerInner msgInner) {
+
             // STORETIMESTAMP + STOREHOSTADDRESS + OFFSET <br>
 
             // PHY OFFSET
@@ -1946,7 +1964,9 @@ public class CommitLog {
 
             int sysflag = msgInner.getSysFlag();
 
+            // 生成消息主机的ip地址长度，如果是ipv4,长度是8，如果是ipv6，长度是20
             int bornHostLength = (sysflag & MessageSysFlag.BORNHOST_V6_FLAG) == 0 ? 4 + 4 : 16 + 4;
+            // 保存消息的主机ip长度，如果是ipv4,长度是8，如果是ipv6，长度是20
             int storeHostLength = (sysflag & MessageSysFlag.STOREHOSTADDRESS_V6_FLAG) == 0 ? 4 + 4 : 16 + 4;
 
             // 缓存 发送消息机器 ip
@@ -1955,11 +1975,13 @@ public class CommitLog {
             ByteBuffer storeHostHolder = ByteBuffer.allocate(storeHostLength);
             // TODO ??
             this.resetByteBuffer(storeHostHolder, storeHostLength);
-
             // 创建消息 id
             String msgId;
-            if ((sysflag & MessageSysFlag.STOREHOSTADDRESS_V6_FLAG) == 0) {
 
+            /**
+             * @see MessageExt#socketAddress2ByteBuffer(java.net.SocketAddress, java.nio.ByteBuffer)
+             */
+            if ((sysflag & MessageSysFlag.STOREHOSTADDRESS_V6_FLAG) == 0) {
                 // 把 生成 消息的 storeHost 存储到 storeHostHolder 并且返回
                 ByteBuffer storeHostBytes = msgInner.getStoreHostBytes(storeHostHolder);
                 msgId = MessageDecoder.createMessageId(this.msgIdMemory, storeHostBytes, wroteOffset);
@@ -1988,7 +2010,7 @@ public class CommitLog {
             }
 
             // Transaction messages that require special handling
-            final int tranType = MessageSysFlag.getTransactionValue(msgInner.getSysFlag());
+            final int tranType/*事务类型*/ = MessageSysFlag.getTransactionValue(msgInner.getSysFlag());
             switch (tranType) {
                 // Prepared and Rollback message is not consumed, will not enter the
                 // consumer queuec
