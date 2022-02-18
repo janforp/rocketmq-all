@@ -102,6 +102,8 @@ public class CommitLog {
      *
      * 追加消息到文件的具体逻辑由该对象控制！！！
      *
+     * TODO 这是一个有状态的对象，但是是 commitLog 共享的？为啥呢？因为写入消息的方法是串行的，根本就没有并发问题，所以不需要考虑线程安全问题
+     *
      * @see DefaultAppendMessageCallback
      */
     private final AppendMessageCallback appendMessageCallback;
@@ -791,7 +793,6 @@ public class CommitLog {
         CompletableFuture<PutMessageStatus> flushResultFuture = submitFlushRequest(result, putMessageResult, msg);
         // HA 相关的,提交主从复制任务
         CompletableFuture<PutMessageStatus> replicaResultFuture = submitReplicaRequest(result, putMessageResult, msg);
-
         // 等待2个任务完成再返回
         return flushResultFuture/*先刷盘任务*/.thenCombine(replicaResultFuture/*再主从复制任务*/, (flushStatus/*刷盘任务结果*/, replicaStatus/*主从复制任务结果*/) -> {
             // 2个任务都完成之后，拿到2个结果，在这里统一处理
@@ -2027,7 +2028,7 @@ public class CommitLog {
 
             final long beginTimeMills = CommitLog.this.defaultMessageStore.now();
             // Write messages to the queue buffer
-            byteBuffer.put(this.msgStoreItemMemory.array(), 0, msgLen);
+            byteBuffer.put/*写入到 commitLog 文件的虚拟内存中*/(this.msgStoreItemMemory.array(), 0, msgLen);
 
             AppendMessageResult result = new AppendMessageResult(AppendMessageStatus.PUT_OK, wroteOffset, msgLen, msgId, msgInner.getStoreTimestamp(), queueOffset, CommitLog.this.defaultMessageStore.now() - beginTimeMills);
 
