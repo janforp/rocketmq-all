@@ -244,43 +244,34 @@ public class MappedFileQueue {
          * 主题为 TopicTest 的文件夹：/Users/zhuchenjian/Documents/code/learn/rocketmq/rocketmq-all/conf/home/broker/store/consumequeue/TopicTest
          */
         File[] files = dir.listFiles();
-        if (files != null) {
-            Arrays.sort(files/*按文件名称排序*/);
-            for (File file : files) {
-                // 遍历每个主题下面的各个队列的文件夹
-                // 理论上说，当前目录下的每个文件大小都是 mappedFileSize
-                if (file.length() != this.mappedFileSize) {
-                    // 一般不会进来
-                    log.warn(file + "\t" + file.length() + " length not matched message store config value, please check it manually");
-                    return false;
-                }
-
-                try {
-                    // 根据当前文件的路径创建对象
-                    String filePath = file.getPath();
-
-                    /**
-                     * 这个构造方法里面有骚操作的！！！
-                     */
-                    MappedFile mappedFile = new MappedFile(filePath, mappedFileSize);
-
-                    // 设置位点
-                    // 这里不是准确值，准确值需要在 recover 方法中恢复 节点设置
-                    mappedFile.setWrotePosition(this.mappedFileSize/*位点都在文件最后*/);
-                    mappedFile.setFlushedPosition(this.mappedFileSize/*位点都在文件最后*/);
-
-                    mappedFile.setCommittedPosition(this.mappedFileSize/*位点都在文件最后*/);// 不看这个
-
-                    // 加入集合
-                    this.mappedFiles.add(mappedFile);
-                    log.info("load " + filePath + " OK");
-                } catch (IOException e) {
-                    log.error("load file " + file + " error", e);
-                    return false;
-                }
+        if (files == null) {
+            return true;
+        }
+        Arrays.sort(files/*按文件名称排序*/);
+        for (File file/*遍历每个commitLog文件或者每个consumeQueue文件*/ : files) {
+            if (file.length() != this.mappedFileSize /*理论上说，当前目录下的每个文件大小都是 mappedFileSize*/) {
+                // 一般不会进来，所以在停机之后不要修改文件大小配置，否则无法恢复！！！
+                return false;
+            }
+            try {
+                String filePath = file.getPath();
+                /**
+                 * 根据当前文件的路径创建对象
+                 * 这个构造方法里面有骚操作的！！！
+                 */
+                MappedFile mappedFile = new MappedFile(filePath, mappedFileSize);
+                // 设置位点，这里不是准确值，准确值需要在 recover 方法中恢复 节点设置
+                mappedFile.setWrotePosition(this.mappedFileSize/*位点都在文件最后*/);
+                mappedFile.setFlushedPosition(this.mappedFileSize/*位点都在文件最后*/);
+                mappedFile.setCommittedPosition(this.mappedFileSize/*位点都在文件最后*/);// 不看这个
+                // 加入集合
+                this.mappedFiles.add(mappedFile);
+                log.info("load " + filePath + " OK");
+            } catch (IOException e) {
+                log.error("load file " + file + " error", e);
+                return false;
             }
         }
-
         return true;
     }
 

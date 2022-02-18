@@ -54,7 +54,7 @@ import java.util.concurrent.atomic.AtomicLong;
  * 执行顺序如下：
  *
  * @see DefaultMessageStore#load()
- * @see DefaultMessageStore#recover(boolean)
+ * @see DefaultMessageStore#recover(boolean) 先恢复 consumeQueue 再恢复 commitLog
  * @see DefaultMessageStore#start()
  */
 @SuppressWarnings("all")
@@ -198,9 +198,15 @@ public class DefaultMessageStore implements MessageStore {
         this.lockFile = new RandomAccessFile(file, "rw");
     }
 
-    public void truncateDirtyLogicFiles(long phyOffset) {
+    /**
+     * 该方法主要是将 ConsumerQueue 有效数据文件  与 CommitLog 对齐，将超出部分的数据文件 删除。
+     *
+     * @param phyOffset
+     */
+    public void truncateDirtyLogicFiles(long phyOffset /*commitLog全局的最大物理偏移量*/) {
         for (ConcurrentMap<Integer, ConsumeQueue> maps : this.consumeQueueTable.values()) {
             for (ConsumeQueue logic : maps.values()) {
+                // 该方法主要是将 ConsumerQueue 有效数据文件  与 CommitLog 对齐，将超出部分的数据文件 删除。
                 logic.truncateDirtyLogicFiles(phyOffset);
             }
         }
@@ -1536,7 +1542,7 @@ public class DefaultMessageStore implements MessageStore {
     }
 
     private void recover(final boolean lastExitOK) {
-        // consumequeue中的最大offset
+        // consumequeue中的物理偏移量最大的offset
         long maxPhyOffsetOfConsumeQueue = this.recoverConsumeQueue()/*先恢复 consumeQueue*/;
 
         // 再恢复 commitLog

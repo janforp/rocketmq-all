@@ -267,7 +267,6 @@ public class ConsumeQueue {
     public void truncateDirtyLogicFiles(long phyOffset) {
 
         int logicFileSize = this.mappedFileSize;
-
         this.maxPhysicOffset = phyOffset;
         long maxExtAddr = 1;
         while (true) {

@@ -15,6 +15,9 @@ public class DispatchRequest {
 
     private final long commitLogOffset;
 
+    /**
+     * 消息大小
+     */
     private int msgSize;
 
     private final long tagsCode;
@@ -25,6 +28,9 @@ public class DispatchRequest {
 
     private final String keys;
 
+    /**
+     * 成功失败
+     */
     private final boolean success;
 
     private final String uniqKey;
