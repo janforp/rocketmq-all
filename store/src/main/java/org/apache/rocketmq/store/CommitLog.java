@@ -196,8 +196,7 @@ public class CommitLog {
 
     public void start() {
         // 该服务内部有自己的线程
-        this.flushCommitLogService.start();
-
+        this.flushCommitLogService/*启动刷盘/落盘服务*/.start();
         if (defaultMessageStore.getMessageStoreConfig().isTransientStorePoolEnable()) {
             this.commitLogService.start();
         }
@@ -319,7 +318,6 @@ public class CommitLog {
                 break;/* while 循环中断 */
             }
         }
-
         // 跳出了 while 循环
 
         // 执行到这里。正常情况下，所有待恢复的数据 已经被检查一遍了
@@ -333,8 +331,7 @@ public class CommitLog {
         // Clear ConsumeQueue redundant data
         if (maxPhyOffsetOfConsumeQueue/*ConsumeQueue 中已知的最大消息 物理偏移量offset*/ >= processOffset/*commitLog全局的最大物理偏移量*/) /*commitLog全局的最大物理偏移量 都没有 ConsumeQueue 中已知的最大消息 物理偏移量offset 大，则说明 consumeQueue 中有垃圾数据*/ {
             log.warn("maxPhyOffsetOfConsumeQueue({}) >= processOffset({}), truncate dirty logic files", maxPhyOffsetOfConsumeQueue, processOffset);
-            // 删除 ConsumeQueue 下的脏文件
-            this.defaultMessageStore.truncateDirtyLogicFiles(processOffset);
+            this.defaultMessageStore.truncateDirtyLogicFiles/*删除 ConsumeQueue 中的脏文件*/(processOffset);
         }
     }
 
@@ -349,6 +346,9 @@ public class CommitLog {
     }
 
     /**
+     * TODO 校验 mappedFile 中的下一条数据，检查它是否是一条完整并且正确的消息，或者是否已经达到了文件结尾，如果既不是一条消息也不是文件结尾，则说明该文件存储的时候发生了异常
+     *
+     *
      * 从 commitLog 对应的 byteBuffer 中读取一条消息
      *
      * check the message and returns the message size
@@ -492,7 +492,7 @@ public class CommitLog {
             return new DispatchRequest(topic, queueId, physicOffset, totalSize, tagsCode, storeTimestamp, queueOffset, keys, uniqKey, sysFlag, preparedTransactionOffset, propertiesMap);
         } catch (Exception e) {
             // 发生异常，返回失败即可
-            //         return new DispatchRequest(-1, false /* 失败 */);
+            // return new DispatchRequest(-1, false /* 失败 */);
         }
         return new DispatchRequest(-1, false /* 失败 */);
     }

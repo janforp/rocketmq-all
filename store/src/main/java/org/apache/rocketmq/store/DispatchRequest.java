@@ -5,6 +5,9 @@ import lombok.Setter;
 
 import java.util.Map;
 
+/**
+ * 该对象跟消息非常相似，只是没有消息体！
+ */
 @Getter
 @Setter
 public class DispatchRequest {
