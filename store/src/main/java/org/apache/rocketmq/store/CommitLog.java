@@ -32,7 +32,6 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
-import java.util.concurrent.atomic.AtomicLong;
 
 /**
  * 提交日志，顺序写入
@@ -665,51 +664,41 @@ public class CommitLog {
     /**
      * @param msg 消息
      * @return
+     * @see DefaultMessageStore#asyncPutMessage(org.apache.rocketmq.store.MessageExtBrokerInner) 由该方法调用！
      */
     public CompletableFuture<PutMessageResult> asyncPutMessage(final MessageExtBrokerInner msg) {
         // Set the storage time
         msg.setStoreTimestamp(System.currentTimeMillis());
-        // Set the message body BODY CRC (consider the most appropriate setting
-        // on the client)
-        // 计算 body 的CRC 值
-        int crc32 = UtilAll.crc32(msg.getBody());
+        // Set the message body BODY CRC (consider the most appropriate setting on the client)
+        int crc32 = UtilAll.crc32/*计算 body 的CRC 值*/(msg.getBody());
         msg.setBodyCRC(crc32);
         // Back to Results
         AppendMessageResult result;
-
         // 统计
         StoreStatsService storeStatsService = this.defaultMessageStore.getStoreStatsService();
-
         // 消息的主题
         String topic = msg.getTopic();
         // 消息的队列id
         int queueId;
-
         final int tranType = MessageSysFlag.getTransactionValue(msg.getSysFlag());
         if (tranType == MessageSysFlag.TRANSACTION_NOT_TYPE || tranType == MessageSysFlag.TRANSACTION_COMMIT_TYPE) {
             // 如果是非事务或者是提交事务消息，则进来
-
             // 可能是重试消息，也可能是用户指定的延迟消息
             if (msg.getDelayTimeLevel() > 0 /* 当前消息是需要延迟的 ，如果用户想发送延迟消息，则在消息中设置该属性即可*/) {
-
                 // Delay Delivery 延迟消息的特殊逻辑
-
                 if (msg.getDelayTimeLevel() > this.defaultMessageStore.getScheduleMessageService().getMaxDelayLevel()) {
                     msg.setDelayTimeLevel(this.defaultMessageStore.getScheduleMessageService().getMaxDelayLevel());
                 }
-
                 // SCHEDULE_TOPIC_XXXX
                 topic = ScheduleMessageService.SCHEDULE_TOPIC;
                 // 修改 queueId,每个延迟级别，就会有多少个延迟队列
                 // queueId = delayLevel - 1，因为延迟级别是从1开始，而队列id是从0开始的
                 queueId = ScheduleMessageService.delayLevel2QueueId(msg.getDelayTimeLevel());
-
                 // Backup real topic, queueId
                 // 保存2个属性到消息中
                 MessageAccessor.putProperty(msg, MessageConst.PROPERTY_REAL_TOPIC, msg.getTopic() /* %RETRY%groupName */);
                 MessageAccessor.putProperty(msg, MessageConst.PROPERTY_REAL_QUEUE_ID, String.valueOf(msg.getQueueId()) /* 0 */);
                 msg.setPropertiesString(MessageDecoder.messageProperties2String(msg.getProperties()));
-
                 // 修改主题为 SCHEDULE_TOPIC_XXXX
                 msg.setTopic(topic);
                 msg.setQueueId(queueId);
@@ -720,64 +709,55 @@ public class CommitLog {
         long elapsedTimeInLock = 0;
         // 待释放锁定主题的 mf （lock状态的mf使用的内存会锁死在物理内存中，不会使用swap区，性能很好）
         MappedFile unlockMappedFile = null;
-
-        // 获取当前顺序写的 mf
+        // 获取当前顺序写的 commitLog 文件
         MappedFile mappedFile = this.mappedFileQueue.getLastMappedFile();
-
-        // 加锁/获取锁
-        putMessageLock.lock(); //spin or ReentrantLock ,depending on store config
+        putMessageLock.lock/*加锁/获取锁*/(); //spin or ReentrantLock ,depending on store config
         try {
-            // 获取锁的时间
-            long beginLockTimestamp = this.defaultMessageStore.getSystemClock().now();
-            this.beginTimeInLock = beginLockTimestamp;
+            long beginLockTimestamp/*获取锁的时间*/ = this.defaultMessageStore.getSystemClock().now();
+            this.beginTimeInLock/*当 commitLog 开始写入消息的时候，记录开始加锁的时间*/ = beginLockTimestamp;
 
-            // Here settings are stored timestamp, in order to ensure an orderly
-            // global
-            // 设置存储时间
-            msg.setStoreTimestamp(beginLockTimestamp);
-
+            // Here settings are stored timestamp, in order to ensure an orderly global -- 这里设置保存时间戳，以保证全局有序
+            msg.setStoreTimestamp(beginLockTimestamp/*设置存储时间*/);
             // 获取当前顺序写的 mf
             if (null == mappedFile/*说明 commitlog 目录是空的*/ || mappedFile.isFull()/*文件写满了*/) {
-                // 传0会创建mf
-                mappedFile = this.mappedFileQueue.getLastMappedFile(0); // Mark: NewFile may be cause noise
+                mappedFile = this.mappedFileQueue.getLastMappedFile(0/*传0会创建mf*/); // Mark: NewFile may be cause noise
             }
             if (null == mappedFile) {
-                // 创建失败
                 log.error("create mapped file1 error, topic: " + msg.getTopic() + " clientAddr: " + msg.getBornHostString());
-                beginTimeInLock = 0;
-                return CompletableFuture.completedFuture(new PutMessageResult(PutMessageStatus.CREATE_MAPEDFILE_FAILED, null));
+                beginTimeInLock/*写消息结束，持锁时间归零*/ = 0;
+                return CompletableFuture.completedFuture(new PutMessageResult(PutMessageStatus.CREATE_MAPEDFILE_FAILED/*创建新 commitLog 文件失败*/, null));
             }
 
             // 正常情况会继续往下执行
 
-            result = mappedFile.appendMessage(msg, this.appendMessageCallback);
-
-            switch (result.getStatus()) {
+            result = mappedFile.appendMessage/*调用 commitLog 的追加消息方法 */(msg, this.appendMessageCallback);
+            AppendMessageStatus appendMessageStatus = result.getStatus();
+            switch (appendMessageStatus) {
                 case PUT_OK: // 成功
                     break;
                 case END_OF_FILE: // 文件尾
-
                     // 创建新的文件
                     unlockMappedFile = mappedFile;
-                    // Create a new file, re-write the message
-                    mappedFile = this.mappedFileQueue.getLastMappedFile(0);
+                    // Create a new file, re-write the message -- 创建一个新文件，重新写入消息
+                    mappedFile = this.mappedFileQueue.getLastMappedFile(0/*传0会创建mf*/);
                     if (null == mappedFile) {
                         // XXX: warn and notify me
                         log.error("create mapped file2 error, topic: " + msg.getTopic() + " clientAddr: " + msg.getBornHostString());
-                        beginTimeInLock = 0;
-                        return CompletableFuture.completedFuture(new PutMessageResult(PutMessageStatus.CREATE_MAPEDFILE_FAILED, result));
+                        beginTimeInLock/*写消息结束，持锁时间归零*/ = 0;
+                        return CompletableFuture.completedFuture(new PutMessageResult(PutMessageStatus.CREATE_MAPEDFILE_FAILED/*创建新 commitLog 文件失败*/, result));
                     }
-                    result = mappedFile.appendMessage(msg, this.appendMessageCallback);
+                    // 创建新文件成功，继续添加消息进入该文件中
+                    result/* TODO 针对这个 result 难道不需要进行这个 switch 了吗？*/ = mappedFile.appendMessage(msg, this.appendMessageCallback);
                     break;
                 case MESSAGE_SIZE_EXCEEDED:
                 case PROPERTIES_SIZE_EXCEEDED:
-                    beginTimeInLock = 0;
+                    beginTimeInLock/*写消息结束，持锁时间归零*/ = 0;
                     return CompletableFuture.completedFuture(new PutMessageResult(PutMessageStatus.MESSAGE_ILLEGAL, result));
                 case UNKNOWN_ERROR:
-                    beginTimeInLock = 0;
+                    beginTimeInLock/*写消息结束，持锁时间归零*/ = 0;
                     return CompletableFuture.completedFuture(new PutMessageResult(PutMessageStatus.UNKNOWN_ERROR, result));
                 default:
-                    beginTimeInLock = 0;
+                    beginTimeInLock/*写消息结束，持锁时间归零*/ = 0;
                     return CompletableFuture.completedFuture(new PutMessageResult(PutMessageStatus.UNKNOWN_ERROR, result));
             }
 
@@ -785,7 +765,6 @@ public class CommitLog {
             elapsedTimeInLock = this.defaultMessageStore.getSystemClock().now() - beginLockTimestamp;
             beginTimeInLock = 0;
         } finally {
-
             // 释放锁
             putMessageLock.unlock();
         }
@@ -793,35 +772,29 @@ public class CommitLog {
         if (elapsedTimeInLock > 500) {
             log.warn("[NOTIFYME]putMessage in lock cost time(ms)={}, bodyLength={} AppendMessageResult={}", elapsedTimeInLock, msg.getBody().length, result);
         }
-
         if (null != unlockMappedFile && this.defaultMessageStore.getMessageStoreConfig().isWarmMapedFileEnable()/*预热*/) {
             // 解锁
-            this.defaultMessageStore.unlockMappedFile(unlockMappedFile);
+            this.defaultMessageStore.unlockMappedFile/*TODO 干嘛？？？？*/(unlockMappedFile);
         }
-
         PutMessageResult putMessageResult = new PutMessageResult(PutMessageStatus.PUT_OK, result);
+        //        // Statistics
+        //        String msgTopic = msg.getTopic();
+        //        AtomicLong topicTimesTotal = storeStatsService.getSinglePutMessageTopicTimesTotal(msgTopic);
+        //        topicTimesTotal.incrementAndGet();
+        //
+        //        AtomicLong topicSizeTotal = storeStatsService.getSinglePutMessageTopicSizeTotal(topic);
+        //        // 本次写入的字节数
+        //        int wroteBytes = result.getWroteBytes();
+        //        topicSizeTotal.addAndGet(wroteBytes);
 
-        // Statistics
-        String msgTopic = msg.getTopic();
-        AtomicLong topicTimesTotal = storeStatsService.getSinglePutMessageTopicTimesTotal(msgTopic);
-        topicTimesTotal.incrementAndGet();
-
-        AtomicLong topicSizeTotal = storeStatsService.getSinglePutMessageTopicSizeTotal(topic);
-        // 本次写入的字节数
-        int wroteBytes = result.getWroteBytes();
-        topicSizeTotal.addAndGet(wroteBytes);
-
-        // 通知刷盘线程
+        // 通知刷盘/落盘服务线程
         CompletableFuture<PutMessageStatus> flushResultFuture = submitFlushRequest(result, putMessageResult, msg);
-
         // HA 相关的,提交主从复制任务
         CompletableFuture<PutMessageStatus> replicaResultFuture = submitReplicaRequest(result, putMessageResult, msg);
 
         // 等待2个任务完成再返回
         return flushResultFuture/*先刷盘任务*/.thenCombine(replicaResultFuture/*再主从复制任务*/, (flushStatus/*刷盘任务结果*/, replicaStatus/*主从复制任务结果*/) -> {
-
             // 2个任务都完成之后，拿到2个结果，在这里统一处理
-
             if (flushStatus != PutMessageStatus.PUT_OK) {
                 putMessageResult.setPutMessageStatus(PutMessageStatus.FLUSH_DISK_TIMEOUT);
             }
