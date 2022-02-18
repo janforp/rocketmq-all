@@ -121,6 +121,8 @@ public class CommitLog {
     /**
      * TODO ????
      */
+    @Getter
+    @Setter
     protected volatile long confirmOffset = -1L;
 
     // 写锁开始时间
@@ -562,7 +564,8 @@ public class CommitLog {
     protected static int calMsgLength(int sysFlag, int bodyLength, int topicLength, int propertiesLength) {
         int bornhostLength = (sysFlag & MessageSysFlag.BORNHOST_V6_FLAG) == 0 ? 8 : 20;
         int storehostAddressLength = (sysFlag & MessageSysFlag.STOREHOSTADDRESS_V6_FLAG) == 0 ? 8 : 20;
-        final int msgLen = 4 //TOTALSIZE（msgLen）
+        final int msgLen = 0 +
+                +4 //TOTALSIZE（msgLen）
                 + 4 //MAGICCODE
                 + 4 //BODYCRC
                 + 4 //QUEUEID
@@ -581,14 +584,6 @@ public class CommitLog {
                 + 2 + (propertiesLength > 0 ? propertiesLength : 0) //propertiesLength
                 + 0;
         return msgLen;
-    }
-
-    public long getConfirmOffset() {
-        return this.confirmOffset;
-    }
-
-    public void setConfirmOffset(long phyOffset) {
-        this.confirmOffset = phyOffset;
     }
 
     @Deprecated
@@ -1952,6 +1947,7 @@ public class CommitLog {
          * @param msgInner 消息
          * @return 追加 commitLog 结果
          * @see MappedFile#appendMessagesInner(org.apache.rocketmq.common.message.MessageExt, org.apache.rocketmq.store.AppendMessageCallback)
+         * @see CommitLog#topicQueueTable 该缓存也在这里更新
          */
         public AppendMessageResult doAppend(
                 final long fileFromOffset/*commitLog文件名,其实就是当前写入文件的起始偏移量*/, final ByteBuffer byteBuffer/*当前写入mappedFile的mappedByteBuffer*/, final int maxBlank/*该文件剩余的可写入的字节数，fileSize - currentPos*/, final MessageExtBrokerInner msgInner) {
@@ -2067,20 +2063,20 @@ public class CommitLog {
             final int msgLen = calMsgLength(msgInner.getSysFlag(), bodyLength, topicLength, propertiesLength);
 
             // Exceeds the maximum message
-            if (msgLen > this.maxMessageSize) {
+            if (msgLen > this.maxMessageSize/*该消息大小超过了最大值4M*/) {
                 CommitLog.log.warn("message size exceeded, msg total size: " + msgLen + ", msg body size: " + bodyLength + ", maxMessageSize: " + this.maxMessageSize);
                 return new AppendMessageResult(AppendMessageStatus.MESSAGE_SIZE_EXCEEDED);
             }
 
             // Determines whether there is sufficient free space
-            if ((msgLen + END_FILE_MIN_BLANK_LENGTH) > maxBlank/*说明到文件结尾了*/) {
+            if ((msgLen + END_FILE_MIN_BLANK_LENGTH/*文件结尾最少有8个字节, 剩余空间 + 魔法值*/) > maxBlank/*说明到文件结尾了*/) {
                 // 说明这个文件即将写满
 
                 this.resetByteBuffer(this.msgStoreItemMemory, maxBlank);
                 // 1 TOTALSIZE
-                this.msgStoreItemMemory.putInt(maxBlank);
+                this.msgStoreItemMemory.putInt(maxBlank/*文件最后剩余多少字节*/);
                 // 2 MAGICCODE
-                this.msgStoreItemMemory.putInt(CommitLog.BLANK_MAGIC_CODE);
+                this.msgStoreItemMemory.putInt(CommitLog.BLANK_MAGIC_CODE)/*文件结尾的魔法值*/;
                 // 3 The remaining space may be any value
                 // Here the length of the specially set maxBlank
                 final long beginTimeMills = CommitLog.this.defaultMessageStore.now();
