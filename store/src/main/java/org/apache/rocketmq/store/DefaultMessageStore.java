@@ -50,6 +50,13 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 
+/**
+ * 执行顺序如下：
+ *
+ * @see DefaultMessageStore#load()
+ * @see DefaultMessageStore#recover(boolean)
+ * @see DefaultMessageStore#start()
+ */
 @SuppressWarnings("all")
 public class DefaultMessageStore implements MessageStore {
 

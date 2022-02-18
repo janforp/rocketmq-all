@@ -116,7 +116,7 @@ public class CommitLog {
      */
     @Setter
     @Getter
-    protected HashMap<String/* topic-queueid */, Long/* 该队列的逻辑offset ，逻辑偏移量*/> topicQueueTable = new HashMap<String, Long>(1024);
+    protected HashMap<String/** topic-queueid */, Long/** 该队列的逻辑offset ，逻辑偏移量*/> topicQueueTable = new HashMap<String, Long>(1024);
 
     /**
      * TODO ????
@@ -138,8 +138,9 @@ public class CommitLog {
     private volatile long beginTimeInLock = 0;
 
     /**
-     * @see PutMessageReentrantLock 重入锁
+     * @see PutMessageReentrantLock 重入锁，默认
      * @see PutMessageSpinLock 自旋锁，线程不会挂起
+     * @see MessageStoreConfig#useReentrantLockWhenPutMessage 默认是自旋锁
      */
     // 锁的实现分为：自旋锁(消耗cpu)跟重入锁
     protected final PutMessageLock putMessageLock;
@@ -1595,68 +1596,48 @@ public class CommitLog {
 
         @Override
         public void run() {
-            CommitLog.log.info(this.getServiceName() + " service started");
 
-            // 开启循环,循环直到服务关闭
-            while (!this.isStopped()) {
-                /*
-                 * 循环内的逻辑：
-                 * 1.读取配置中的刷新间隔时长，线程休息指定时间
-                 * 2.获取配置中最少刷盘页数，默认是4，只有脏页数据达到指定页数后，才能真正刷盘
-                 * 3.获取强制刷盘周期，默认是10s，达到强制刷盘周期后，一定会刷盘，不再考虑脏页大小
-                 * 4.调用外部类 CommitLog.mappedFileQueue.flush()进行刷盘，注意传递参数：int flushPhysicQueueLeastPages(一般4，如果是强制刷盘则传0)
-                 */
+            /**
+             * 循环内的逻辑：
+             * 1.读取配置中的刷新间隔时长，线程休息指定时间
+             * 2.获取配置中最少刷盘页数，默认是4，只有脏页数据达到指定页数后，才能真正刷盘
+             * 3.获取强制刷盘周期，默认是10s，达到强制刷盘周期后，一定会刷盘，不再考虑脏页大小
+             * 4.调用外部类 CommitLog.mappedFileQueue.flush()进行刷盘，注意传递参数：int flushPhysicQueueLeastPages(一般4，如果是强制刷盘则传0)
+             */
+            while (!this.isStopped()/*开启循环,循环直到服务关闭*/) {
 
                 MessageStoreConfig messageStoreConfig = CommitLog.this.defaultMessageStore.getMessageStoreConfig();
+
                 /**
                  * 控制线程休眠方式
                  * true:使用 Sleep休眠
                  * false：使用 countDownLatch.wait(...)休眠
                  * 默认是 false
                  */
-                boolean flushCommitLogTimed = messageStoreConfig.isFlushCommitLogTimed();
-
+                boolean flushCommitLogTimed/* false */ = messageStoreConfig.isFlushCommitLogTimed();
                 // 刷盘间隔时间：500
                 int interval = messageStoreConfig.getFlushIntervalCommitLog();
                 // 刷盘脏页最小值：4
                 int flushPhysicQueueLeastPages = messageStoreConfig.getFlushCommitLogLeastPages();
                 // 强制刷盘间隔时间：1000 * 10
                 int flushPhysicQueueThoroughInterval = messageStoreConfig.getFlushCommitLogThoroughInterval();
-
-                boolean printFlushProgress = false;
-
                 // Print flush progress
                 long currentTimeMillis = System.currentTimeMillis();
                 if (currentTimeMillis >= (this.lastFlushTimestamp + flushPhysicQueueThoroughInterval)/*到了强制刷盘的时间了*/) {
-
                     // 本次肯定会刷盘，所以把最后一次刷盘的时间设置为当前时间
                     this.lastFlushTimestamp = currentTimeMillis;
-
                     // 强制刷盘
                     flushPhysicQueueLeastPages = 0;
-
-                    // 决定是否打印
-                    printFlushProgress = (printTimes++ % 10) == 0;
                 }
-
                 try {
-
                     // 线程休眠方式
-                    if (flushCommitLogTimed) {
+                    if (flushCommitLogTimed /* false */) {
                         Thread.sleep(interval/*刷盘间隔时间*/);
                     } else {
                         this.waitForRunning(interval/*刷盘间隔时间*/);
                     }
-
-                    if (printFlushProgress) {
-                        this.printFlushProgress();
-                    }
-
-                    long begin = System.currentTimeMillis();
-
                     // 刷盘，传入0表示强制刷盘
-                    CommitLog.this.mappedFileQueue.flush(flushPhysicQueueLeastPages);
-
+                    CommitLog.this.mappedFileQueue.flush(flushPhysicQueueLeastPages/*刷盘脏页最小值：4*/);
                     // 当前 mfq 中最后一次追加msg的时间
                     long storeTimestamp = CommitLog.this.mappedFileQueue.getStoreTimestamp();
                     if (storeTimestamp > 0) {
@@ -1664,39 +1645,20 @@ public class CommitLog {
                         StoreCheckpoint storeCheckpoint = CommitLog.this.defaultMessageStore.getStoreCheckpoint();
                         storeCheckpoint.setPhysicMsgTimestamp(storeTimestamp);
                     }
-                    long past = System.currentTimeMillis() - begin;
-                    if (past > 500) {
-                        // 耗时日志
-                        log.info("Flush data to disk costs {} ms", past);
-                    }
                 } catch (Throwable e) {
                     CommitLog.log.warn(this.getServiceName() + " service has exception. ", e);
-                    this.printFlushProgress();
                 }
             }
 
-            // 执行到这里说明： stopped == true，停机了
+            // 执行到这里说明： stopped == true，停机了，跳出上面的 while 循环了！！
             // Normal shutdown, to ensure that all the flush before exit
+            // 正常关机，确保退出前 flush 所有数据
             boolean result = false;
-            for (int i = 0; i < RETRY_TIMES_OVER && !result; i++) {
+            for (int i = 0; i < RETRY_TIMES_OVER /*10*/ && !result; i++) {
                 // 强制刷盘，保证在停机之前数据都持久化了
-                result = CommitLog.this.mappedFileQueue.flush(0/*强制刷盘 10 次*/);
-                CommitLog.log.info(this.getServiceName() + " service shutdown, retry " + (i + 1) + " times " + (result ? "OK" : "Not OK"));
+                result = CommitLog.this.mappedFileQueue.flush(0/* 强制刷盘 */);
+                // TODO 强制刷盘10次也不一定把所有数据都落盘了！！
             }
-
-            this.printFlushProgress();
-
-            CommitLog.log.info(this.getServiceName() + " service end");
-        }
-
-        @Override
-        public String getServiceName() {
-            return FlushRealTimeService.class.getSimpleName();
-        }
-
-        private void printFlushProgress() {
-            // CommitLog.log.info("how much disk fall behind memory, "
-            // + CommitLog.this.mappedFileQueue.howMuchFallBehind());
         }
 
         @Override

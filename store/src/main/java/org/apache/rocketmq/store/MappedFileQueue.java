@@ -227,6 +227,7 @@ public class MappedFileQueue {
      * Broker启动阶段，加载本地磁盘数据使用，该方法获取"storePath"目录下的文件，创建对应的 MappedFile 对象并加入到list内
      *
      * @return 成功失败
+     * @see CommitLog#load() commitLog 模块
      */
     public boolean load() {
         // 拿到当前目录
