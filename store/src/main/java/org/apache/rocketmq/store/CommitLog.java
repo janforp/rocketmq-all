@@ -108,6 +108,9 @@ public class CommitLog {
      */
     private final AppendMessageCallback appendMessageCallback;
 
+    /**
+     * @see MessageExtBatchEncoder
+     */
     private final ThreadLocal<MessageExtBatchEncoder> batchEncoderThreadLocal;
 
     /**
@@ -163,7 +166,7 @@ public class CommitLog {
         if (FlushDiskType.SYNC_FLUSH == messageStoreConfig.getFlushDiskType()) {
             this.flushCommitLogService = new GroupCommitService();
         } else {
-            //默认异步刷盘
+            //默认 ！！ 异步刷盘
             this.flushCommitLogService = new FlushRealTimeService();
         }
         this.commitLogService = new CommitRealTimeService();
