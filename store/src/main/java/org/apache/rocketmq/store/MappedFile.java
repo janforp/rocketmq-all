@@ -313,7 +313,7 @@ public class MappedFile extends ReferenceResource {
             AppendMessageResult result;
             if (messageExt instanceof MessageExtBrokerInner) {
                 // 向内存映射追加数据，具体由该回调对象控制
-                result = cb.doAppend(this.getFileFromOffset(), byteBuffer, this.fileSize - currentPos, (MessageExtBrokerInner) messageExt);
+                result = cb.doAppend(this.getFileFromOffset(), byteBuffer, this.fileSize - currentPos /*剩余空间*/, (MessageExtBrokerInner) messageExt);
             } else if (messageExt instanceof MessageExtBatch) {
                 // 向内存映射追加数据，具体由该回调对象控制
                 result = cb.doAppend(this.getFileFromOffset(), byteBuffer, this.fileSize - currentPos, (MessageExtBatch) messageExt);

@@ -706,9 +706,9 @@ public class CommitLog {
             }
         }
 
-        // 持锁时间
+        // 持锁耗时时间
         long elapsedTimeInLock = 0;
-        // 待释放锁定主题的 mf （lock状态的mf使用的内存会锁死在物理内存中，不会使用swap区，性能很好）
+        // TODO 待释内层放锁定状态的 mf （lock状态的mf使用的内存会锁死在物理内存中，不会使用swap区，写性能很好），因为该文件写满了，不会再写入了，所以可以释放写锁定内层
         MappedFile unlockMappedFile = null;
         // 获取当前顺序写的 commitLog 文件
         MappedFile mappedFile = this.mappedFileQueue.getLastMappedFile();
@@ -716,28 +716,25 @@ public class CommitLog {
         try {
             long beginLockTimestamp/*获取锁的时间*/ = this.defaultMessageStore.getSystemClock().now();
             this.beginTimeInLock/*当 commitLog 开始写入消息的时候，记录开始加锁的时间*/ = beginLockTimestamp;
-
             // Here settings are stored timestamp, in order to ensure an orderly global -- 这里设置保存时间戳，以保证全局有序
             msg.setStoreTimestamp(beginLockTimestamp/*设置存储时间*/);
             // 获取当前顺序写的 mf
-            if (null == mappedFile/*说明 commitlog 目录是空的*/ || mappedFile.isFull()/*文件写满了*/) {
+            if (null == mappedFile/*说明 commitlog 目录是空的，则需要创建第一个 commitLog 文件 */ || mappedFile.isFull()/*文件写满了*/) {
                 mappedFile = this.mappedFileQueue.getLastMappedFile(0/*传0会创建mf*/); // Mark: NewFile may be cause noise
             }
-            if (null == mappedFile) {
+            if (null == mappedFile/*创建新 commitLog 文件失败*/) {
                 log.error("create mapped file1 error, topic: " + msg.getTopic() + " clientAddr: " + msg.getBornHostString());
                 beginTimeInLock/*写消息结束，持锁时间归零*/ = 0;
                 return CompletableFuture.completedFuture(new PutMessageResult(PutMessageStatus.CREATE_MAPEDFILE_FAILED/*创建新 commitLog 文件失败*/, null));
             }
-
             // 正常情况会继续往下执行
-
-            result = mappedFile.appendMessage/*调用 commitLog 的追加消息方法 */(msg, this.appendMessageCallback);
+            result = mappedFile.appendMessage/* 调用 commitLog 的追加消息方法 */(msg, this.appendMessageCallback);
             AppendMessageStatus appendMessageStatus = result.getStatus();
             switch (appendMessageStatus) {
                 case PUT_OK: // 成功
                     break;
                 case END_OF_FILE: // 文件尾
-                    // 创建新的文件
+                    // 上一个文件满了，需要创建新的文件
                     unlockMappedFile = mappedFile;
                     // Create a new file, re-write the message -- 创建一个新文件，重新写入消息
                     mappedFile = this.mappedFileQueue.getLastMappedFile(0/*传0会创建mf*/);
@@ -761,19 +758,16 @@ public class CommitLog {
                     beginTimeInLock/*写消息结束，持锁时间归零*/ = 0;
                     return CompletableFuture.completedFuture(new PutMessageResult(PutMessageStatus.UNKNOWN_ERROR, result));
             }
-
-            // 计算加锁的总耗时
-            elapsedTimeInLock = this.defaultMessageStore.getSystemClock().now() - beginLockTimestamp;
-            beginTimeInLock = 0;
+            elapsedTimeInLock /*计算加锁的总耗时*/ = this.defaultMessageStore.getSystemClock().now() - beginLockTimestamp;
+            beginTimeInLock/*写消息结束，持锁时间归零*/ = 0;
         } finally {
             // 释放锁
             putMessageLock.unlock();
         }
-
         if (elapsedTimeInLock > 500) {
             log.warn("[NOTIFYME]putMessage in lock cost time(ms)={}, bodyLength={} AppendMessageResult={}", elapsedTimeInLock, msg.getBody().length, result);
         }
-        if (null != unlockMappedFile && this.defaultMessageStore.getMessageStoreConfig().isWarmMapedFileEnable()/*预热*/) {
+        if (null != unlockMappedFile/*需要解锁是一个文件*/ && this.defaultMessageStore.getMessageStoreConfig().isWarmMapedFileEnable()/*预热*/) {
             // 解锁
             this.defaultMessageStore.unlockMappedFile/*TODO 干嘛？？？？*/(unlockMappedFile);
         }
@@ -1055,14 +1049,11 @@ public class CommitLog {
         if (FlushDiskType.SYNC_FLUSH == flushDiskType) {
             final GroupCommitService service = (GroupCommitService) this.flushCommitLogService;
             if (messageExt.isWaitStoreMsgOK()) {
-
                 long nextOffset = result.getWroteOffset() + result.getWroteBytes();
                 int syncFlushTimeout = this.defaultMessageStore.getMessageStoreConfig().getSyncFlushTimeout();
                 GroupCommitRequest request = new GroupCommitRequest(nextOffset, syncFlushTimeout);
-
                 // 提交到刷盘服务中
                 service.putRequest(request);
-
                 // 同步刷盘操作也是其他线程操作的，只是需要等待完成
                 return request.future();
             } else {
@@ -1072,16 +1063,13 @@ public class CommitLog {
         }
         // Asynchronous flush
         else {
-            // ASYNC_FLUSH 异步刷盘
-
+            // ASYNC_FLUSH 异步刷盘 默认是这个
             boolean transientStorePoolEnable = this.defaultMessageStore.getMessageStoreConfig().isTransientStorePoolEnable();
-
             if (!transientStorePoolEnable) {
                 flushCommitLogService.wakeup();
             } else {
                 commitLogService.wakeup();
             }
-
             // 异步刷盘，唤醒刷盘线程之后就直接返回成功
             return CompletableFuture.completedFuture(PutMessageStatus.PUT_OK);
         }
@@ -1838,7 +1826,7 @@ public class CommitLog {
             ByteBuffer bornHostHolder = ByteBuffer.allocate(bornHostLength);
             // 缓存 存储ip
             ByteBuffer storeHostHolder = ByteBuffer.allocate(storeHostLength);
-            // TODO ??
+            // TODO
             this.resetByteBuffer(storeHostHolder, storeHostLength);
             // 创建消息 id
             String msgId;
@@ -1950,10 +1938,8 @@ public class CommitLog {
                 // Here the length of the specially set maxBlank
                 final long beginTimeMills = CommitLog.this.defaultMessageStore.now();
                 byteBuffer.put(this.msgStoreItemMemory.array(), 0, maxBlank);
-
-                // 返回结果表示已经到文件尾
                 // 拿到结果之后判断，如果发现是文件尾了，则新建文件再次写入新文件
-                return new AppendMessageResult(AppendMessageStatus.END_OF_FILE, wroteOffset, maxBlank, msgId, msgInner.getStoreTimestamp(), queueOffset, CommitLog.this.defaultMessageStore.now() - beginTimeMills);
+                return new AppendMessageResult(AppendMessageStatus.END_OF_FILE/*返回结果表示已经到文件尾*/, wroteOffset, maxBlank, msgId, msgInner.getStoreTimestamp(), queueOffset, CommitLog.this.defaultMessageStore.now() - beginTimeMills);
             }
 
             // 还没到文件尾，这条消息可以写入
@@ -2023,13 +2009,10 @@ public class CommitLog {
             if (propertiesLength > 0) {
                 this.msgStoreItemMemory.put(propertiesData);
             }
-
             final long beginTimeMills = CommitLog.this.defaultMessageStore.now();
             // Write messages to the queue buffer
             byteBuffer.put/*写入到 commitLog 文件的虚拟内存中*/(this.msgStoreItemMemory.array(), 0, msgLen);
-
             AppendMessageResult result = new AppendMessageResult(AppendMessageStatus.PUT_OK, wroteOffset, msgLen, msgId, msgInner.getStoreTimestamp(), queueOffset, CommitLog.this.defaultMessageStore.now() - beginTimeMills);
-
             switch (tranType) {
                 case MessageSysFlag.TRANSACTION_PREPARED_TYPE:
                 case MessageSysFlag.TRANSACTION_ROLLBACK_TYPE:
