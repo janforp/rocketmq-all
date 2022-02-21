@@ -116,6 +116,10 @@ public class ConsumeQueue {
 
     /**
      * ConsumerQueue 启动阶段第二步：recover
+     *
+     * 类似 commitLog 的 恢复逻辑
+     *
+     * @see CommitLog#recoverNormally(long)
      */
     public void recover() {
         final List<MappedFile> mappedFiles = this.mappedFileQueue.getMappedFiles();
