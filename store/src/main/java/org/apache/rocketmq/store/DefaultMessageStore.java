@@ -73,6 +73,9 @@ public class DefaultMessageStore implements MessageStore {
 
     /**
      * 消费者的索引 {@link ConsumeQueue}
+     *
+     * @see DefaultMessageStore#loadConsumeQueue() 加载时机
+     * @see DefaultMessageStore#putConsumeQueue(java.lang.String, int, org.apache.rocketmq.store.ConsumeQueue) 加载时机
      */
     private final ConcurrentMap<String/* topic */, ConcurrentMap<Integer/* queueId */, ConsumeQueue/*cq*/>> consumeQueueTable;
 
@@ -1492,48 +1495,54 @@ public class DefaultMessageStore implements MessageStore {
 
     private boolean loadConsumeQueue() {
         // /Users/zhuchenjian/Documents/code/learn/rocketmq/rocketmq-all/conf/home/broker/store/consumequeue 目录
-        String storePathConsumeQueue = StorePathConfigHelper.getStorePathConsumeQueue(this.messageStoreConfig.getStorePathRootDir());
+        String consumeQueueStorePath = StorePathConfigHelper.getStorePathConsumeQueue(this.messageStoreConfig.getStorePathRootDir());
 
         // consumequeue/ 目录
-        File dirLogic = new File(storePathConsumeQueue);
+        File dirLogic = new File(consumeQueueStorePath);
         // consumequeue/ 目录下面的topic目录列表
-        File[] fileTopicList = dirLogic.listFiles();
-        if (fileTopicList != null) {
-            // 遍历consumequeue 目录下面的topic目录列表
-            for (File fileTopic : fileTopicList) {
-                // 文件名称：主题
-                String topic = fileTopic.getName();
-                // 拿到该主题下面的个队列目录如：0/,1/,2/,3/......等，如：
+        File[] topicDirList = dirLogic.listFiles();
+        if (topicDirList == null) {
+            return true;
+        }
+        // 遍历consumequeue 目录下面的topic目录列表
+        for (File fileTopic : topicDirList) {
+            // 文件名称：主题
+            String topic = fileTopic.getName();
+            // 拿到该主题下面的个队列目录如：0/,1/,2/,3/......等，如：
+            // /Users/zhuchenjian/Documents/code/learn/rocketmq/rocketmq-all/conf/home/broker/store/consumequeue/order/0
+            // /Users/zhuchenjian/Documents/code/learn/rocketmq/rocketmq-all/conf/home/broker/store/consumequeue/order/1
+            // /Users/zhuchenjian/Documents/code/learn/rocketmq/rocketmq-all/conf/home/broker/store/consumequeue/order/3
+            // /Users/zhuchenjian/Documents/code/learn/rocketmq/rocketmq-all/conf/home/broker/store/consumequeue/order/2
+            File[] queueIdDirList/* 某个主题下的所有队列Id 目录列表 */ = fileTopic.listFiles();
+            if (queueIdDirList == null) {
+                continue;
+            }
+            for (File fileQueueId/* 循环每一个队列Id目录 */ : queueIdDirList) {
                 // /Users/zhuchenjian/Documents/code/learn/rocketmq/rocketmq-all/conf/home/broker/store/consumequeue/order/0
                 // /Users/zhuchenjian/Documents/code/learn/rocketmq/rocketmq-all/conf/home/broker/store/consumequeue/order/1
                 // /Users/zhuchenjian/Documents/code/learn/rocketmq/rocketmq-all/conf/home/broker/store/consumequeue/order/3
                 // /Users/zhuchenjian/Documents/code/learn/rocketmq/rocketmq-all/conf/home/broker/store/consumequeue/order/2
-                File[] fileQueueIdList = fileTopic.listFiles();
-                if (fileQueueIdList != null) {
-                    for (File fileQueueId : fileQueueIdList) {
-                        // /Users/zhuchenjian/Documents/code/learn/rocketmq/rocketmq-all/conf/home/broker/store/consumequeue/order/0
-                        // /Users/zhuchenjian/Documents/code/learn/rocketmq/rocketmq-all/conf/home/broker/store/consumequeue/order/1
-                        // /Users/zhuchenjian/Documents/code/learn/rocketmq/rocketmq-all/conf/home/broker/store/consumequeue/order/3
-                        // /Users/zhuchenjian/Documents/code/learn/rocketmq/rocketmq-all/conf/home/broker/store/consumequeue/order/2
-                        int queueId;
-                        try {
-                            // 队列id如0,1,2,3......
-                            String fileQueueIdName = fileQueueId.getName();
-                            queueId = Integer.parseInt(fileQueueIdName);
-                        } catch (NumberFormatException e) {
-                            continue;
-                        }
-                        /* 6000000 KB =  5.72 MB*/
-                        int mappedFileSizeConsumeQueue = this.getMessageStoreConfig().getMappedFileSizeConsumeQueue();
-                        // 创建 cq 对象
-                        ConsumeQueue logic = new ConsumeQueue(topic, queueId, storePathConsumeQueue, mappedFileSizeConsumeQueue /* 6000000 KB =  5.72 MB*/, this);
-                        // 存储到 consumeQueueTable 映射表
-                        // ConcurrentMap<String/* topic */, ConcurrentMap<Integer/* queueId */, ConsumeQueue/*cq*/>> consumeQueueTable;
-                        this.putConsumeQueue(topic, queueId, logic);
-                        if (!logic.load()) {
-                            return false;
-                        }
-                    }
+                int queueId;
+                try {
+                    // 队列id如0,1,2,3......
+                    String fileQueueIdName = fileQueueId.getName();
+                    queueId = Integer.parseInt(fileQueueIdName);
+                } catch (NumberFormatException e) {
+                    continue;
+                }
+                /* 6000000 KB =  5.72 MB*/
+                int mappedFileSizeConsumeQueue = this.getMessageStoreConfig().getMappedFileSizeConsumeQueue();
+                // 创建 cq 对象
+                ConsumeQueue logicConsumeQueue = new ConsumeQueue(topic, queueId, consumeQueueStorePath, mappedFileSizeConsumeQueue /* 6000000 KB =  5.72 MB*/, this);
+                // 存储到 consumeQueueTable 映射表
+                // ConcurrentMap<String/* topic */, ConcurrentMap<Integer/* queueId */, ConsumeQueue/*cq*/>> consumeQueueTable;
+                this.putConsumeQueue(topic, queueId, logicConsumeQueue);
+
+                /**
+                 * 加载每一个 consumeQueue 的 queueId
+                 */
+                if (!logicConsumeQueue.load()) {
+                    return false;
                 }
             }
         }
@@ -2119,7 +2128,6 @@ public class DefaultMessageStore implements MessageStore {
                     DefaultMessageStore.log.warn(this.getServiceName() + " service has exception. ", e);
                 }
             }
-
             DefaultMessageStore.log.info(this.getServiceName() + " service end");
         }
     }
