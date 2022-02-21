@@ -44,7 +44,7 @@ public class IndexService {
     private final String storePath;/* /Users/zhuchenjian/Documents/code/learn/rocketmq/rocketmq-all/conf/home/broker/store/index/  */
 
     // 索引文件列表
-    private final ArrayList<IndexFile> indexFileList = new ArrayList<>();
+    private final ArrayList<IndexFile/*一个索引文件*/> indexFileList = new ArrayList<>();
 
     // 操作 indexFileList 的锁
     private final ReadWriteLock readWriteLock = new ReentrantReadWriteLock();
@@ -243,7 +243,6 @@ public class IndexService {
         // 获取当前索引文件，如果 list 内不存在文件 或者当前file写满了，则创建新的 file并返回
         IndexFile indexFile = retryGetAndCreateIndexFile();
         if (indexFile != null) {
-
             // 拿到索引文件最后一条消息的 偏移量
             long endPhyOffset = indexFile.getEndPhyOffset();
             // 消息主题
@@ -269,7 +268,7 @@ public class IndexService {
             // 系统唯一索引，为消息创建唯一索引
             String reqUniqKey = req.getUniqKey();
             if (reqUniqKey != null) {
-                String key = buildKey(topic, reqUniqKey);
+                String key/*主题+索引key*/ = buildKey(topic, reqUniqKey);
                 indexFile = putKey(indexFile, req, key);
                 if (indexFile == null) {
                     log.error("putKey error commitlog {} uniqkey {}", req.getCommitLogOffset(), reqUniqKey);
