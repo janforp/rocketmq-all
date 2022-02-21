@@ -745,6 +745,8 @@ public class MappedFile extends ReferenceResource {
 
     /**
      * 解锁内存
+     *
+     * @see DefaultMessageStore#unlockMappedFile(org.apache.rocketmq.store.MappedFile)
      */
     public void munlock() {
         final long beginTime = System.currentTimeMillis();

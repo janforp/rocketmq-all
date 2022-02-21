@@ -172,7 +172,7 @@ public class MappedFileQueue {
 
             // 该文件的最后一个字节的偏移量
             long fileTailOffset = file.getFileFromOffset()/*文件名称转long，*/ + this.mappedFileSize/*每个文件的大小*/;
-            if (fileTailOffset > offset  /*如果该文件的最大偏移量 > 传入的offset*/) {
+            if (fileTailOffset > offset  /*如果该文件的最大偏移量 > 传入的offset，并且只会又一个文件能满足该条件*/) {
                 // 存在下面2个情况：
                 // fileFromOffset ..................................... offset ............................. fileTailOffset
                 // ......... offset .......上一个文件的结尾   fileFromOffset .................................................................. fileTailOffset
@@ -496,7 +496,6 @@ public class MappedFileQueue {
             lastMappedFile.destroy(1000);
             this.mappedFiles.remove(lastMappedFile);
             log.info("on recover, destroy a logic mapped file " + lastMappedFile.getFileName());
-
         }
     }
 
