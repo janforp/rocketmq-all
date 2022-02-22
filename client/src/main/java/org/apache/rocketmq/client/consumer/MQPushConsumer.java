@@ -32,6 +32,8 @@ public interface MQPushConsumer extends MQConsumer {
     /**
      * Subscribe some topic
      *
+     * 添加订阅信息
+     *
      * @param subExpression subscription expression.it only support or operation such as "tag1 || tag2 || tag3" <br> if
      * null or * expression,meaning subscribe
      * all

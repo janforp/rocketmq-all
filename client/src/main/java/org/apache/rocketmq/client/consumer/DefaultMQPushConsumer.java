@@ -47,7 +47,7 @@ import java.util.Set;
  * <strong>Thread Safety:</strong> After initialization, the instance can be regarded as thread-safe.
  * </p>
  */
-public class DefaultMQPushConsumer extends ClientConfig implements MQPushConsumer {
+public class DefaultMQPushConsumer extends ClientConfig/*配置，给 defaultMQPushConsumerImpl 使用*/ implements MQPushConsumer {
 
     private final InternalLogger log = ClientLogger.getLog();
 
