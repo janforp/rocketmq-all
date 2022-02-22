@@ -100,7 +100,11 @@ public class DefaultMessageStore implements MessageStore {
     @Getter
     private final AllocateMappedFileService allocateMappedFileService;
 
-    // 消息分发 ，分发到 consumerQueue 以及 IndexFile
+    /**
+     * 消息分发 ，分发到 consumerQueue 以及 IndexFile
+     *
+     * @see DefaultMessageStore#dispatcherList 分发
+     */
     private final ReputMessageService reputMessageService;
 
     @Getter
@@ -128,7 +132,7 @@ public class DefaultMessageStore implements MessageStore {
     private final BrokerStatsManager brokerStatsManager;
 
     /**
-     * @see org.apache.rocketmq.broker.longpolling.NotifyMessageArrivingListener
+     * @see org.apache.rocketmq.broker.longpolling.NotifyMessageArrivingListener 有消息发送过来的时候会通知该接口
      */
     private final MessageArrivingListener messageArrivingListener;
 
@@ -313,15 +317,19 @@ public class DefaultMessageStore implements MessageStore {
                  */
                 log.warn("[TooSmallCqOffset] maxPhysicalPosInLogicQueue={} clMinOffset={}", maxPhysicalPosInLogicQueue, this.commitLog.getMinOffset());
             }
+
+            // 设置到分发位点
             this.reputMessageService.setReputFromOffset(maxPhysicalPosInLogicQueue);
+            // 启动分发服务
             this.reputMessageService.start();
 
-            /*
+            /**
+             *  主线程等待 commitLog 跟 consumeQueue 对齐
              *  1. Finish dispatching the messages fall behind, then to start other services.
              *  2. DLedger committedPos may be missing, so here just require dispatchBehindBytes <= 0
              */
             while (true) {
-                if (dispatchBehindBytes() <= 0/*commitLogMaxOffset - this.reputFromOffset; 主线程在这等待同步完成*/) {
+                if (dispatchBehindBytes()/*分发位点之后还有多少数据没有分发*/ <= 0/*commitLogMaxOffset - this.reputFromOffset; 主线程在这等待同步完成*/) {
                     break;
                 }
                 Thread.sleep(1000);
@@ -340,6 +348,7 @@ public class DefaultMessageStore implements MessageStore {
 
         // 消费队列的刷盘服务
         this.flushConsumeQueueService.start();
+        // 把 commitLog 的虚拟内层落盘
         this.commitLog.start();
         this.storeStatsService.start();
 
@@ -1442,7 +1451,7 @@ public class DefaultMessageStore implements MessageStore {
 
     private void addScheduleTask() {
 
-        // 清理
+        // 定时清理 commitLog 过期文件
         this.scheduledExecutorService.scheduleAtFixedRate(DefaultMessageStore.this::cleanFilesPeriodically, 1000 * 60, this.messageStoreConfig.getCleanResourceInterval(), TimeUnit.MILLISECONDS);
 
         this.scheduledExecutorService.scheduleAtFixedRate(DefaultMessageStore.this::checkSelf, 1, 10, TimeUnit.MINUTES);
@@ -1761,7 +1770,7 @@ public class DefaultMessageStore implements MessageStore {
 
                 log.info("begin to delete before {} hours file. timeup: {} spacefull: {} manualDeleteFileSeveralTimes: {} cleanAtOnce: {}", fileReservedTime, timeup, spacefull, manualDeleteFileSeveralTimes, cleanAtOnce);
 
-                fileReservedTime *= 60 * 60 * 1000;
+                fileReservedTime *= 60 * 60 * 1000;/*1个小时*/
 
                 // 删除
                 deleteCount = DefaultMessageStore.this.commitLog.deleteExpiredFile(fileReservedTime, deletePhysicFilesInterval, destroyMapedFileIntervalForcibly, cleanAtOnce);
