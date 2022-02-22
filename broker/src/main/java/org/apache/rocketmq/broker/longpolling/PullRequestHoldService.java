@@ -9,6 +9,7 @@ import org.apache.rocketmq.common.constant.LoggerName;
 import org.apache.rocketmq.logging.InternalLogger;
 import org.apache.rocketmq.logging.InternalLoggerFactory;
 import org.apache.rocketmq.store.ConsumeQueueExt;
+import org.apache.rocketmq.store.DefaultMessageStore;
 import org.apache.rocketmq.store.MessageFilter;
 import org.apache.rocketmq.store.MessageStore;
 
@@ -24,6 +25,7 @@ import java.util.concurrent.ConcurrentMap;
  * 1.客户端到服务端拉消息，暂时没有消息的时候，需要进行轮询
  * 2.
  */
+@SuppressWarnings("all")
 public class PullRequestHoldService extends ServiceThread {
 
     private static final InternalLogger log = InternalLoggerFactory.getLogger(LoggerName.BROKER_LOGGER_NAME);
@@ -122,6 +124,7 @@ public class PullRequestHoldService extends ServiceThread {
     /**
      * 有消息来的时候发出通知
      *
+     * @see DefaultMessageStore.ReputMessageService 当 commitLog 有新消息存入当时候会调用分发服务，顺便通知拉取消息的线程有消息来了
      * @see NotifyMessageArrivingListener#arriving(java.lang.String, int, long, long, long, byte[], java.util.Map) 调用该方法的第二种情况就是这里
      */
     public void notifyMessageArriving(final String topic, final int queueId, final long maxOffset/*当前队列最大的 逻辑 offset （从1开始，没存储一条消息 +1） */, final Long tagsCode, long msgStoreTime, byte[] filterBitMap, Map<String, String> properties) {

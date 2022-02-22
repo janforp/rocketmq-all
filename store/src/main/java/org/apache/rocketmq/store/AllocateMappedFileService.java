@@ -3,7 +3,6 @@ package org.apache.rocketmq.store;
 import lombok.Getter;
 import lombok.Setter;
 import org.apache.rocketmq.common.ServiceThread;
-import org.apache.rocketmq.common.UtilAll;
 import org.apache.rocketmq.common.constant.LoggerName;
 import org.apache.rocketmq.logging.InternalLogger;
 import org.apache.rocketmq.logging.InternalLoggerFactory;
@@ -197,7 +196,6 @@ public class AllocateMappedFileService extends ServiceThread {
             req = this.requestQueue.take();
             AllocateRequest expectedRequest = this.requestTable.get(req.getFilePath());
             if (null == expectedRequest) {
-
                 // 超时了
                 log.warn("this mmap request expired, maybe cause timeout " + req.getFilePath() + " " + req.getFileSize());
                 return true;
@@ -206,8 +204,7 @@ public class AllocateMappedFileService extends ServiceThread {
                 log.warn("never expected here,  maybe cause timeout " + req.getFilePath() + " " + req.getFileSize() + ", req:" + req + ", expectedRequest:" + expectedRequest);
                 return true;
             }
-
-            if (req.getMappedFile() == null) {
+            if (req.getMappedFile() == null/*该请求的文件还没创建成功*/) {
                 long beginTime = System.currentTimeMillis();
                 // 该创建文件对应的结果
                 MappedFile mappedFile;
@@ -226,14 +223,6 @@ public class AllocateMappedFileService extends ServiceThread {
                     // 创建mf对象
                     mappedFile = new MappedFile(req.getFilePath(), req.getFileSize());
                 }
-
-                // 花里胡哨的 傻逼东西，这么写有说明意义？
-                long elapsedTime = UtilAll.computeElapsedTimeMilliseconds(beginTime);
-                if (elapsedTime > 10) {
-                    int queueSize = this.requestQueue.size();
-                    log.warn("create mappedFile spent time(ms) " + elapsedTime + " queue size " + queueSize + " " + req.getFilePath() + " " + req.getFileSize());
-                }
-
                 // pre write mappedFile
                 if (mappedFile.getFileSize() >= messageStoreConfig.getMappedFileSizeCommitLog() && messageStoreConfig.isWarmMapedFileEnable()) {
                     // 预热

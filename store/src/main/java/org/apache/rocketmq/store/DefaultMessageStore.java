@@ -2013,12 +2013,18 @@ public class DefaultMessageStore implements MessageStore {
             super.shutdown();
         }
 
+        /**
+         * 分发位点之后还有多少数据没有分发
+         */
         public long behind() {
             // cmmitLog 文件上的最大的物理偏移量
             long commitLogMaxOffset = DefaultMessageStore.this.commitLog.getMaxOffset();
             return commitLogMaxOffset - this.reputFromOffset;
         }
 
+        /**
+         * commitLog 文件中是否还有剩余的数据没有分发
+         */
         private boolean isCommitLogAvailable() {
             // cmmitLog 文件上的最大的物理偏移量
             long commitLogMaxOffset = DefaultMessageStore.this.commitLog.getMaxOffset();
@@ -2035,16 +2041,15 @@ public class DefaultMessageStore implements MessageStore {
                     // TODO ????
                     break;
                 }
-                // 得到 reputFromOffset 所在的 commitLog 文件的 从 reputFromOffset 位点开始往后的内容
+                // 得到 reputFromOffset 所在的 commitLog 文件的 从 reputFromOffset 位点开始往后的所有内容
                 SelectMappedBufferResult result/*分发位点所在的文件的数据，从分发位点到文件结尾的数据*/ = DefaultMessageStore.this.commitLog.getData(reputFromOffset);
                 if (result != null) {
                     try {
                         this.reputFromOffset/*分发位点，通过他可以知道从commitLog的哪个位置开始工作(分发工作)*/ = result.getStartOffset();
                         for (int readSize = 0; readSize < result.getSize() && doNext; /*循环读取 result 中的每条消息 */) {
                             ByteBuffer resultByteBuffer = result.getByteBuffer();
-                            // 从commitLog缓存中拿到一条消息
                             // 循环读取 result 中的每条消息
-                            DispatchRequest dispatchRequest/*封装了一条消息*/ = DefaultMessageStore.this.commitLog.checkMessageAndReturnSize(resultByteBuffer, false, false);
+                            DispatchRequest dispatchRequest/*从commitLog缓存中拿到一条消息，封装了一条消息*/ = DefaultMessageStore.this.commitLog.checkMessageAndReturnSize(resultByteBuffer, false, false);
                             int size = dispatchRequest.getBufferSize() == -1 ? dispatchRequest.getMsgSize() : dispatchRequest.getBufferSize();
                             if (dispatchRequest.isSuccess()) {
                                 if (size > 0) {
@@ -2055,7 +2060,7 @@ public class DefaultMessageStore implements MessageStore {
                                      */
                                     DefaultMessageStore.this.doDispatch(dispatchRequest);
 
-                                    if (BrokerRole.SLAVE != messageStoreConfig.getBrokerRole() && DefaultMessageStore.this.brokerConfig.isLongPollingEnable()/*开启长轮询*/) {
+                                    if (BrokerRole.SLAVE != messageStoreConfig.getBrokerRole()/*不是slave*/ && DefaultMessageStore.this.brokerConfig.isLongPollingEnable()/*开启长轮询*/) {
                                         String topic = dispatchRequest.getTopic();
                                         int queueId = dispatchRequest.getQueueId();
                                         long logicOffset = dispatchRequest.getConsumeQueueOffset() + 1;
@@ -2063,18 +2068,14 @@ public class DefaultMessageStore implements MessageStore {
                                         long storeTimestamp = dispatchRequest.getStoreTimestamp();
                                         byte[] bitMap = dispatchRequest.getBitMap();
                                         Map<String, String> propertiesMap = dispatchRequest.getPropertiesMap();
+                                        /**
+                                         * @see org.apache.rocketmq.broker.longpolling.NotifyMessageArrivingListener
+                                         */
                                         DefaultMessageStore.this.messageArrivingListener.arriving(topic, queueId, logicOffset/*当前队列的最大的 offset*/, tagsCode, storeTimestamp, bitMap, propertiesMap);
                                     }
-
                                     this.reputFromOffset += size;
-
-                                    // readSize 向前推进一条消息的长度！！！
+                                    // readSize 向前推进一条消息的长度！！！，往循环结束的位点进一步靠近
                                     readSize = readSize + size;
-                                    if (messageStoreConfig.getBrokerRole() == BrokerRole.SLAVE) {
-                                        // 统计相关
-                                        DefaultMessageStore.this.storeStatsService.getSinglePutMessageTopicTimesTotal(dispatchRequest.getTopic()).incrementAndGet();
-                                        DefaultMessageStore.this.storeStatsService.getSinglePutMessageTopicSizeTotal(dispatchRequest.getTopic()).addAndGet(dispatchRequest.getMsgSize());
-                                    }
                                 } else if (size == 0) {
                                     // 文件尾，翻页
                                     this.reputFromOffset = DefaultMessageStore.this.commitLog.rollNextFile(this.reputFromOffset);
@@ -2100,6 +2101,7 @@ public class DefaultMessageStore implements MessageStore {
                         result.release();
                     }
                 } else {
+                    // SelectMappedBufferResult result == null 的情况，说明分发位点后面没有更多的数据了
                     doNext = false;
                 }
             }
@@ -2113,6 +2115,7 @@ public class DefaultMessageStore implements MessageStore {
                     Thread.sleep(1);
                     this.doReput();
                 } catch (Exception e) {
+                    // 就算发生异常，也不会停止该循环
                     DefaultMessageStore.log.warn(this.getServiceName() + " service has exception. ", e);
                 }
             }
