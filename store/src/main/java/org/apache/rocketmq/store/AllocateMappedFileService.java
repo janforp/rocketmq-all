@@ -27,6 +27,7 @@ import java.util.concurrent.TimeUnit;
  *
  * Create MappedFile in advance
  */
+@SuppressWarnings("all")
 public class AllocateMappedFileService extends ServiceThread {
 
     private static final InternalLogger log = InternalLoggerFactory.getLogger(LoggerName.STORE_LOGGER_NAME);
@@ -68,17 +69,17 @@ public class AllocateMappedFileService extends ServiceThread {
             }
         }
 
-        // 把请求封装成一个请求大小
+        // 把请求封装成一个请求对象
         AllocateRequest nextReq = new AllocateRequest(nextFilePath, fileSize);
 
         //  ConcurrentMap<String/*filePath 全路径*/, AllocateRequest/*filePath 创建的请求*/> requestTable
-        boolean nextPutOK = this.requestTable.putIfAbsent(nextFilePath, nextReq) == null/*返回null，说明不是重复的请求*/;
+        AllocateRequest oldRequest = this.requestTable.putIfAbsent(nextFilePath, nextReq);
+        boolean nextPutOK = (oldRequest == null)/*返回null，说明不是重复的请求*/;
 
         if (nextPutOK/*这次是一个新的请求*/) {
             if (canSubmitRequests <= 0) {
                 // 内存池不够了
                 log.warn("[NOTIFYME]TransientStorePool is not enough, so create mapped file error, " + "RequestQueueSize : {}, StorePoolSize: {}", this.requestQueue.size(), this.messageStore.getTransientStorePool().availableBufferNums());
-
                 //  ConcurrentMap<String/*filePath 全路径*/, AllocateRequest/*filePath 创建的请求*/> requestTable
                 this.requestTable.remove(nextFilePath);
                 return null;
@@ -88,7 +89,6 @@ public class AllocateMappedFileService extends ServiceThread {
             if (!offerOK) {
                 log.warn("never expected here, add a request to preallocate queue failed");
             }
-
             // 可以提交的请求数量减一个
             canSubmitRequests--;
         }
@@ -123,16 +123,23 @@ public class AllocateMappedFileService extends ServiceThread {
         try {
             if (result != null) {
                 int waitTimeOut = 1000 * 5;
+                /**
+                 * 多线程编程的典型应用！！！！平时开发一般很难有使用的机会
+                 */
                 CountDownLatch countDownLatch = result.getCountDownLatch();
-
-                // 等待 nextFilePath 文件的创建 5 秒
-                boolean waitOK = countDownLatch.await(waitTimeOut, TimeUnit.MILLISECONDS);
+                /**
+                 * 发起请求的线程在此阻塞
+                 * @see AllocateMappedFileService#mmapOperation() 在该方法中真正的创建文件，并且唤醒主线程
+                 */
+                boolean waitOK = countDownLatch.await(waitTimeOut/* 5秒 */, TimeUnit.MILLISECONDS);
                 if (!waitOK) {
                     log.warn("create mmap timeout " + result.getFilePath() + " " + result.getFileSize());
                     return null;
                 } else {
+                    /**
+                     * 不是因为超时，则返回创建好的文件 mappedFile
+                     */
                     this.requestTable.remove(nextFilePath);
-
                     // 返回 nextFilePath 创建的结果
                     return result.getMappedFile();
                 }
@@ -185,7 +192,7 @@ public class AllocateMappedFileService extends ServiceThread {
         AllocateRequest req = null;
         MessageStoreConfig messageStoreConfig = messageStore.getMessageStoreConfig();
         try {
-            // 拿到一个请求，如果没有请求则再次阻塞
+            // 拿到一个请求，如果没有请求则在此阻塞
             // 该方法在另外一个线程中执行的，所以，在从任务队列中获取任务的时候阻塞也没关系！！！！！
             req = this.requestQueue.take();
             AllocateRequest expectedRequest = this.requestTable.get(req.getFilePath());
@@ -202,10 +209,8 @@ public class AllocateMappedFileService extends ServiceThread {
 
             if (req.getMappedFile() == null) {
                 long beginTime = System.currentTimeMillis();
-
                 // 该创建文件对应的结果
                 MappedFile mappedFile;
-
                 if (messageStoreConfig.isTransientStorePoolEnable()) {
                     TransientStorePool transientStorePool = messageStore.getTransientStorePool();
                     try {
@@ -218,7 +223,6 @@ public class AllocateMappedFileService extends ServiceThread {
                         mappedFile = new MappedFile(req.getFilePath(), req.getFileSize(), transientStorePool);
                     }
                 } else {
-
                     // 创建mf对象
                     mappedFile = new MappedFile(req.getFilePath(), req.getFileSize());
                 }

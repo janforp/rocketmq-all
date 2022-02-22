@@ -1933,27 +1933,21 @@ public class DefaultMessageStore implements MessageStore {
 
         private void doFlush(int retryTimes) {
             int flushConsumeQueueLeastPages = DefaultMessageStore.this.getMessageStoreConfig().getFlushConsumeQueueLeastPages()/*默认2*/;
-
             if (retryTimes == RETRY_TIMES_OVER) {
                 flushConsumeQueueLeastPages = 0;
             }
-
             long logicsMsgTimestamp = 0;
-
             int flushConsumeQueueThoroughInterval = DefaultMessageStore.this.getMessageStoreConfig().getFlushConsumeQueueThoroughInterval()/*强行刷盘周期，默认60s*/;
             long currentTimeMillis = System.currentTimeMillis();
             if (currentTimeMillis >= (this.lastFlushTimestamp + flushConsumeQueueThoroughInterval/*强行刷盘周期，默认60s*/)) {
                 this.lastFlushTimestamp = currentTimeMillis;
-
                 // 满足了强制刷盘的条件
                 flushConsumeQueueLeastPages = 0;
                 StoreCheckpoint storeCheckpoint = DefaultMessageStore.this.getStoreCheckpoint();
                 logicsMsgTimestamp = storeCheckpoint.getLogicsMsgTimestamp();
             }
-
-            ConcurrentMap<String/* topic */, ConcurrentMap<Integer/* queueId */, ConsumeQueue>> tables = DefaultMessageStore.this.consumeQueueTable;
-
-            for (ConcurrentMap<Integer/* queueId */, ConsumeQueue> maps : tables.values()) {
+            ConcurrentMap<String/** topic */, ConcurrentMap<Integer/** queueId */, ConsumeQueue>> tables = DefaultMessageStore.this.consumeQueueTable;
+            for (ConcurrentMap<Integer/** queueId */, ConsumeQueue> maps : tables.values()) {
                 // 遍历每个 cq
                 for (ConsumeQueue cq : maps.values()) {
                     boolean result = false;
@@ -1975,12 +1969,9 @@ public class DefaultMessageStore implements MessageStore {
 
         @Override
         public void run() {
-            DefaultMessageStore.log.info(this.getServiceName() + " service started");
-
             while (!this.isStopped()) {
                 try {
-
-                    // 配置文件中的刷新 CQ 的间隔时间
+                    // 配置文件中的刷盘 CQ 的间隔时间
                     int interval = DefaultMessageStore.this.getMessageStoreConfig().getFlushIntervalConsumeQueue()/* 默认 1 秒 */;
                     this.waitForRunning(interval);
                     this.doFlush(1);
@@ -1988,10 +1979,7 @@ public class DefaultMessageStore implements MessageStore {
                     DefaultMessageStore.log.warn(this.getServiceName() + " service has exception. ", e);
                 }
             }
-
             this.doFlush(RETRY_TIMES_OVER);
-
-            DefaultMessageStore.log.info(this.getServiceName() + " service end");
         }
 
         @Override

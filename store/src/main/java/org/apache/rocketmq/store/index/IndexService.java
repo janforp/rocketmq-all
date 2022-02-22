@@ -60,7 +60,7 @@ public class IndexService {
     }
 
     /**
-     * @param lastExitOK 上次是否飞正常退出？？？？
+     * @param lastExitOK 上次是否非正常退出？？？？
      */
     public boolean load(final boolean lastExitOK) {
         File dir = new File(this.storePath /* /Users/zhuchenjian/Documents/code/learn/rocketmq/rocketmq-all/conf/home/broker/store/index/ */);
@@ -89,7 +89,6 @@ public class IndexService {
                             continue;
                         }
                     }
-
                     log.info("load index file OK, " + f.getFileName());
                     this.indexFileList.add(f);
                 } catch (IOException e) {
