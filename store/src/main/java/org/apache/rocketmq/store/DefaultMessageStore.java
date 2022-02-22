@@ -79,7 +79,7 @@ public class DefaultMessageStore implements MessageStore {
      */
     private final ConcurrentMap<String/* topic */, ConcurrentMap<Integer/* queueId */, ConsumeQueue/*cq*/>> consumeQueueTable;
 
-    // 刷新 ConsumeQueue 队列的服务
+    // 刷盘 ConsumeQueue 队列的服务
     private final FlushConsumeQueueService flushConsumeQueueService;
 
     /**
@@ -267,7 +267,6 @@ public class DefaultMessageStore implements MessageStore {
     }
 
     public void start() throws Exception {
-
         // ../store/lock 文件
         lock = lockFile.getChannel().tryLock(0, 1, false);
         if (lock == null || lock.isShared() || !lock.isValid()) {
@@ -285,17 +284,13 @@ public class DefaultMessageStore implements MessageStore {
              * 3. Calculate the reput offset according to the consume queue;
              * 4. Make sure the fall-behind messages to be dispatched before starting the commitlog, especially when the broker role are automatically changed.
              */
-
             // 所有队列中的最大的物理偏移量
             long maxPhysicalPosInLogicQueue = commitLog.getMinOffset();
-
             // ConcurrentMap<String/* topic */, ConcurrentMap<Integer/* queueId */, ConsumeQueue>> consumeQueueTable;
             for (ConcurrentMap<Integer/* queueId */, ConsumeQueue> maps : this.consumeQueueTable.values()) {
                 Collection<ConsumeQueue> consumeQueues = maps.values();
                 for (ConsumeQueue logic : consumeQueues) {
-
                     long maxPhysicOffsetInLogic = logic.getMaxPhysicOffset();
-
                     if (maxPhysicOffsetInLogic > maxPhysicalPosInLogicQueue) {
                         // 循环找到最大的 offset
                         maxPhysicalPosInLogicQueue = maxPhysicOffsetInLogic;
@@ -317,14 +312,12 @@ public class DefaultMessageStore implements MessageStore {
                  */
                 log.warn("[TooSmallCqOffset] maxPhysicalPosInLogicQueue={} clMinOffset={}", maxPhysicalPosInLogicQueue, this.commitLog.getMinOffset());
             }
-
             // 设置到分发位点
             this.reputMessageService.setReputFromOffset(maxPhysicalPosInLogicQueue);
             // 启动分发服务
             this.reputMessageService.start();
-
             /**
-             *  主线程等待 commitLog 跟 consumeQueue 对齐
+             *  主线程等待 commitLog 跟 consumeQueue 对齐，意思就是 commitLog 中所有的消息都创建了 consumeQueue 索引
              *  1. Finish dispatching the messages fall behind, then to start other services.
              *  2. DLedger committedPos may be missing, so here just require dispatchBehindBytes <= 0
              */
@@ -340,15 +333,12 @@ public class DefaultMessageStore implements MessageStore {
             // ConcurrentMap<String/* topic */, ConcurrentMap<Integer/* queueId */, ConsumeQueue/*cq*/>> consumeQueueTable;
             this.recoverTopicQueueTable();
         }
-
         if (!messageStoreConfig.isEnableDLegerCommitLog()) {
             this.haService.start();
             this.handleScheduleMessageService(messageStoreConfig.getBrokerRole());
         }
-
         // 消费队列的刷盘服务
         this.flushConsumeQueueService.start();
-        // 把 commitLog 的虚拟内层落盘
         this.commitLog.start();
         this.storeStatsService.start();
 
@@ -426,12 +416,12 @@ public class DefaultMessageStore implements MessageStore {
     }
 
     private PutMessageStatus checkMessage(MessageExtBrokerInner msg) {
-        if (msg.getTopic().length() > Byte.MAX_VALUE) {
+        if (msg.getTopic().length() > Byte.MAX_VALUE /*127*/) {
             log.warn("putMessage message topic length too long " + msg.getTopic().length());
             return PutMessageStatus.MESSAGE_ILLEGAL;
         }
 
-        if (msg.getPropertiesString() != null && msg.getPropertiesString().length() > Short.MAX_VALUE) {
+        if (msg.getPropertiesString() != null && msg.getPropertiesString().length() > Short.MAX_VALUE/*127*/) {
             log.warn("putMessage message properties length too long " + msg.getPropertiesString().length());
             return PutMessageStatus.MESSAGE_ILLEGAL;
         }
@@ -632,7 +622,7 @@ public class DefaultMessageStore implements MessageStore {
         long diff = this.systemClock.now() - begin;
 
         // TODO ????????? 这样就能判断磁盘紧张？？？
-        return diff < 10000000 && diff > this.messageStoreConfig.getOsPageCacheBusyTimeOutMills();
+        return diff < 10000000 && diff > this.messageStoreConfig.getOsPageCacheBusyTimeOutMills() /*1秒*/;
     }
 
     @Override
@@ -1559,6 +1549,13 @@ public class DefaultMessageStore implements MessageStore {
         return true;
     }
 
+    /**
+     * 1. consumeQueue
+     * 2. commitLog
+     * 3. {@link org.apache.rocketmq.store.DefaultMessageStore#consumeQueueTable}
+     *
+     * @param lastExitOK
+     */
     private void recover(final boolean lastExitOK) {
         // consumequeue中的物理偏移量最大的offset
         long maxPhyOffsetOfConsumeQueue = this.recoverConsumeQueue()/*先恢复 consumeQueue*/;
@@ -2069,6 +2066,9 @@ public class DefaultMessageStore implements MessageStore {
                                      */
                                     DefaultMessageStore.this.doDispatch(dispatchRequest);
 
+                                    /**
+                                     * 分发到 consumeQuque 跟 indexFile 之后顺便做一个通知！
+                                     */
                                     if (BrokerRole.SLAVE != messageStoreConfig.getBrokerRole()/*不是slave*/ && DefaultMessageStore.this.brokerConfig.isLongPollingEnable()/*开启长轮询*/) {
                                         String topic = dispatchRequest.getTopic();
                                         int queueId = dispatchRequest.getQueueId();
@@ -2085,7 +2085,7 @@ public class DefaultMessageStore implements MessageStore {
                                     this.reputFromOffset += size;
                                     // readSize 向前推进一条消息的长度！！！，往循环结束的位点进一步靠近
                                     readSize = readSize + size;
-                                } else if (size == 0) {
+                                } else if (size == 0/*文件尾*/) {
                                     // 文件尾，翻页
                                     this.reputFromOffset = DefaultMessageStore.this.commitLog.rollNextFile(this.reputFromOffset);
                                     readSize = result.getSize();

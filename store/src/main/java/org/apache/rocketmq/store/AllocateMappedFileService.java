@@ -138,7 +138,7 @@ public class AllocateMappedFileService extends ServiceThread {
                     /**
                      * 不是因为超时，则返回创建好的文件 mappedFile
                      */
-                    this.requestTable.remove(nextFilePath);
+                    this.requestTable.remove/*从table移除*/(nextFilePath);
                     // 返回 nextFilePath 创建的结果
                     return result.getMappedFile();
                 }
@@ -224,7 +224,7 @@ public class AllocateMappedFileService extends ServiceThread {
                     mappedFile = new MappedFile(req.getFilePath(), req.getFileSize());
                 }
                 // pre write mappedFile
-                if (mappedFile.getFileSize() >= messageStoreConfig.getMappedFileSizeCommitLog() && messageStoreConfig.isWarmMapedFileEnable()) {
+                if (mappedFile.getFileSize() >= messageStoreConfig.getMappedFileSizeCommitLog()/*1G*/ && messageStoreConfig.isWarmMapedFileEnable()/*预热开启*/) {
                     // 预热
                     FlushDiskType flushDiskType = messageStoreConfig.getFlushDiskType();
                     // 1024 / 4 * 16 = 16
