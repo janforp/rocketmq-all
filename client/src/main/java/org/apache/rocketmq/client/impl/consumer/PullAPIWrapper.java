@@ -38,6 +38,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicLong;
 
+@SuppressWarnings("all")
 public class PullAPIWrapper {
 
     private final InternalLogger log = ClientLogger.getLog();
@@ -54,7 +55,7 @@ public class PullAPIWrapper {
      *
      * @see PullAPIWrapper#processPullResult(org.apache.rocketmq.common.message.MessageQueue, org.apache.rocketmq.client.consumer.PullResult, org.apache.rocketmq.common.protocol.heartbeat.SubscriptionData) 拉取结果会返回
      */
-    private final ConcurrentMap<MessageQueue/*队列*/, AtomicLong/* 下次拉消息时候，建议去该brokerId去拉消息 */> pullFromWhichNodeTable = new ConcurrentHashMap<MessageQueue, AtomicLong>(32);
+    private final ConcurrentMap<MessageQueue/** 队列 */, AtomicLong/** 下次拉消息时候，建议去该brokerId去拉消息 */> pullFromWhichNodeTable = new ConcurrentHashMap<MessageQueue, AtomicLong>(32);
 
     @Setter
     @Getter

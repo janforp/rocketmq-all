@@ -130,7 +130,7 @@ public class DefaultMQPushConsumer extends ClientConfig/*配置，给 defaultMQP
      * Implying Seventeen twelve and 01 seconds on December 23, 2013 year<br>
      * Default backtracking consumption time Half an hour ago.
      *
-     * @see ConsumeFromWhere#CONSUME_FROM_TIMESTAMP 只有是这个 consumeFromWhere 的是该字段才有效！！！！！！
+     * @see ConsumeFromWhere#CONSUME_FROM_TIMESTAMP 只有是这个 consumeFromWhere 的是该字段并且服务器中不存在该queue的offset的时候才有效！！！！！！
      */
     @Getter
     @Setter
@@ -153,6 +153,8 @@ public class DefaultMQPushConsumer extends ClientConfig/*配置，给 defaultMQP
     private AllocateMessageQueueStrategy allocateMessageQueueStrategy;
 
     /**
+     * 该消费者的订阅信息集合
+     *
      * Subscription relationship
      * 当前消费者订阅的主题以及tag的映射
      * key:主题
@@ -174,7 +176,7 @@ public class DefaultMQPushConsumer extends ClientConfig/*配置，给 defaultMQP
     private MessageListener messageListener;
 
     /**
-     * 消费者本地消费进度存储！（一般都是 {@link org.apache.rocketmq.client.consumer.store.RemoteBrokerOffsetStore}）
+     * 消费者本地消费进度存储！（集群模式都是 {@link org.apache.rocketmq.client.consumer.store.RemoteBrokerOffsetStore}）
      *
      * Offset Storage:消费进度的存储器，也可以用来持久化偏移量
      *
@@ -272,7 +274,7 @@ public class DefaultMQPushConsumer extends ClientConfig/*配置，给 defaultMQP
 
     /**
      * Message pull Interval
-     * 消费者2次拉去请求的时间间隔
+     * 消费者2次拉取请求的时间间隔
      */
     @Getter
     @Setter
@@ -295,7 +297,7 @@ public class DefaultMQPushConsumer extends ClientConfig/*配置，给 defaultMQP
 
     /**
      * Whether update subscription relationship when every pull
-     * 拉请求时，是否提交本地"订阅数据（过滤信息）"，默认不提交，因为心跳的时候，订阅数据已经同步到 broker 了，这里没必要提交
+     * 拉消息请求时，是否提交本地"订阅数据（过滤信息）"，默认不提交，因为心跳的时候，订阅数据已经同步到 broker 了，这里没必要再提交！！！！！
      */
     @Getter
     @Setter
@@ -337,7 +339,7 @@ public class DefaultMQPushConsumer extends ClientConfig/*配置，给 defaultMQP
      */
     @Getter
     @Setter
-    private long consumeTimeout = 15;
+    private long consumeTimeout = 15 /* 分钟 */;
 
     /**
      * Interface of asynchronous transfer data

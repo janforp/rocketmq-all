@@ -55,7 +55,7 @@ public abstract class RebalanceImpl {
      * 当前消费者的订阅信息
      * key:当前消费者订阅的主题
      * value:订阅详情
-     * @see DefaultMQPushConsumerImpl#copySubscription()
+     * @see DefaultMQPushConsumerImpl#copySubscription() 消费者实例启动的时候会把它的订阅信息复制过来
      * @see DefaultMQPushConsumerImpl#subscribe(java.lang.String, java.lang.String) 消费者订阅主题的是也会把数据放到这里
      */
     @Getter

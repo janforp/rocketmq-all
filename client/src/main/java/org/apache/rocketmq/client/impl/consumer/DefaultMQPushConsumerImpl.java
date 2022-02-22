@@ -171,6 +171,7 @@ public class DefaultMQPushConsumerImpl implements MQConsumerInner {
      * 消息进度存储器
      *
      * @see RemoteBrokerOffsetStore
+     * @see LocalFileOffsetStore
      *
      * // 正常情况到这里执行
      * switch (this.defaultMQPushConsumer.getMessageModel()) {
@@ -193,8 +194,8 @@ public class DefaultMQPushConsumerImpl implements MQConsumerInner {
     /**
      * 消息消费服务，里面有消费线程池，执行消费任务
      *
-     * @see ConsumeMessageConcurrentlyService
-     * @see ConsumeMessageOrderlyService
+     * @see ConsumeMessageConcurrentlyService 并发消费
+     * @see ConsumeMessageOrderlyService 顺序消费
      */
     @Getter
     @Setter
@@ -691,6 +692,7 @@ public class DefaultMQPushConsumerImpl implements MQConsumerInner {
     }
 
     public synchronized void start() throws MQClientException {
+        String consumerGroup = this.defaultMQPushConsumer.getConsumerGroup();
         switch (this.serviceState) {
             case CREATE_JUST:
                 // 先设置失败
@@ -700,15 +702,14 @@ public class DefaultMQPushConsumerImpl implements MQConsumerInner {
                 // 复制订阅信息到 rebalanceImpl 对象，并且如果是集群模式的时候，系统自动订阅 重试 主题队列
                 this.copySubscription();
                 if (this.defaultMQPushConsumer.getMessageModel() == MessageModel.CLUSTERING) {
-                    // 集群模式，修改消费者实例名称为 进程 PID
+                    // 集群模式，修改消费者实例名称为 进程 PID，instanceId
                     this.defaultMQPushConsumer.changeInstanceNameToPID();
                 }
-
                 // 获取客户端实例，进程内只有一个实例
                 this.mQClientFactory = MQClientManager.getInstance().getOrCreateMQClientInstance(this.defaultMQPushConsumer, this.rpcHook);
 
                 // 初始化负载均衡对象
-                this.rebalanceImpl.setConsumerGroup(this.defaultMQPushConsumer.getConsumerGroup());
+                this.rebalanceImpl.setConsumerGroup(consumerGroup);
                 this.rebalanceImpl.setMessageModel(this.defaultMQPushConsumer.getMessageModel());
                 // 分配策略对象赋值
                 this.rebalanceImpl.setAllocateMessageQueueStrategy(this.defaultMQPushConsumer.getAllocateMessageQueueStrategy());
@@ -720,7 +721,7 @@ public class DefaultMQPushConsumerImpl implements MQConsumerInner {
                  * 热数据：在内存中，会建议下次去 master 拉
                  * 冷数据：在硬盘中，会建议下次去 slave 拉
                  */
-                this.pullAPIWrapper = new PullAPIWrapper(mQClientFactory, this.defaultMQPushConsumer.getConsumerGroup(), isUnitMode());
+                this.pullAPIWrapper = new PullAPIWrapper(mQClientFactory, consumerGroup, isUnitMode());
 
                 // 注册到这里， 消息拉取到的时候执行这个钩子
                 this.pullAPIWrapper.registerFilterMessageHook(filterMessageHookList);
@@ -733,11 +734,11 @@ public class DefaultMQPushConsumerImpl implements MQConsumerInner {
                     switch (this.defaultMQPushConsumer.getMessageModel()) {
                         case BROADCASTING:
                             // 广播模式
-                            this.offsetStore = new LocalFileOffsetStore(this.mQClientFactory, this.defaultMQPushConsumer.getConsumerGroup());
+                            this.offsetStore = new LocalFileOffsetStore(this.mQClientFactory, consumerGroup);
                             break;
                         case CLUSTERING:
                             // 集群模式
-                            this.offsetStore = new RemoteBrokerOffsetStore(this.mQClientFactory, this.defaultMQPushConsumer.getConsumerGroup());
+                            this.offsetStore = new RemoteBrokerOffsetStore(this.mQClientFactory, consumerGroup);
                             break;
                         default:
                             break;
@@ -771,17 +772,17 @@ public class DefaultMQPushConsumerImpl implements MQConsumerInner {
                  * 4.消息进度持久化
                  * 5.动态调整线程池
                  */
-                boolean registerOK = mQClientFactory.registerConsumer(this.defaultMQPushConsumer.getConsumerGroup(), this);
+                boolean registerOK = mQClientFactory.registerConsumer(consumerGroup, this);
                 if (!registerOK) {
                     // 不能重复注册消费者
                     this.serviceState = ServiceState.CREATE_JUST;
                     this.consumeMessageService.shutdown();
-                    throw new MQClientException("The consumer group[" + this.defaultMQPushConsumer.getConsumerGroup() + "] has been created before, specify another name please." + FAQUrl.suggestTodo(FAQUrl.GROUP_NAME_DUPLICATE_URL), null);
+                    throw new MQClientException("The consumer group[" + consumerGroup + "] has been created before, specify another name please." + FAQUrl.suggestTodo(FAQUrl.GROUP_NAME_DUPLICATE_URL), null);
                 }
 
                 // 启动客户端实例
                 mQClientFactory.start();
-                log.info("the consumer [{}] start OK.", this.defaultMQPushConsumer.getConsumerGroup());
+                log.info("the consumer [{}] start OK.", consumerGroup);
 
                 // 修改消费者状态为运行中
                 this.serviceState = ServiceState.RUNNING;
@@ -925,7 +926,7 @@ public class DefaultMQPushConsumerImpl implements MQConsumerInner {
     private void copySubscription() throws MQClientException {
         try {
             // Map<String /* topic */, String /* sub expression */> subscription = new HashMap<String, String>();
-            Map<String, String> sub = this.defaultMQPushConsumer.getSubscription();
+            Map<String, String> sub/*订阅信息*/ = this.defaultMQPushConsumer.getSubscription();
             if (sub != null) {
                 for (final Map.Entry<String, String> entry : sub.entrySet()) {
                     final String topic = entry.getKey();
@@ -951,13 +952,11 @@ public class DefaultMQPushConsumerImpl implements MQConsumerInner {
 
                 // %RETRY%SOCINSCORE_CONSUMER_GROUP
                 // 消息重试的主题，因为会有消费失败的情况
-                final String retryTopic/* %RETRY%SOCINSCORE_CONSUMER_GROUP */ = MixAll.getRetryTopic(this.defaultMQPushConsumer.getConsumerGroup());
-                // 创建该主题的订阅数据对象
+                final String retryTopic/* %RETRY%消费者组名 */ = MixAll.getRetryTopic(this.defaultMQPushConsumer.getConsumerGroup());
+                // 创建该重试主题的订阅数据对象
                 SubscriptionData subscriptionData = FilterAPI.buildSubscriptionData(this.defaultMQPushConsumer.getConsumerGroup(), retryTopic, SubscriptionData.SUB_ALL/* * */);
-
                 // 存储到负载均衡服务对象中
                 ConcurrentMap<String, SubscriptionData> subscriptionInner = this.rebalanceImpl.getSubscriptionInner();
-
                 // 存储到负载均衡服务对象中
                 /*
                  * 这里为什么要订阅重试主题呢？
