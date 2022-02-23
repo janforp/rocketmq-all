@@ -44,12 +44,13 @@ public class ProcessQueue {
     private final ReadWriteLock lockTreeMap = new ReentrantReadWriteLock();
 
     /**
-     * 存储消息的容器
-     * key:消息的偏移量
-     * value:消息对象
+     * 存储消息的容器,内部是按照 key 排序的
+     *
+     * @see ProcessQueue#lockTreeMap 需要获取这个锁才能操作该map
+     * 从 broker 拉取到的消息先存储在这里
      */
     @Getter
-    private final TreeMap<Long/*TODO 是逻辑偏移量呢还是物理偏移量？*/, MessageExt> msgTreeMap = new TreeMap<Long, MessageExt>();
+    private final TreeMap<Long/*TODO 是逻辑偏移量呢还是物理偏移量？*/, MessageExt/*消息对象*/> msgTreeMap = new TreeMap<Long, MessageExt>();
 
     /**
      * 当前对象存储消息的条数
@@ -82,7 +83,10 @@ public class ProcessQueue {
      */
     private volatile long queueOffsetMax = 0L;
 
-    // 是否移除，负载均衡的时候会修改这个字段
+    /**
+     * 是否移除，负载均衡的时候会修改这个字段
+     * 消费的时候每次都会检查这个状态，及时知道负载均衡的变化
+     */
     @Setter
     @Getter
     private volatile boolean dropped = false;

@@ -35,8 +35,6 @@ public abstract class RebalanceImpl {
 
     /**
      * 分配到当前消费者的队列消息
-     * key:队列
-     * value:当前队列在消费者端的快照
      */
     @Getter
     protected final ConcurrentMap<MessageQueue/*分配给当前消费者的队列*/, ProcessQueue/*队列在消费者的快照*/> processQueueTable = new ConcurrentHashMap<MessageQueue, ProcessQueue>(64);
@@ -47,7 +45,7 @@ public abstract class RebalanceImpl {
      * 2.定时任务(30s)
      */
     @Getter
-    protected final ConcurrentMap<String/* topic */, Set<MessageQueue>/*该主题的队列发布信息*/> topicSubscribeInfoTable = new ConcurrentHashMap<String, Set<MessageQueue>>();
+    protected final ConcurrentMap<String/* topic */, Set<MessageQueue>/*该主题的队列发布信息 {"topic":"topic","brokerName":"broker-a",queueId:"0"}*/> topicSubscribeInfoTable = new ConcurrentHashMap<String, Set<MessageQueue>>();
 
     /**
      * @see DefaultMQPushConsumerImpl#copySubscription() 该方法初始化该 table
@@ -70,7 +68,9 @@ public abstract class RebalanceImpl {
     @Setter
     protected MessageModel messageModel;
 
-    // 分配策略
+    /**
+     * 队列分配策略
+     */
     @Getter
     @Setter
     protected AllocateMessageQueueStrategy allocateMessageQueueStrategy;
@@ -275,7 +275,6 @@ public abstract class RebalanceImpl {
          */
         Map<String /* topic */, SubscriptionData/*订阅信息，包括 topic 以及过滤信息*/> subTable = this.getSubscriptionInner();
         if (subTable != null) {
-
             // 遍历消费者订阅的每一个主题
             for (final Map.Entry<String /* topic */, SubscriptionData/*订阅信息，包括 topic 以及过滤信息*/> entry : subTable.entrySet()) {
                 final String topic = entry.getKey();
@@ -289,7 +288,6 @@ public abstract class RebalanceImpl {
                 }
             }
         }
-
         this.truncateMessageQueueNotMyTopic();
     }
 
@@ -316,9 +314,9 @@ public abstract class RebalanceImpl {
             case CLUSTERING: {
                 // ConcurrentMap<String/* topic */, Set<MessageQueue>> topicSubscribeInfoTable
                 // 获取当前主题的全部 MessageQueue
-                Set<MessageQueue> mqSet = this.topicSubscribeInfoTable.get(topic);
+                Set<MessageQueue> mqSet/*该主题所有的队列*/ = this.topicSubscribeInfoTable/*主题分布*/.get(topic);
                 // 获取当前'消费者组'下的全部消费者ID（客户端实例ID集合）
-                List<String> cidAll = this.mQClientFactory.findConsumerIdList(topic, consumerGroup);
+                List<String> cidAll/*该消费者组下所有的消费者实例id*/ = this.mQClientFactory.findConsumerIdList(topic, consumerGroup);
                 if (null == mqSet) {
                     if (!topic.startsWith(MixAll.RETRY_GROUP_TOPIC_PREFIX/*%RETRY%*/)) {
                         log.warn("doRebalance, {}, but the topic[{}] not exist.", consumerGroup, topic);
@@ -357,8 +355,8 @@ public abstract class RebalanceImpl {
                     }
 
                     // 0 1 2 3
-                    // 2 3 4
-                    // 分配到的队列发生了改变
+                    //     2 3 4
+                    // 分配到的队列发生了改变，新分配到的队列为4，0，1队列分配到其他消费者实例上了，需移除，其中2，3队列没有发生变化
 
                     // 更新当前消费者实例的队列消息
                     boolean changed /*true表示分配给当前消费者的队列发生变化，false没有变化,当分配的队列多了或者少了的时候都会发生变化*/ = this.updateProcessQueueTableInRebalance(topic /*主题*/, allocateResultSet/*当前消费者的分配结果*/, isOrder);
@@ -375,12 +373,16 @@ public abstract class RebalanceImpl {
         }
     }
 
+    /**
+     * 以订阅信息{@link RebalanceImpl#subscriptionInner}为准,从 {@link RebalanceImpl#processQueueTable} 处理队列中删除没有订阅的队列
+     */
     private void truncateMessageQueueNotMyTopic /* 截断消息队列不是我的主题 */() {
         Map<String /* topic */, SubscriptionData/*订阅信息，包括 topic 以及过滤信息*/> subTable = this.getSubscriptionInner();
 
         for (MessageQueue mq/*分配给当前消费者的队列*/ : this.processQueueTable.keySet()) {
-            if (!subTable.containsKey(mq.getTopic()) /*意思是当前消费者的订阅信息中没有订阅这个主题*/) {
 
+            String topic = mq.getTopic();
+            if (!subTable.containsKey(topic) /*意思是当前消费者的订阅信息中没有订阅这个主题*/) {
                 // 当前消费者的订阅信息中没有订阅某个主题的时候，肯定要把这里的映射表删除！！！
                 ProcessQueue pq = this.processQueueTable.remove(mq);
                 if (pq != null) {
@@ -392,6 +394,10 @@ public abstract class RebalanceImpl {
     }
 
     /**
+     * // 负载均衡前： 0 1 2 3
+     * // 负载均衡后：     2 3 4
+     * // 分配到的队列发生了改变，新分配到的队列为4，队列 0，1分配到其他消费者实例上了，需移除，其中2，3队列没有发生变化
+     *
      * 计数出负载均衡后，当前消费者，当前主题被转移走的队列
      * 对于这些被转移到其他消费者的队列，当前消费者需要：
      * 1.将 mq > pd 状态设置为 删除 状态
@@ -418,11 +424,12 @@ public abstract class RebalanceImpl {
      * @param isOrder 是否顺序消费
      */
     private boolean updateProcessQueueTableInRebalance(final String topic, final Set<MessageQueue> newMqSet/*该主题在该实例上新分配的队列*/, final boolean isOrder) {
+
         // 当前消费者 消费的队列是否有变化
         boolean changed = false;
 
         // ConcurrentMap<MessageQueue, ProcessQueue> processQueueTable，这些队列是本次负载均衡之前的队列，但是这个队列中保存的是所有主题下的队列
-        Iterator<Entry<MessageQueue/*之前分配给当前消费者的队列*/, ProcessQueue>> it = this.processQueueTable.entrySet().iterator();
+        Iterator<Entry<MessageQueue/*之前分配给当前消费者的队列*/, ProcessQueue>> it = this.processQueueTable/* 本次负载均衡之前的处理队列 */.entrySet().iterator();
         while (it.hasNext() /* 遍历该主题在该实例上老队列 */) {
             Entry<MessageQueue, ProcessQueue> next = it.next();
 
@@ -502,7 +509,7 @@ public abstract class RebalanceImpl {
         for (MessageQueue mq : newMqSet /* 最新分配给消费者的当前主题的队列集合 */) {
 
             // 老的队列中不包含新的 mq,则说明该mq是新分配过来的
-            if (!this.processQueueTable/* 此时的映射表中包含的队列是哪些呢？答：本次负载均衡之前就属于该消费者并且拉消息没有超时的队列 */.containsKey(mq)) {
+            if (!this.processQueueTable/* 此时的映射表中包含的队列是哪些呢？答：本次负载均衡之前就属于该消费者并且拉消息没有超时的队列 */.containsKey(mq/*则说明该mq是新分配过来的*/)) {
                 if (isOrder && !this.lock(mq) /*获取队列的分布式锁*/) {
                     log.warn("doRebalance, {}, add a new mq failed, {}, because lock failed", consumerGroup, mq);
                     continue;

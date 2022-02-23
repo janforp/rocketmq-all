@@ -28,6 +28,9 @@ public class ConsumerManager {
 
     private static final long CHANNEL_EXPIRED_TIMEOUT = 1000 * 120;
 
+    /**
+     * 心跳维护
+     */
     private final ConcurrentMap<String/* Group */, ConsumerGroupInfo> consumerTable = new ConcurrentHashMap<>(1024);
 
     /**

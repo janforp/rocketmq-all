@@ -1341,6 +1341,9 @@ public class MQClientInstance {
         return 0;
     }
 
+    /**
+     * @see org.apache.rocketmq.broker.processor.ConsumerManageProcessor#getConsumerListByGroup(io.netty.channel.ChannelHandlerContext, org.apache.rocketmq.remoting.protocol.RemotingCommand)
+     */
     public List<String> findConsumerIdList(final String topic, final String group) {
         String brokerAddr = this.findBrokerAddrByTopic(topic);
         if (null == brokerAddr) {

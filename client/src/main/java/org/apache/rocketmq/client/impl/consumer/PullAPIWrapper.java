@@ -186,6 +186,9 @@ public class PullAPIWrapper {
         }
     }
 
+    /**
+     * @see org/apache/rocketmq/client/impl/consumer/DefaultMQPushConsumerImpl.java:419
+     */
     public PullResult pullKernelImpl(
             final MessageQueue mq, // 队列
             final String subExpression,// 订阅信息

@@ -702,6 +702,9 @@ public class MQClientAPIImpl {
         throw new MQBrokerException(response.getCode(), response.getRemark());
     }
 
+    /**
+     * @see org/apache/rocketmq/client/impl/consumer/DefaultMQPushConsumerImpl.java:419
+     */
     public PullResult pullMessage(
             final String addr, // broker 地址
             final PullMessageRequestHeader requestHeader, // 请求参数
@@ -734,6 +737,9 @@ public class MQClientAPIImpl {
         return null;
     }
 
+    /**
+     * @see org/apache/rocketmq/client/impl/consumer/DefaultMQPushConsumerImpl.java:419
+     */
     private void pullMessageAsync(final String addr, final RemotingCommand request, final long timeoutMillis, final PullCallback pullCallback) throws RemotingException, InterruptedException {
 
         /**
@@ -757,6 +763,7 @@ public class MQClientAPIImpl {
                          *  执行回调函数
                          *  将 pullResult 交给
                          * @see DefaultMQPushConsumerImpl#pullMessage(org.apache.rocketmq.client.impl.consumer.PullRequest)  可以参考该方法中定义的回调对象
+                         * @see org/apache/rocketmq/client/impl/consumer/DefaultMQPushConsumerImpl.java:419
                          */
                         pullCallback.onSuccess(pullResult);
                     } catch (Exception e) {
@@ -765,6 +772,7 @@ public class MQClientAPIImpl {
                          *  执行回调函数
                          *  将 pullResult 交给
                          * @see DefaultMQPushConsumerImpl#pullMessage(org.apache.rocketmq.client.impl.consumer.PullRequest) 可以参考该方法中定义的回调对象
+                         * @see org/apache/rocketmq/client/impl/consumer/DefaultMQPushConsumerImpl.java:419
                          */
                         pullCallback.onException(e);
                     }

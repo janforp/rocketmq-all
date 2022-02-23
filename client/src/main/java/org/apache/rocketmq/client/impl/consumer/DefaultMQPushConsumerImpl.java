@@ -68,6 +68,10 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicLong;
 
+/**
+ * 其实mq都是通过拉获取消息的。为了让用户方便使用，封装拉一个让用户感觉是在推的消费模式
+ * 说到底还是通过 {@link PullMessageService#pullMessage(org.apache.rocketmq.client.impl.consumer.PullRequest)} 该方法去服务端拉取消息，这样用户就感觉好像消息是从服务端推送过来的一样
+ */
 @SuppressWarnings("all")
 public class DefaultMQPushConsumerImpl implements MQConsumerInner {
 
@@ -100,6 +104,8 @@ public class DefaultMQPushConsumerImpl implements MQConsumerInner {
     // 负载均衡
 
     /**
+     * 每个消费者实例都有一个负载均衡实例，分布负责当前消费者订阅的主题下面的队列！
+     *
      * rbl 对象，职责：分配订阅主题的队列给当前消费者，20s一个周期执行 rbl 算法 （客户端实例触发）
      *
      * @see RebalanceService
@@ -385,11 +391,11 @@ public class DefaultMQPushConsumerImpl implements MQConsumerInner {
             }
         }
 
-        // 拿到该主题的订阅信息
         String topic = pullRequest.getMessageQueue().getTopic();
 
         // ConcurrentMap<String /* topic */, SubscriptionData> subscriptionInner
         ConcurrentMap<String/* topic */, SubscriptionData/*订阅信息，包括 topic 以及过滤信息*/> subscriptionInner = this.rebalanceImpl.getSubscriptionInner();
+        // 拿到该主题的订阅信息
         final SubscriptionData subscriptionData = subscriptionInner.get(topic);
         if (null == subscriptionData) {
             /**

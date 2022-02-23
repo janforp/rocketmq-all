@@ -35,7 +35,7 @@ public class ConsumerGroupInfo {
      * broker 与消费者服务的连接
      */
     @Getter
-    private final ConcurrentMap<Channel, ClientChannelInfo> channelInfoTable = new ConcurrentHashMap<>(16);
+    private final ConcurrentMap<Channel, ClientChannelInfo/*里面包含了 clientId 客户端实例id*/> channelInfoTable = new ConcurrentHashMap<>(16);
 
     @Getter
     @Setter
