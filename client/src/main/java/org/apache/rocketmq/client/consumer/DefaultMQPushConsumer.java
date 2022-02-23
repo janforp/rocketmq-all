@@ -65,6 +65,8 @@ public class DefaultMQPushConsumer extends ClientConfig/*配置，给 defaultMQP
      *
      * See <a href="http://rocketmq.apache.org/docs/core-concept/">here</a> for further discussion.
      * 消费者组
+     *
+     * 如：dev%socinsgateway-consumer
      */
     @Getter
     @Setter
@@ -633,8 +635,11 @@ public class DefaultMQPushConsumer extends ClientConfig/*配置，给 defaultMQP
      */
     @Override
     public void start() throws MQClientException {
+        // rocketmq.namespace=dev
+        String namespace = this.getNamespace();
 
-        String wrapNamespace = NamespaceUtil.wrapNamespace(this.getNamespace(), this.consumerGroup);
+        // dev%socinsgateway-consumer
+        String wrapNamespace = NamespaceUtil.wrapNamespace(namespace/*dev*/, this.consumerGroup/*socinsgateway-consumer*/);
 
         // 设置当前消费者的消费者组
         setConsumerGroup(wrapNamespace);

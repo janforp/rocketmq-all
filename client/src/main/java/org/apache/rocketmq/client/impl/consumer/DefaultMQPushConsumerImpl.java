@@ -569,7 +569,7 @@ public class DefaultMQPushConsumerImpl implements MQConsumerInner {
             classFilter = sd.isClassFilterMode();
         }
 
-        // 如果全都是 true，则 flag 为：0    0   0   0   1(是否为类过滤，，默认0，一般是TAG过滤)   1(拉消息请求是否包含消费者本地该主题的订阅信息，默认0，因为心跳的时候做了这个事情)   1(是否允许服务器长轮询，默认1)   1(是否提交消费者本地的进度,如果为1则表示提交，默认1)
+        // 如果全都是 true，则 flag 为：0    0   0   0   1(是否为类过滤，默认0，一般是TAG过滤)   1(拉消息请求是否包含消费者本地该主题的订阅信息，默认0，因为心跳的时候做了这个事情)   1(是否允许服务器长轮询，默认1)   1(是否提交消费者本地的进度,如果为1则表示提交，默认1)
         // 高四位未使用
         int sysFlag = PullSysFlag.buildSysFlag(commitOffsetEnable, true, subExpression != null, classFilter);
         try {
@@ -698,7 +698,7 @@ public class DefaultMQPushConsumerImpl implements MQConsumerInner {
     }
 
     public synchronized void start() throws MQClientException {
-        String consumerGroup = this.defaultMQPushConsumer.getConsumerGroup();
+        String consumerGroup/*dev%socinsgateway-consumer*/ = this.defaultMQPushConsumer.getConsumerGroup();
         switch (this.serviceState) {
             case CREATE_JUST:
                 // 先设置失败
@@ -767,7 +767,10 @@ public class DefaultMQPushConsumerImpl implements MQConsumerInner {
                     this.consumeMessageService = new ConsumeMessageConcurrentlyService(this, (MessageListenerConcurrently) this.getMessageListenerInner());
                 }
 
-                // 启动消费服务
+                /**
+                 * 启动消费服务
+                 * @see ConsumeMessageConcurrentlyService#start()
+                 */
                 this.consumeMessageService.start();
                 /**
                  * 将消费者注册到客户端实例
@@ -931,12 +934,11 @@ public class DefaultMQPushConsumerImpl implements MQConsumerInner {
      */
     private void copySubscription() throws MQClientException {
         try {
-            // Map<String /* topic */, String /* sub expression */> subscription = new HashMap<String, String>();
-            Map<String, String> sub/*订阅信息*/ = this.defaultMQPushConsumer.getSubscription();
+            Map<String/* topic */, String/* sub expression 过滤表达式，一般都是tag */> sub/*订阅信息*/ = this.defaultMQPushConsumer.getSubscription();
             if (sub != null) {
-                for (final Map.Entry<String, String> entry : sub.entrySet()) {
+                for (final Map.Entry<String/* topic */, String/* sub expression 过滤表达式，一般都是tag */> entry : sub.entrySet()) {
                     final String topic = entry.getKey();
-                    final String subString = entry.getValue();
+                    final String subString/* sub expression 过滤表达式，一般都是tag */ = entry.getValue();
                     // 组装得到一个订阅信息对象
                     SubscriptionData subscriptionData = FilterAPI.buildSubscriptionData(this.defaultMQPushConsumer.getConsumerGroup(), topic, subString);
 

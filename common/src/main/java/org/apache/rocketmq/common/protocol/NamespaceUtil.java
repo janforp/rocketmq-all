@@ -68,7 +68,7 @@ public class NamespaceUtil {
         return resourceWithNamespace;
     }
 
-    public static String wrapNamespace(String namespace, String resourceWithOutNamespace) {
+    public static String wrapNamespace(String namespace/*dev*/, String resourceWithOutNamespace/*socinsgateway-consumer*/) {
         if (StringUtils.isEmpty(namespace) || StringUtils.isEmpty(resourceWithOutNamespace)) {
             return resourceWithOutNamespace;
         }
@@ -78,6 +78,7 @@ public class NamespaceUtil {
         }
 
         String resourceWithoutRetryAndDLQ = withOutRetryAndDLQ(resourceWithOutNamespace);
+
         StringBuilder strBuffer = new StringBuilder();
 
         if (isRetryTopic(resourceWithOutNamespace)) {
@@ -88,7 +89,8 @@ public class NamespaceUtil {
             strBuffer.append(MixAll.DLQ_GROUP_TOPIC_PREFIX);
         }
 
-        return strBuffer.append(namespace).append(NAMESPACE_SEPARATOR).append(resourceWithoutRetryAndDLQ).toString();
+        // dev%socinsgateway-consumer
+        return strBuffer.append(namespace/*dev*/).append(NAMESPACE_SEPARATOR/*%*/).append(resourceWithoutRetryAndDLQ/*socinsgateway-consumer*/).toString();
     }
 
     public static boolean isAlreadyWithNamespace(String resource, String namespace) {

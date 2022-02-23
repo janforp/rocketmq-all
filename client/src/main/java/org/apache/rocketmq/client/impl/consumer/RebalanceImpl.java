@@ -61,6 +61,7 @@ public abstract class RebalanceImpl {
     @Getter
     protected final ConcurrentMap<String /* topic */, SubscriptionData/*订阅信息，包括 topic 以及过滤信息*/> subscriptionInner = new ConcurrentHashMap<String, SubscriptionData>();
 
+    // /*dev%socinsgateway-consumer*/
     @Getter
     @Setter
     protected String consumerGroup;

@@ -22,6 +22,8 @@ public class PullMessageService extends ServiceThread {
 
     /**
      * 存储请求的阻塞队列
+     *
+     * 里面有拉消息的请求
      */
     private final LinkedBlockingQueue<PullRequest> pullRequestQueue = new LinkedBlockingQueue<PullRequest>();
 

@@ -1270,6 +1270,9 @@ public class MQClientInstance {
         boolean found = false;
 
         // 当前 brokerName 部署的所有节点地址映射表
+        /**
+         * brokerId = 0 的节点肯定在映射表的第一个元素，因为按 hashcode 排序的
+         */
         HashMap<Long/* brokerId */, String/* address */> map = this.brokerAddrTable.get(brokerName);
         if (map != null && !map.isEmpty()) {
             for (Map.Entry<Long/* brokerId */, String/* address */> entry : map.entrySet()) {
