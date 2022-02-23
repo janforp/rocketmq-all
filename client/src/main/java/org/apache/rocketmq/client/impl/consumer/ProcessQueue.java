@@ -135,6 +135,7 @@ public class ProcessQueue {
 
     public boolean isPullExpired() {
         // 拉消息请求是否过期
+        // 如果2分钟内都没有发生拉消息的请求，认为可能出问题拉，则认为是超时
         return (System.currentTimeMillis() - this.lastPullTimestamp) > PULL_MAX_IDLE_TIME /* 120 s */;
     }
 

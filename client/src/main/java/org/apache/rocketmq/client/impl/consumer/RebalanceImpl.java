@@ -40,6 +40,8 @@ public abstract class RebalanceImpl {
     protected final ConcurrentMap<MessageQueue/*分配给当前消费者的队列*/, ProcessQueue/*队列在消费者的快照*/> processQueueTable = new ConcurrentHashMap<MessageQueue, ProcessQueue>(64);
 
     /**
+     * 当前主题的队列发布信息
+     *
      * 初始化地方
      * 1.客户端启动阶段
      * 2.定时任务(30s)
@@ -288,6 +290,9 @@ public abstract class RebalanceImpl {
                 }
             }
         }
+        /**
+         * 以订阅信息{@link RebalanceImpl#subscriptionInner}为准,从 {@link RebalanceImpl#processQueueTable} 处理队列中删除没有订阅的队列
+         */
         this.truncateMessageQueueNotMyTopic();
     }
 
@@ -424,12 +429,11 @@ public abstract class RebalanceImpl {
      * @param isOrder 是否顺序消费
      */
     private boolean updateProcessQueueTableInRebalance(final String topic, final Set<MessageQueue> newMqSet/*该主题在该实例上新分配的队列*/, final boolean isOrder) {
-
         // 当前消费者 消费的队列是否有变化
         boolean changed = false;
 
         // ConcurrentMap<MessageQueue, ProcessQueue> processQueueTable，这些队列是本次负载均衡之前的队列，但是这个队列中保存的是所有主题下的队列
-        Iterator<Entry<MessageQueue/*之前分配给当前消费者的队列*/, ProcessQueue>> it = this.processQueueTable/* 本次负载均衡之前的处理队列 */.entrySet().iterator();
+        Iterator<Entry<MessageQueue/*之前分配给当前消费者的队列*/, ProcessQueue>/*队列在消费者的快照*/> it = this.processQueueTable/* 本次负载均衡之前的处理队列 */.entrySet().iterator();
         while (it.hasNext() /* 遍历该主题在该实例上老队列 */) {
             Entry<MessageQueue, ProcessQueue> next = it.next();
 
@@ -455,11 +459,7 @@ public abstract class RebalanceImpl {
                      */
                     pq.setDropped(true/*删除*/);
 
-                    /*
-                     * 1.持久化消费进度到broker或者本地
-                     * 2.移除本地队列
-                     */
-                    if (this.removeUnnecessaryMessageQueue(mq, pq)) {
+                    if (this.removeUnnecessaryMessageQueue(mq, pq)/*1.持久化消费进度到broker或者本地，2.移除本地队列*/) {
                         // 不归该消费者消费的队列，需要从 processQueueTable 移除
                         it.remove(); // 从 映射表 中移除
                         // 说明当前消费者消费的队列发生了变化
@@ -469,11 +469,10 @@ public abstract class RebalanceImpl {
                 }
 
                 // 如果当前遍历的 mq 还是被当前 消费者消费
-                else if (pq.isPullExpired() /* 如果当前遍历的队列还归属当前消费者，则继续判断拉消息请求是否过期 */) {
+                else if (pq.isPullExpired() /* 如果当前遍历的队列还归属当前消费者，则继续判断拉消息请求是否过期，如果2分钟内都没有发生拉消息的请求，认为可能出问题拉，则认为是超时 */) {
                     // 如果2分钟内还没有发生拉消息的请求，则说明拉消息请求过期，可能是出问题了，会进入该分支中
-
                     // TODO 但是这个 队列 还是属于当前消费者呢，移除了之后是不是就没消费者消费该队列的消息了？？？
-                    // 答：下看的循环就知道了，会给这些队列重新创建一个 ProcessQueue 重新塞入映射表中！！！！
+                    // 答：看下面的的循环就知道了，会给这些队列重新创建一个 ProcessQueue 重新塞入映射表中！！！！
 
                     switch (this.consumeType()) {
                         case CONSUME_ACTIVELY: // pull
@@ -486,7 +485,7 @@ public abstract class RebalanceImpl {
                              * 1.持久化消费进度到broker或者本地
                              * 2.移除本地队列
                              */
-                            if (this.removeUnnecessaryMessageQueue(mq, pq)) {
+                            if (this.removeUnnecessaryMessageQueue(mq, pq)/*1.持久化消费进度到broker或者本地，2.移除本地队列*/) {
                                 it.remove();
                                 changed = true;
                                 // 一般到这里需要重启了
@@ -520,21 +519,20 @@ public abstract class RebalanceImpl {
                 // 先把可能存在的冗余(脏)数据删除掉
                 this.removeDirtyOffset(mq);
 
-                // 需要创建一个新的快照
+                // 为新分配过来的队列创建一个新的快照
                 ProcessQueue pq = new ProcessQueue();
 
                 // 计数从那个开始消费偏移量
                 // 从 服务器 拉起该 mq 最新的消费进度
-                long nextOffset = this.computePullFromWhere(mq);
+                long nextOffset = this.computePullFromWhere(mq/*TODO 是否可以创建一个批量拉取消费进度的接口？*/);
                 if (nextOffset >= 0) {
                     // 添加到映射表
                     ProcessQueue pre = this.processQueueTable.putIfAbsent(mq, pq);
                     if (pre != null) {
                         // 不会进来这个分支！！！！
-
                         log.info("doRebalance, {}, mq already exists, {}", consumerGroup, mq);
                     } else {
-                        // 创建请求
+                        // 创建拉消息请求
                         // 拉消息服务依赖 PullRequest 对象进行拉消息的工作，新分配的队列要创建这样的对象，最终放入拉消息服务本地主要是队列
 
                         log.info("doRebalance, {}, add a new mq, {}", consumerGroup, mq);
@@ -544,7 +542,11 @@ public abstract class RebalanceImpl {
                         pullRequest.setNextOffset(nextOffset);
                         pullRequest.setMessageQueue(mq);
                         pullRequest.setProcessQueue(pq);
+
+                        // 加入队列
                         pullRequestList.add(pullRequest);
+
+                        // 有新队列分配过来
                         changed = true;
                     }
                 } else {
